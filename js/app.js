@@ -1,3 +1,5 @@
+window.addEventListener('error', (event) => { const el = document.getElementById('bootStatus'); if (el) el.textContent = `Runtime error: ${event.message}`; });
+window.addEventListener('unhandledrejection', (event) => { const el = document.getElementById('bootStatus'); if (el) el.textContent = `Promise error: ${event.reason?.message || event.reason}`; });
 import { DESIGNATIONS, MONTHS, SHIFT_CATEGORIES, SHIFT_DEFINITIONS, SUPERVISORS } from './constants.js';
 import { state, resetState } from './state.js';
 import { parseExcelRoster } from './parsers/excelParser.js';

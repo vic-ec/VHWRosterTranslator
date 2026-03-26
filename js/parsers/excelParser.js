@@ -26,7 +26,7 @@ function inferShiftType(comment, startTime, endTime, dayName) {
 
 function cleanTime(value) {
   if (!value) return '';
-  const text = String(value).trim().replace(/h/ig, ':').replace(/\./g, ':');
+  const text = String(value).trim().replace(/h/ig, ':').replace(/[.]/g, ':');
   const m = text.match(/(\d{1,2})[:](\d{2})/);
   if (!m) return '';
   return `${String(Number(m[1])).padStart(2, '0')}:${m[2]}`;
