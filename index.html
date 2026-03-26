@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roster Translator</title>
+  <meta name="description" content="Upload EC roster PDFs or Excel files, review shifts, and generate duty roster, Annexure C, and Z1(a) documents." />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <h1>Roster Translator</h1>
+        <p class="subtitle">Upload roster files, review shifts, and generate official documents.</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="resetAppBtn" class="btn btn-secondary" type="button">Clear all</button>
+      </div>
+    </header>
+
+    <div id="bootStatus" class="panel">Loading app…</div>
+    <main class="layout">
+      <section class="card">
+        <div class="card-header">
+          <div class="step-badge">1</div>
+          <div>
+            <h2>Upload shift roster(s)</h2>
+            <p class="muted">Upload one or more monthly roster PDFs or Excel files. Multiple months can be loaded at once.</p>
+          </div>
+        </div>
+
+        <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Upload roster files">
+          <input id="rosterFiles" type="file" accept=".pdf,.xlsx,.xls,.csv" multiple hidden />
+          <div class="drop-zone-inner">
+            <div class="drop-zone-title">PDF or Excel — click to browse or drag and drop</div>
+            <div id="fileStatus" class="drop-zone-status">Waiting for roster file…</div>
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button id="extractBtn" class="btn btn-primary" type="button">Extract data</button>
+          <button id="clearFilesBtn" class="btn btn-secondary" type="button">Clear files</button>
+        </div>
+
+        <div id="uploadedFilesPanel" class="panel hidden">
+          <h3>Loaded files</h3>
+          <ul id="uploadedFilesList" class="file-list"></ul>
+        </div>
+
+        <div id="parseMessages" class="message-stack"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div class="step-badge">2</div>
+          <div>
+            <h2>Preview & edit shifts</h2>
+            <p class="muted">Select a doctor, month, and year to review extracted shifts before export.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="doctorSelect">Detected staff</label>
+            <select id="doctorSelect"><option value="">No roster parsed yet</option></select>
+          </div>
+
+          <div class="field">
+            <label for="timesheetName">Name on timesheet</label>
+            <input id="timesheetName" type="text" placeholder="Use roster name or enter manually" />
+          </div>
+
+          <div class="field-inline">
+            <button id="clearDoctorBtn" class="btn btn-ghost" type="button">Clear selection</button>
+          </div>
+        </div>
+
+        <div class="grid grid-3">
+          <div class="field">
+            <label for="monthSelect">Month</label>
+            <select id="monthSelect"><option value="">— select —</option></select>
+          </div>
+
+          <div class="field">
+            <label for="yearSelect">Year</label>
+            <select id="yearSelect"><option value="">— select —</option></select>
+          </div>
+
+          <div class="field-inline">
+            <button id="previewBtn" class="btn btn-primary" type="button">Preview</button>
+          </div>
+        </div>
+
+        <div id="previewEmptyState" class="empty-state">Select a doctor and click Preview.</div>
+
+        <div id="previewPanel" class="hidden">
+          <div class="preview-toolbar">
+            <div>
+              <h3 id="previewTitle">Shift preview</h3>
+              <p id="previewSummary" class="muted"></p>
+            </div>
+            <div class="action-row compact">
+              <button id="addShiftBtn" class="btn btn-secondary" type="button">Add shift</button>
+              <button id="sortShiftsBtn" class="btn btn-secondary" type="button">Sort by date</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table class="shift-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Day</th>
+                  <th>Type</th>
+                  <th>From</th>
+                  <th>To</th>
+                  <th>Hours</th>
+                  <th>Category</th>
+                  <th>Comment</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="shiftTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <div class="step-badge">3</div>
+          <div>
+            <h2>Complete your details</h2>
+            <p class="muted">These fields populate the duty roster, Annexure C, and leave form.</p>
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="field">
+            <label for="firstName">First name</label>
+            <input id="firstName" type="text" />
+          </div>
+          <div class="field">
+            <label for="surname">Surname</label>
+            <input id="surname" type="text" />
+          </div>
+          <div class="field">
+            <label for="persalNumber">PERSAL number</label>
+            <input id="persalNumber" type="text" inputmode="numeric" />
+          </div>
+          <div class="field">
+            <label for="designationSelect">Designation</label>
+            <select id="designationSelect"></select>
+          </div>
+          <div class="field">
+            <label for="designationOther" class="optional-label">Other designation</label>
+            <input id="designationOther" type="text" class="hidden" />
+          </div>
+          <div class="field">
+            <label for="supervisorSelect">Supervisor name</label>
+            <select id="supervisorSelect"></select>
+          </div>
+          <div class="field">
+            <label for="supervisorOther" class="optional-label">Other supervisor</label>
+            <input id="supervisorOther" type="text" class="hidden" />
+          </div>
+          <div class="field">
+            <label for="signatureDate">Date of signature</label>
+            <input id="signatureDate" type="date" />
+          </div>
+        </div>
+
+        <div id="leaveDetailsCard" class="subcard hidden">
+          <h3>Leave form details</h3>
+          <div class="grid grid-3">
+            <div class="field">
+              <label for="shiftWorkerSelect">Shift worker?</label>
+              <select id="shiftWorkerSelect">
+                <option value="">— select —</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="casualEmployeeSelect">Casual employee?</label>
+              <select id="casualEmployeeSelect">
+                <option value="">— select —</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </div>
+            <div class="field field-span-3">
+              <label for="leaveAddress">Address during leave</label>
+              <textarea id="leaveAddress" rows="3"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div id="validationPanel" class="panel soft hidden"></div>
+
+        <div class="download-panel">
+          <button id="downloadDutyRosterBtn" class="btn btn-primary" type="button" disabled>Download duty roster Excel</button>
+          <button id="downloadAnnexureBtn" class="btn btn-primary" type="button" disabled>Download Annexure C (.docx)</button>
+          <button id="downloadLeaveBtn" class="btn btn-primary hidden" type="button" disabled>Download Z1(a) leave form (.docx)</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="shiftRowTemplate">
+    <tr>
+      <td><input data-field="date" type="date" /></td>
+      <td><input data-field="dayName" type="text" readonly /></td>
+      <td><select data-field="shiftType"></select></td>
+      <td><input data-field="startTime" type="time" /></td>
+      <td><input data-field="endTime" type="time" /></td>
+      <td><input data-field="hours" type="number" min="0" step="0.25" /></td>
+      <td><select data-field="category"></select></td>
+      <td><input data-field="comment" type="text" /></td>
+      <td>
+        <div class="row-actions">
+          <button data-action="duplicate" class="btn btn-small btn-secondary" type="button">Duplicate</button>
+          <button data-action="delete" class="btn btn-small btn-danger" type="button">Delete</button>
+        </div>
+      </td>
+    </tr>
+  </template>
+
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
