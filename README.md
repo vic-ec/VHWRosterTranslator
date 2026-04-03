@@ -1,5 +1,4 @@
 # EC Duty Roster Translator
-**Victoria Hospital, Wynberg — Emergency Centre**
 
 A browser-based tool that parses monthly shift roster PDFs and generates WCG-formatted duty roster timesheets, overtime verification forms, and leave application documents — entirely offline, no installation required.
 
