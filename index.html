@@ -3150,7 +3150,7 @@ function updateConsultantZoneVisibility() {
   const wrap = $('consultantZoneWrap');
   if (!wrap) return;
   const isConsultant = activeProfile && activeProfile.roster_type === 'consultant';
-  wrap.style.display = isConsultant ? '' : 'none';
+  wrap.style.display = isConsultant ? 'block' : 'none';
 }
 
 
@@ -3158,12 +3158,12 @@ function setConsultantFile(file) {
   state.consultantFile = file;
   state.consultantData = null; // reset parsed data when new file selected
   if (file) {
-    $('consultantBadge').style.display   = '';
+    $('consultantBadge').style.display   = 'block';
     $('consultantZone').style.display    = 'none';
     $('consultantFileName').textContent  = file.name;
   } else {
     $('consultantBadge').style.display   = 'none';
-    $('consultantZone').style.display    = '';
+    $('consultantZone').style.display    = 'block';
     state.consultantFile = null;
   }
 }
