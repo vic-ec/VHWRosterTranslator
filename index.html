@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EC Duty Roster Translator — Victoria Hospital</title>
+<title>EC Duty Roster Translator</title>
 <script src="js/pdf.min.js"></script>
 <script src="js/xlsx.full.min.js"></script>
 <script src="js/jszip.min.js"></script>
@@ -181,15 +181,67 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .row-undo { background:none; color:#a0a09a; display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border:none; border-radius:3px; cursor:pointer; font-size:13px; font-weight:700; line-height:1; padding:0; }
 .row-undo:hover { color:#e09a3a; background:rgba(224,154,58,0.1); }
 
+/* ── STEP 0 — EC SELECTOR ─────────────────────────────────── */
+#step0 { border: 2px solid var(--accent); }
+#step0 .card-num { background: var(--accent-mid); }
+.ec-select-wrap { display:flex; flex-direction:column; gap:12px; }
+.ec-select-row { display:flex; gap:10px; align-items:flex-end; }
+.ec-select-row select { flex:1; font-family:var(--sans); font-size:14px; padding:9px 10px; border:1px solid var(--border-strong); border-radius:var(--radius); background:var(--surface); color:var(--text); cursor:pointer; }
+.ec-select-row select:focus { outline:none; border-color:var(--accent-mid); }
+.ec-select-row select:disabled { opacity:0.5; cursor:default; }
+.ec-not-listed { font-size:12px; color:var(--text-faint); margin-top:4px; }
+.ec-not-listed a { color:var(--accent-mid); cursor:pointer; text-decoration:underline; }
+.ec-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:var(--success-light); border:1px solid var(--success); border-radius:var(--radius); font-size:12px; color:var(--success); font-weight:500; }
+.ec-badge .ec-change { font-weight:400; color:var(--accent-mid); cursor:pointer; text-decoration:underline; margin-left:6px; font-size:11px; }
+.ec-loading { color:var(--text-faint); font-size:12px; font-family:var(--mono); display:flex; align-items:center; gap:8px; }
+.ec-loading .spinner-dark { width:12px; height:12px; border:2px solid var(--border-strong); border-top-color:var(--accent); border-radius:50%; animation:spin 0.6s linear infinite; flex-shrink:0; }
+
 </style>
 </head>
 <body>
 <header>
-  <span class="logo">Victoria Hospital EC</span>
+  <span class="logo">WCG EC</span>
   <div class="divider"></div>
-  <h1>Duty Roster Translator</h1>
+  <h1 id="headerTitle">Duty Roster Translator</h1>
 </header>
 <div class="app">
+
+  <!-- STEP 0: EC SELECTOR -->
+  <div class="card" id="step0">
+    <div class="card-header">
+      <div class="card-num">&#9654;</div>
+      <div class="card-title">Select Your Emergency Centre</div>
+    </div>
+    <div class="card-body">
+      <div class="ec-select-wrap">
+        <div id="ecLoadingRow" class="ec-loading">
+          <div class="spinner-dark"></div>
+          <span>Loading available emergency centres&hellip;</span>
+        </div>
+        <div id="ecSelectedRow" style="display:none;">
+          <div class="ec-badge">
+            <span>&#10003;</span>
+            <span id="ecSelectedName"></span>
+            <span class="ec-change" id="ecChangeBtn">Change</span>
+          </div>
+        </div>
+        <div id="ecPickerRow" style="display:none;">
+          <div class="ec-select-row">
+            <select id="ecSelect">
+              <option value="">&#8212; select your EC &#8212;</option>
+            </select>
+            <button class="btn btn-primary" id="ecConfirmBtn" disabled>Continue</button>
+          </div>
+          <div class="ec-not-listed">Not listed? <a id="ecNotListedLink">Set up a new EC profile</a></div>
+        </div>
+        <div id="ecOfflineNote" style="display:none;" class="info-note">
+          <span class="icon">&#x26A0;</span>
+          <span>Could not reach the server. Using last saved profile. Connect to the internet to refresh EC profiles.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card" id="step1">
     <div class="card-header"><div class="card-num">1</div><div class="card-title">Upload Shift Roster(s)</div></div>
     <div class="card-body">
@@ -2627,6 +2679,152 @@ function readFile(file){
   });
 }
 $('yearInput').value=new Date().getFullYear();
+
+// ═══════════════════════════════════════════════════════════════
+// STEP 0 — EC PROFILE SYSTEM
+// ═══════════════════════════════════════════════════════════════
+
+const SUPA_URL  = 'https://dspemkdjifgpaswjwoij.supabase.co';
+const SUPA_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRzcGVta2RqaWZncGFzd2p3b2lqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MTA1OTAsImV4cCI6MjA5MTA4NjU5MH0.a5TB2QInaOJ_a1frtkjlC2GSv_d_IIaBE4QLKIt8TWw';
+const LS_PROFILE_KEY  = 'ec_roster_profile';
+const LS_PROFILES_KEY = 'ec_roster_profiles_list';
+
+// Active EC profile — made available globally for future parser use
+let activeProfile = null;
+
+async function fetchProfiles() {
+  const res = await fetch(
+    `${SUPA_URL}/rest/v1/ec_profiles?status=eq.approved&select=id,ec_name,ec_short,profile`,
+    { headers: { 'apikey': SUPA_ANON, 'Authorization': 'Bearer ' + SUPA_ANON } }
+  );
+  if (!res.ok) throw new Error('Fetch failed: ' + res.status);
+  return res.json();
+}
+
+function applyProfile(profile) {
+  activeProfile = profile;
+  // Update header
+  const ecShort = profile.ec_short || profile.ec_name;
+  $('headerTitle').textContent = `Duty Roster Translator — ${ecShort}`;
+  // Store in localStorage for offline use
+  localStorage.setItem(LS_PROFILE_KEY, JSON.stringify(profile));
+}
+
+function showEcSelected(name) {
+  $('ecLoadingRow').style.display  = 'none';
+  $('ecPickerRow').style.display   = 'none';
+  $('ecSelectedRow').style.display = '';
+  $('ecSelectedName').textContent  = name;
+}
+
+function showEcPicker(profiles) {
+  $('ecLoadingRow').style.display  = 'none';
+  $('ecSelectedRow').style.display = 'none';
+  $('ecPickerRow').style.display   = '';
+  const sel = $('ecSelect');
+  // Clear existing options except the placeholder
+  while (sel.options.length > 1) sel.remove(1);
+  profiles.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = p.ec_name;
+    opt.dataset.profile = JSON.stringify(p.profile);
+    opt.dataset.name = p.ec_name;
+    sel.appendChild(opt);
+  });
+}
+
+function showEcOffline(cachedProfile) {
+  $('ecOfflineNote').style.display = '';
+  if (cachedProfile) {
+    applyProfile(cachedProfile);
+    showEcSelected(cachedProfile.ec_name || 'Saved EC');
+  } else {
+    // No cache and no network — show picker with empty list and offline note
+    $('ecLoadingRow').style.display = 'none';
+    $('ecPickerRow').style.display  = '';
+  }
+}
+
+async function initEcSelector() {
+  const cached = localStorage.getItem(LS_PROFILE_KEY);
+  const cachedProfile = cached ? JSON.parse(cached) : null;
+
+  // Try fetching fresh profiles
+  let profiles = null;
+  try {
+    profiles = await fetchProfiles();
+    // Cache the list for next time
+    localStorage.setItem(LS_PROFILES_KEY, JSON.stringify(profiles));
+  } catch (e) {
+    console.warn('Could not fetch EC profiles:', e);
+  }
+
+  if (!profiles) {
+    // Offline — use cached profile if available
+    showEcOffline(cachedProfile);
+    return;
+  }
+
+  // Online — check if we have a saved selection that still exists
+  if (cachedProfile) {
+    const still = profiles.find(p => p.ec_name === cachedProfile.ec_name);
+    if (still) {
+      // Silently re-apply with fresh data in case profile changed
+      const freshProfile = { ...still.profile, ec_name: still.ec_name, ec_short: still.ec_short };
+      applyProfile(freshProfile);
+      showEcSelected(still.ec_name);
+      return;
+    }
+  }
+
+  // No saved selection — show picker
+  showEcPicker(profiles);
+}
+
+// Wire up EC selector events
+document.addEventListener('DOMContentLoaded', () => {
+
+  // Confirm button
+  $('ecConfirmBtn').addEventListener('click', () => {
+    const sel = $('ecSelect');
+    const opt = sel.options[sel.selectedIndex];
+    if (!opt || !opt.dataset.profile) return;
+    const profile = JSON.parse(opt.dataset.profile);
+    const fullProfile = { ...profile, ec_name: opt.dataset.name, ec_short: profile.ec_short || opt.dataset.name };
+    applyProfile(fullProfile);
+    showEcSelected(opt.dataset.name);
+  });
+
+  // Enable confirm button only when an EC is selected
+  $('ecSelect').addEventListener('change', () => {
+    $('ecConfirmBtn').disabled = !$('ecSelect').value;
+  });
+
+  // Change link — go back to picker
+  $('ecChangeBtn').addEventListener('click', async () => {
+    $('ecSelectedRow').style.display = 'none';
+    $('ecLoadingRow').style.display  = '';
+    let profiles = null;
+    try {
+      profiles = await fetchProfiles();
+      localStorage.setItem(LS_PROFILES_KEY, JSON.stringify(profiles));
+    } catch(e) {
+      const cached = localStorage.getItem(LS_PROFILES_KEY);
+      profiles = cached ? JSON.parse(cached) : [];
+    }
+    showEcPicker(profiles);
+  });
+
+  // "Not listed" link — placeholder for future column mapper
+  $('ecNotListedLink').addEventListener('click', () => {
+    alert('EC profile setup wizard coming soon.\n\nFor now, contact your administrator to add your EC.');
+  });
+
+  // Run initialisation
+  initEcSelector();
+});
+
 </script>
 </body>
 </html>
