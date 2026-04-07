@@ -2482,10 +2482,10 @@ $('clearBtn').addEventListener('click',()=>{
 });
 
 $('parseBtn').addEventListener('click',async()=>{
-  if(!state.pendingFiles.length) return;
+  if(!state.pendingFiles.length && !state.consultantFile) return;
   const btn=$('parseBtn');btn.disabled=true;
   btn.innerHTML='<span class="spinner"></span> Extracting\u2026';
-  setStatus('Extracting from '+state.pendingFiles.length+' file(s)\u2026','info');
+  const totalSrc=state.pendingFiles.length+(state.consultantFile?1:0);  setStatus('Extracting from '+totalSrc+' file(s)\u2026','info');
   let errors=0;
   for(const file of [...state.pendingFiles]){
     try{
@@ -2504,7 +2504,7 @@ $('parseBtn').addEventListener('click',async()=>{
       state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);
     }catch(err){console.error('Parse error',file.name,err);errors++;state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);}
   }
-  mergeAndRefresh();renderFileList();
+  if(state.parsedFiles.length) { mergeAndRefresh();renderFileList(); }
   // Parse consultant roster if one is queued
   if(state.consultantFile){
     try{
@@ -3161,10 +3161,18 @@ function setConsultantFile(file) {
     $('consultantBadge').style.display   = 'block';
     $('consultantZone').style.display    = 'none';
     $('consultantFileName').textContent  = file.name;
+    // Enable Extract Data even if no shift roster is loaded
+    $('parseBtn').disabled = false;
+    $('clearBtn').style.display = '';
   } else {
     $('consultantBadge').style.display   = 'none';
     $('consultantZone').style.display    = 'block';
     state.consultantFile = null;
+    // Re-check: only keep button enabled if shift roster files still present
+    if (!state.pendingFiles.length) {
+      $('parseBtn').disabled = true;
+      $('clearBtn').style.display = 'none';
+    }
   }
 }
 
