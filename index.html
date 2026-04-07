@@ -3081,8 +3081,8 @@ async function initEcSelector() {
   if (cachedProfile) {
     const still = profiles.find(p => p.ec_name === cachedProfile.ec_name);
     if (still) {
-      // Silently re-apply with fresh data in case profile changed
-      const freshProfile = { ...still.profile, ec_name: still.ec_name, ec_short: still.ec_short };
+      // Always use fresh data from Supabase (never trust cached profile fields)
+      const freshProfile = { ...still.profile, ec_name: still.ec_name, ec_short: still.ec_short || still.profile?.ec_short };
       applyProfile(freshProfile);
       showEcSelected(still.ec_name);
       return;
@@ -3102,7 +3102,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const opt = sel.options[sel.selectedIndex];
     if (!opt || !opt.dataset.profile) return;
     const profile = JSON.parse(opt.dataset.profile);
-    const fullProfile = { ...profile, ec_name: opt.dataset.name, ec_short: profile.ec_short || opt.dataset.name };
+    const fullProfile = { ...profile, ec_name: opt.dataset.name, ec_short: profile.ec_short || opt.dataset.name, roster_type: profile.roster_type };
     applyProfile(fullProfile);
     showEcSelected(opt.dataset.name);
   });
