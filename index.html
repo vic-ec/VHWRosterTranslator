@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260408-1148 -->
+<!-- v20260408-1213 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2737,6 +2737,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
   const phFootnotes=[];
   state.phLetterMap={};
   const letters='abcdefghijklmnopqrstuvwxyz';
+  const isConsultantMode2 = activeProfile && activeProfile.roster_type === 'consultant' && state.consultantData;
   const cColspan=isConsultantMode2?7:5;
   for(let d=1;d<=daysInMonth;d++){
     const dateObj2=new Date(targetYear,targetMonth,d);
@@ -2748,7 +2749,6 @@ function buildPreview(doctorName,targetMonth,targetYear){
       phFootnotes.push({letter,name:ph2});
     }
   }
-  const isConsultantMode2 = activeProfile && activeProfile.roster_type === 'consultant' && state.consultantData;
   const activeTypes = isConsultantMode2 ? CONSULTANT_ACTIVITY_TYPES : ACTIVITY_TYPES;
   const typeOpts=activeTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   let html=`
@@ -2759,7 +2759,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
   ${isConsultantMode2
     ? '<thead><tr><th style="width:36px">Date</th><th style="width:70px">Day</th><th style="width:150px">Type</th><th style="width:60px">Norm From</th><th style="width:60px">Norm To</th><th style="width:60px">OT1 From</th><th style="width:60px">OT1 To</th><th style="width:60px">OT2 From</th><th style="width:60px">OT2 To</th><th style="width:46px;text-align:center">Act</th></tr></thead>'
     : '<thead><tr><th style="width:36px">Date</th><th style="width:70px">Day</th><th style="width:140px">Type</th><th style="width:70px">Normal From</th><th style="width:70px">Normal To</th><th style="width:70px">OT From</th><th style="width:70px">OT To</th><th style="width:76px;text-align:center">Actions</th></tr></thead>'
-  }<tbody>\`;
+  }<tbody>`;
 
   for(let d=1;d<=daysInMonth;d++){
     const dateObj=new Date(targetYear,targetMonth,d);
@@ -2789,12 +2789,12 @@ function buildPreview(doctorName,targetMonth,targetYear){
         html+=`<tr data-day="${d}" class="${rowClass}">
           ${dateCell}${dayCell}
           <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isSpecial,selectedType)}</select></td>
-          <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es.nf||''}"   placeholder="—" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es.nt||''}"   placeholder="—" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es.ot1f||''}" placeholder="—" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es.ot1t||''}" placeholder="—" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es.ot2f||''}" placeholder="—" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es.ot2t||''}" placeholder="—" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es.nf||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es.nt||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
           <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button></td>
         </tr>`;
       } else {
@@ -2803,8 +2803,8 @@ function buildPreview(doctorName,targetMonth,targetYear){
           <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isSpecial,selectedType)}</select></td>
           <td><input class="time-edit" data-day="${d}" data-field="nf" value="${es.nf||''}" maxlength="5" inputmode="numeric"></td>
           <td><input class="time-edit" data-day="${d}" data-field="nt" value="${es.nt||''}" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="of" value="${es.of||''}" placeholder="—" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot" value="${es.ot||''}" placeholder="—" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="of" value="${es.of||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot" value="${es.ot||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
           <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button></td>
         </tr>`;
       }
