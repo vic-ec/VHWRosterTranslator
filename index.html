@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260409-0637 -->
+<!-- v20260409-0923 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -153,6 +153,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .type-select { font-family:var(--sans); font-size:11px; width:100%; padding:3px 4px; border:1px solid var(--border-strong); border-radius:3px; background:var(--surface); color:var(--text); cursor:pointer; }
 .type-select:focus { outline:none; border-color:var(--accent-mid); }
 .time-edit { font-family:var(--mono); font-size:11px; width:100%; padding:3px 4px; border:1px solid var(--border-strong); border-radius:3px; text-align:center; background:var(--surface); color:var(--accent-mid); font-weight:500; box-sizing:border-box; }
+.type-select { font-family:var(--mono); font-size:11px; width:100%; padding:2px 3px; border:1px solid var(--border-strong); border-radius:3px; text-align:left; background:var(--surface); color:var(--text); box-sizing:border-box; }
 .time-edit:focus { outline:none; border-color:var(--accent-mid); background:var(--accent-light); }
 .time-edit::placeholder { color:var(--text-faint); font-weight:400; }
 .action-cell { text-align:center; white-space:nowrap; }
@@ -1174,7 +1175,7 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
     const onLeave = day.leaveNames.some(nameMatches);
 
     if (onLeave) {
-      result[day.date] = { nf:'', nt:'', of:'', ot:'', typeLabel:'Annual Leave' };
+      result[day.date] = { nf:'', nt:'', of:'', ot:'', typeLabel:'Leave - Annual' };
       continue;
     }
 
@@ -2169,10 +2170,10 @@ async function generateExcel(monthIdx, year, details) {
         const weB  = `<xf numFmtId="0" fontId="6" fillId="3" borderId="16" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="bottom"/></xf>`;
         // s34: WE inner cells (C) — normal, BLUE fill, thin-all border
         const weC  = `<xf numFmtId="0" fontId="7" fillId="3" borderId="17" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="bottom"/></xf>`;
-        // s35: WD leave wrap — WHITE fill, thin-all, wrapText + centre
-        const wdLv = `<xf numFmtId="0" fontId="7" fillId="4" borderId="17" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="bottom" wrapText="1"/></xf>`;
-        // s36: WE leave wrap — BLUE fill, thin-all, wrapText + centre
-        const weLv = `<xf numFmtId="0" fontId="7" fillId="3" borderId="17" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="bottom" wrapText="1"/></xf>`;
+        // s35: WD leave — WHITE fill, thin-all, LEFT-aligned, no wrap
+        const wdLv = `<xf numFmtId="0" fontId="7" fillId="4" borderId="17" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="bottom"/></xf>`;
+        // s36: WE leave — BLUE fill, thin-all, LEFT-aligned, no wrap
+        const weLv = `<xf numFmtId="0" fontId="7" fillId="3" borderId="17" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="bottom"/></xf>`;
         sxml = sxml.replace('</cellXfs>', `${wdA}${weB}${weC}${wdLv}${weLv}<!-- PATCHED_STYLES --></cellXfs>`);
       }
       zip.file('xl/styles.xml', sxml);
@@ -2291,8 +2292,10 @@ async function generateExcel(monthIdx, year, details) {
         'Course':'Course','Conference':'Conference / Symposium',
       };
       const leaveDisplayLabel = LEAVE_LABEL_MAP[es.typeLabel] || es.typeLabel;
-      // Write label left-aligned in C only — no wrap, no C:D merge
-      xml = patchCellKeepStyle(xml, 'C'+row, leaveDisplayLabel);
+      // Write label left-aligned in C only — style s35 (WD) or s36 (WE), both left-aligned
+      const leaveStyleIdx = isSpecial ? '36' : '35';
+      xml = replaceCell(xml, 'C'+row,
+        '<c r="C'+row+'" s="'+leaveStyleIdx+'" t="inlineStr"><is><t>'+escXml(leaveDisplayLabel)+'</t></is></c>');
     }
   }
 
