@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260408-1245 -->
+<!-- v20260409-0623 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -2246,8 +2246,30 @@ async function generateExcel(monthIdx, year, details) {
     const phName = phMap ? phMap.get(dk) : null;
     const isSpecial = isWE || !!phName;
     const isShift = es.typeLabel && (es.typeLabel.startsWith('WD Shift') || es.typeLabel.startsWith('WE Shift'));
+    const isConsultantType = es.typeLabel && (
+      es.typeLabel.startsWith('Consultant Day') || es.typeLabel.startsWith('Consultant Call')
+    );
 
-    if(isShift) {
+    if(isConsultantType) {
+      // Consultant mode: 6 time columns
+      // C = Normal From, D = Normal To
+      // E = 1st On Call From (ot1f), F = 1st On Call To (ot1t)
+      // G = 2nd On Call From (ot2f), H = 2nd On Call To (ot2t)
+      // Use stored times; fall back to CONSULTANT_SHIFT_TIMES defaults
+      const cTimes = CONSULTANT_SHIFT_TIMES[es.typeLabel] || {};
+      const nf  = es.nf  !== undefined ? es.nf  : (cTimes.nf  || '');
+      const nt  = es.nt  !== undefined ? es.nt  : (cTimes.nt  || '');
+      const ot1f = es.ot1f !== undefined ? es.ot1f : (cTimes.ot1f || '');
+      const ot1t = es.ot1t !== undefined ? es.ot1t : (cTimes.ot1t || '');
+      const ot2f = es.ot2f !== undefined ? es.ot2f : (cTimes.ot2f || '');
+      const ot2t = es.ot2t !== undefined ? es.ot2t : (cTimes.ot2t || '');
+      if(nf)   xml = patchCellKeepStyle(xml, `C${row}`, nf);
+      if(nt)   xml = patchCellKeepStyle(xml, `D${row}`, nt);
+      if(ot1f) xml = patchCellKeepStyle(xml, `E${row}`, ot1f);
+      if(ot1t) xml = patchCellKeepStyle(xml, `F${row}`, ot1t);
+      if(ot2f) xml = patchCellKeepStyle(xml, `G${row}`, ot2f);
+      if(ot2t) xml = patchCellKeepStyle(xml, `H${row}`, ot2t);
+    } else if(isShift) {
       const hasNormalTimes = es.nf && es.nf !== '00H00' && es.nt && es.nt !== '00H00';
       const hasOTTimes = es.of && es.of !== '00H00' && es.ot && es.ot !== '00H00';
       if(hasNormalTimes) {
