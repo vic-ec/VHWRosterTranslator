@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260409-1147 -->
+<!-- v20260409-1210 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -89,7 +89,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .btn-primary:hover:not(:disabled) { background: #243d30; }
 .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
 .btn-secondary:hover:not(:disabled) { background: var(--bg); }
-.btn-clear { background: none; color: var(--text-faint); border: 1px solid var(--border-strong); }
+.btn-clear { background: none; color: var(--text-faint); border: 1px solid var(--border-strong); box-sizing:border-box; }
 .btn-clear:hover:not(:disabled) { color: var(--warn); border-color: var(--warn); background: var(--warn-light); }
 .btn-success { background: var(--accent); color: #fff; }
 .downloads-row .btn { justify-content:center; width:100%; max-width:340px; box-sizing:border-box; }
@@ -134,7 +134,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .upload-label { font-size: 12px !important; font-weight: 600; letter-spacing: 0 !important; text-transform: none !important; }
 .upload-hint { font-size: 11px !important; }
 .roster-list { display:flex; flex-direction:column; gap:8px; margin-top:12px; }
-.roster-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--accent-light); border:1px solid #b8d4c0; border-radius:var(--radius); font-family:var(--mono); font-size:11px; color:var(--accent); }
+.roster-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--accent-light); border:1px solid #b8d4c0; border-radius:var(--radius); font-family:var(--mono); font-size:11px; color:var(--accent-mid); }
 .roster-item .ri-name { flex:1; font-weight:500; }
 .roster-item .ri-days { color:var(--accent-mid); margin:0 12px; }
 .roster-item .ri-remove { background:none; border:none; cursor:pointer; color:var(--text-faint); font-size:16px; line-height:1; padding:0 4px; }
@@ -207,7 +207,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 #step0 { border: 2px solid var(--accent); }
 #step0 .card-num { background: var(--accent-mid); }
 .ec-select-wrap { display:flex; flex-direction:column; gap:12px; }
-.ec-select-row { display:flex; gap:10px; align-items:flex-end; }
+.ec-select-row { display:flex; gap:10px; align-items:stretch; }
 .ec-select-row select { flex:1; font-family:var(--sans); font-size:14px; padding:9px 10px; border:1px solid var(--border-strong); border-radius:var(--radius); background:var(--surface); color:var(--text); cursor:pointer; }
 .ec-select-row select:focus { outline:none; border-color:var(--accent-mid); }
 .ec-select-row select:disabled { opacity:0.5; cursor:default; }
@@ -267,7 +267,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
   <div class="card" id="step1">
     <div class="card-header"><div class="card-num">1</div><div class="card-title">Upload Roster Files</div></div>
     <div class="card-body">
-      <div class="info-note" style="margin-bottom:16px;"><span class="icon">&#x2139;</span>
+      <div class="info-note" style="margin-bottom:16px;"><span class="icon" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--success);font-size:10px;font-weight:700;line-height:1;flex-shrink:0;margin-top:1px;">i</span>
         <span>Upload one or more monthly roster files. Multiple months can be loaded at once.</span></div>
 
       <!-- Side-by-side upload zones -->
@@ -288,7 +288,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 
         <!-- Consultant roster zone (shown when profile is consultant type) -->
         <div class="upload-zone-col" id="consultantZoneWrap">
-          <div class="upload-zone-label">EC Consultant On-Call Roster(s) <span style="font-weight:400;color:var(--text-faint)">(optional)</span></div>
+          <div class="upload-zone-label">EC Consultant On-Call Roster(s)</div>
           <label class="upload-zone upload-zone-consultant" id="consultantZone">
             <input type="file" id="consultantFile" accept=".pdf" multiple
                    style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:1;">
@@ -306,10 +306,10 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
         <div style="display:flex;justify-content:center;">
           <button class="btn btn-primary" id="parseBtn" disabled style="width:75%;min-width:180px;max-width:600px;justify-content:center;">Extract Data</button>
         </div>
+        <span id="parseStatus" style="font-family:var(--mono);font-size:11px;color:var(--text-muted);display:none;width:100%;text-align:center;"></span>
         <div style="display:flex;justify-content:flex-end;">
           <button class="btn btn-clear" id="clearBtn" style="display:none;">&#xD7; Clear All</button>
         </div>
-        <span id="parseStatus" style="font-family:var(--mono);font-size:11px;color:var(--text-muted);display:none;width:100%;text-align:center;"></span>
       </div>
     </div>
   </div>
@@ -3331,6 +3331,7 @@ function renderConsultantList() {
   list.innerHTML = files.map(f => `
     <div class="roster-item" style="border-color:#5b9bd5;background:#e8f2fc;color:#2a5a8a;">
       <span class="ri-name">&#128196; ${f.name}</span>
+      <span class="ri-days" style="color:#5b9bd5;opacity:0.75;">queued</span>
       <button class="ri-remove" data-name="${f.name}" style="color:#5b9bd5;">&times;</button>
     </div>`).join('');
   list.querySelectorAll('.ri-remove').forEach(btn =>
