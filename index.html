@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260409-0923 -->
+<!-- v20260409-1147 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -89,6 +89,8 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .btn-primary:hover:not(:disabled) { background: #243d30; }
 .btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong); }
 .btn-secondary:hover:not(:disabled) { background: var(--bg); }
+.btn-clear { background: none; color: var(--text-faint); border: 1px solid var(--border-strong); }
+.btn-clear:hover:not(:disabled) { color: var(--warn); border-color: var(--warn); background: var(--warn-light); }
 .btn-success { background: var(--accent); color: #fff; }
 .downloads-row .btn { justify-content:center; width:100%; max-width:340px; box-sizing:border-box; }
 .btn-success:hover:not(:disabled) { background: var(--accent-mid); }
@@ -119,7 +121,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .sep { height: 1px; background: var(--border); margin: 4px 0; }
 .actions-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .empty { padding: 20px; text-align: center; color: var(--text-faint); font-size: 12px; font-family: var(--mono); }
-.info-note { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; background: var(--accent-light); border: 1px solid #b8d4c0; border-radius: var(--radius); font-size: 12px; color: var(--accent); line-height: 1.5; }
+.info-note { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; font-size: 12px; color: var(--success); line-height: 1.5; }
 .info-note .icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
 
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -177,6 +179,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 @media(max-width:560px){ .details-grid{grid-template-columns:1fr;} .step2-controls{flex-wrap:wrap;} }
 .req-star { color:var(--warn); margin-left:2px; }
 .downloads-row { display:flex; flex-direction:column; align-items:center; gap:8px; margin-top:4px; }
+.downloads-row .btn, .downloads-row .btn-outline { width:75%; max-width:none; justify-content:center; }
 .btn-outline { background:var(--accent); border:none; color:#fff; border-radius:var(--radius); padding:9px 18px; font-family:var(--sans); font-size:13px; font-weight:500; cursor:pointer; transition:background 0.15s; white-space:nowrap; display:inline-flex; align-items:center; justify-content:center; gap:7px; width:100%; max-width:340px; box-sizing:border-box; }
 .btn-outline:hover { background:var(--accent-mid); color:#fff; }
 .btn-outline:disabled { opacity:0.5; cursor:default; }
@@ -184,15 +187,9 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .row-undo:hover { color:#e09a3a; background:rgba(224,154,58,0.1); }
 
 /* ── UPLOAD ZONES SIDE-BY-SIDE ────────────────────────────── */
-.upload-zones-row { display:flex; gap:16px; align-items:flex-start; margin-top:16px; }
-.upload-zone-col { flex:1; min-width:0; display:flex; flex-direction:column; gap:0; padding-top:0; }
+.upload-zones-row { display:flex; flex-direction:column; gap:12px; margin-top:16px; }
+.upload-zone-col { width:100%; display:flex; flex-direction:column; gap:0; padding-top:0; }
 .upload-zone-label { font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px; display:block; padding-top:2px; }
-/* Mobile: stack vertically, full width */
-@media(max-width:640px){
-  .upload-zones-row { flex-direction:column; }
-  .upload-zone-col { width:100%; }
-  #consultantZoneWrap.upload-zone-col { width:100% !important; }
-}
 
 /* ── UPLOAD ZONE COLOURS ──────────────────────────────────── */
 /* Shift roster: light green */
@@ -204,7 +201,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .upload-zone-consultant .upload-icon { filter: hue-rotate(180deg); }
 .upload-zone-consultant .upload-label { color: #2a5a8a; }
 .upload-zone-consultant .upload-hint  { color: #5b9bd5; }
-#consultantZoneWrap { display:none; flex:1; min-width:0; }
+#consultantZoneWrap { display:none; }
 
 /* ── STEP 0 — EC SELECTOR ─────────────────────────────────── */
 #step0 { border: 2px solid var(--accent); }
@@ -291,7 +288,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 
         <!-- Consultant roster zone (shown when profile is consultant type) -->
         <div class="upload-zone-col" id="consultantZoneWrap">
-          <div class="upload-zone-label" style="margin-top:20px;">EC Consultant On-Call Roster(s) <span style="font-weight:400;color:var(--text-faint)">(optional)</span></div>
+          <div class="upload-zone-label">EC Consultant On-Call Roster(s) <span style="font-weight:400;color:var(--text-faint)">(optional)</span></div>
           <label class="upload-zone upload-zone-consultant" id="consultantZone">
             <input type="file" id="consultantFile" accept=".pdf" multiple
                    style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:1;">
@@ -305,9 +302,13 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
       </div>
 
       <!-- Actions + inline status below both zones -->
-      <div style="margin-top:16px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;">
-        <button class="btn btn-primary" id="parseBtn" disabled style="width:50%;min-width:180px;max-width:400px;">Extract Data</button>
-        <button class="btn btn-secondary" id="clearBtn" style="display:none;">Clear All</button>
+      <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
+        <div style="display:flex;justify-content:center;">
+          <button class="btn btn-primary" id="parseBtn" disabled style="width:75%;min-width:180px;max-width:600px;justify-content:center;">Extract Data</button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+          <button class="btn btn-clear" id="clearBtn" style="display:none;">&#xD7; Clear All</button>
+        </div>
         <span id="parseStatus" style="font-family:var(--mono);font-size:11px;color:var(--text-muted);display:none;width:100%;text-align:center;"></span>
       </div>
     </div>
