@@ -6,7 +6,7 @@ A browser-based tool that parses monthly shift rosters and generates WCG-formatt
 
 ## What it does
 
-1. **Upload & Extract** one or more monthly roster PDFs
+1. **Upload and extract** one or more monthly roster PDFs
 2. **Select** a doctor, month, and year
 3. **Preview and edit** the parsed shift data in an interactive table
 4. **Download** the completed documents:
