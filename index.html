@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260411-0725 -->
+<!-- v20260411-0804 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -109,7 +109,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 
 /* PREVIEW TABLE */
 .preview-wrapper { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
-.preview-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+.preview-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--sans); }
 .preview-table th { background: var(--accent); color: rgba(255,255,255,0.85); padding: 6px 10px; text-align: left; font-weight: 500; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
 .preview-table td { padding: 5px 10px; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--text-muted); }
 .preview-table tr:last-child td { border-bottom: none; }
@@ -147,7 +147,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .step2-controls .btn-preview { width:100%; height:37px; }
 .clear-doctor-btn { display:none; margin-left:10px; font-family:var(--sans); font-size:11px; font-weight:400; padding:4px 8px; background:none; border:none; border-radius:var(--radius); cursor:pointer; color:var(--text-faint); white-space:nowrap; box-sizing:border-box; }
 .clear-doctor-btn:hover { color:var(--warn); background:none; }
-.preview-table { table-layout: fixed; width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+.preview-table { table-layout: fixed; width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--sans); }
 .preview-table th { background: var(--accent); color: rgba(255,255,255,0.85); padding: 6px 8px; text-align: left; font-weight: 500; font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
 .preview-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); white-space: nowrap; color: var(--text-muted); overflow: hidden; }
 .preview-table tr:last-child td { border-bottom: none; }
@@ -155,7 +155,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 .type-select { font-family:var(--sans); font-size:11px; width:100%; padding:3px 4px; border:1px solid var(--border-strong); border-radius:3px; background:var(--surface); color:var(--text); cursor:pointer; }
 .type-select:focus { outline:none; border-color:var(--accent-mid); }
 .time-edit { font-family:var(--mono); font-size:11px; width:100%; padding:3px 4px; border:1px solid var(--border-strong); border-radius:3px; text-align:center; background:var(--surface); color:var(--accent-mid); font-weight:500; box-sizing:border-box; }
-.type-select { font-family:var(--mono); font-size:11px; width:100%; padding:2px 3px; border:1px solid var(--border-strong); border-radius:3px; text-align:left; background:var(--surface); color:var(--text); box-sizing:border-box; }
+.type-select { font-family:var(--sans); font-size:12px; width:100%; padding:2px 3px; border:1px solid var(--border-strong); border-radius:3px; text-align:left; background:var(--surface); color:var(--text); box-sizing:border-box; }
 .time-edit:focus { outline:none; border-color:var(--accent-mid); background:var(--accent-light); }
 .time-edit::placeholder { color:var(--text-faint); font-weight:400; }
 .action-cell { text-align:center; white-space:nowrap; }
@@ -293,7 +293,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
     <div class="card-header"><div class="card-num">1</div><div class="card-title">Upload Roster Files</div></div>
     <div class="card-body">
       <div class="info-note" style="margin-bottom:16px;"><span class="icon" style="display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--success);font-size:10px;font-weight:700;line-height:1;flex-shrink:0;margin-top:1px;">i</span>
-        <span>Upload one or more monthly roster files. Multiple months can be loaded at once.</span></div>
+        <span>Upload one or more monthly roster files (max 5 files, one month per file).</span></div>
 
       <!-- Side-by-side upload zones -->
       <div class="upload-zones-row">
@@ -1357,7 +1357,7 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
         nt: '',
         of: t(rule.ot1 ? rule.ot1[0] : (rule.ot2 ? rule.ot2[0] : '')),
         ot: t(rule.ot2 ? rule.ot2[1] : (rule.ot1 ? rule.ot1[1] : '')),
-        typeLabel: isPH ? 'Consultant Call - Public Holiday' : 'Consultant Call - Weekend',
+        typeLabel: isPH ? 'Cons. Call - Public Holiday' : 'Cons. Call - Weekend',
         ot1f: t(rule.ot1 ? rule.ot1[0] : ''),
         ot1t: t(rule.ot1 ? rule.ot1[1] : ''),
         ot2f: t(rule.ot2 ? rule.ot2[0] : ''),
@@ -1374,8 +1374,8 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
       const of_ = rule.ot2 ? t(rule.ot2[0]) : t(rule.ot1 ? rule.ot1[0] : '');
       const ot_ = rule.ot2 ? t(rule.ot2[1]) : t(rule.ot1 ? rule.ot1[1] : '');
       const label = inCall
-        ? 'Consultant Call - Weekday'
-        : (nf ? `Consultant Day - ${nf}` : 'Consultant Day - 07H30');
+        ? 'Cons. Call - Weekday'
+        : (nf ? `Consultant Day - ${nf}` : 'Cons. Normal Hours - Weekday');
       result[day.date] = {
         nf, nt, of: of_, ot: ot_, typeLabel: label,
         // Keep OT1 for Excel generator
@@ -2463,10 +2463,10 @@ const ACTIVITY_TYPES=[
 
 // Consultant-mode activity types (replaces shift types when consultant roster active)
 const CONSULTANT_ACTIVITY_TYPES=[
-  'Consultant Day - 07H30',
-  'Consultant Call - Weekday',
-  'Consultant Call - Weekend',
-  'Consultant Call - Public Holiday',
+  'Cons. Normal Hours - Weekday',
+  'Cons. Call - Weekday',
+  'Cons. Call - Weekend',
+  'Cons. Call - Public Holiday',
   'Leave - Annual','Leave - Sick','Leave - Family Responsibility',
   'Leave - Study','Leave - Special','Leave - Prenatal','Leave - Maternity',
   'Leave - Paternity','Workshop','Course','Conference'
@@ -2474,10 +2474,10 @@ const CONSULTANT_ACTIVITY_TYPES=[
 
 // Consultant shift type → auto-fill times (6 fields: nf,nt,ot1f,ot1t,ot2f,ot2t)
 const CONSULTANT_SHIFT_TIMES = {
-  'Consultant Day - 07H30':         {nf:'07H30',nt:'15H30',ot1f:'15H30',ot1t:'16H30',ot2f:'',    ot2t:''},
-  'Consultant Call - Weekday':      {nf:'07H30',nt:'15H30',ot1f:'15H30',ot1t:'16H30',ot2f:'16H30',ot2t:'07H30'},
-  'Consultant Call - Weekend':      {nf:'',     nt:'',     ot1f:'07H30',ot1t:'11H30',ot2f:'11H30',ot2t:'07H30'},
-  'Consultant Call - Public Holiday':{nf:'',    nt:'',     ot1f:'07H30',ot1t:'11H30',ot2f:'11H30',ot2t:'07H30'},
+  'Cons. Normal Hours - Weekday':         {nf:'07H30',nt:'15H30',ot1f:'15H30',ot1t:'16H30',ot2f:'',    ot2t:''},
+  'Cons. Call - Weekday':      {nf:'07H30',nt:'15H30',ot1f:'15H30',ot1t:'16H30',ot2f:'16H30',ot2t:'07H30'},
+  'Cons. Call - Weekend':      {nf:'',     nt:'',     ot1f:'07H30',ot1t:'11H30',ot2f:'11H30',ot2t:'07H30'},
+  'Cons. Call - Public Holiday':{nf:'',    nt:'',     ot1f:'07H30',ot1t:'11H30',ot2f:'11H30',ot2t:'07H30'},
 };
 
 // Shift type → auto-fill times
@@ -2499,9 +2499,9 @@ function typeOptsFor(isSpecial, selectedType) {
   if (isConsultantMode) {
     // Consultant mode: show consultant types; filter weekend/PH types for special days
     filtered = CONSULTANT_ACTIVITY_TYPES.filter(t => {
-      if (t === 'Consultant Day - 07H30') return !isSpecial;
-      if (t === 'Consultant Call - Weekend') return isSpecial;
-      if (t === 'Consultant Call - Public Holiday') return isSpecial;
+      if (t === 'Cons. Normal Hours - Weekday') return !isSpecial;
+      if (t === 'Cons. Call - Weekend') return isSpecial;
+      if (t === 'Cons. Call - Public Holiday') return isSpecial;
       return true;
     });
   } else {
@@ -2742,6 +2742,7 @@ $('clearBtn').addEventListener('click',()=>{
   rosterList.style.display='none';setStatus('');
   $('doctorGrid').innerHTML='<div class="empty">No roster parsed yet</div>';
   $('previewArea').innerHTML='<div class="empty">Select a doctor and click Preview</div>';
+  $('employeeName').value='';
   $('detailsSection').style.display='none';
   const sel=$('monthSelect');while(sel.options.length>1) sel.remove(1);
   const mn=['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -2948,7 +2949,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
   const activeTypes = isConsultantMode2 ? CONSULTANT_ACTIVITY_TYPES : ACTIVITY_TYPES;
   const typeOpts=activeTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   let html=`
-  <div style="margin-bottom:8px;font-family:var(--mono);font-size:11px;color:var(--text-muted);">
+  <div style="margin-bottom:8px;font-family:var(--sans);font-size:12px;color:var(--text-muted);">
     Edit time fields or change activity type — changes save automatically. Click <strong>+</strong> to add an activity.
   </div>
   <div class="preview-wrapper"><table class="preview-table">
@@ -2965,7 +2966,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
     const es=state.editedShifts[d];
     const isSpecial=isWE||!!phName;
     const defaultType = isConsultantMode2
-      ? (isSpecial ? 'Consultant Call - Weekend' : 'Consultant Day - 07H30')
+      ? (isSpecial ? 'Cons. Call - Weekend' : 'Cons. Normal Hours - Weekday')
       : (isSpecial ? 'WE Shift - 08H00' : 'WD Shift - 08H00');
     const selectedType=es?.typeLabel||defaultType;
     // PH styling: date cell shows "21*" in dark red, day cell also dark red
@@ -3035,22 +3036,36 @@ function buildPreview(doctorName,targetMonth,targetYear){
 
 function makeRowInner(d,isWE,phName,dayName,es){
   const isSpecial=isWE||!!phName;
-  const selectedType=es?.typeLabel||(isSpecial?'WE Shift - 08H00':'WD Shift - 08H00');
+  const isConsMode=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
+  const selectedType=es?.typeLabel||(isConsMode?(isSpecial?'Cons. Call - Weekend':'Cons. Normal Hours - Weekday'):(isSpecial?'WE Shift - 08H00':'WD Shift - 08H00'));
   const phStyle=phName?'color:#8B1A1A;font-weight:600;':'';
   const phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
-    const dateCell=phName
-      ?`<td style="${phStyle}">${d}<sup style="font-size:9px;vertical-align:super">${phLetter}</sup></td>`
-      :`<td>${d}</td>`;
+  const dateCell=phName
+    ?`<td style="${phStyle}">${d}<sup style="font-size:9px;vertical-align:super">${phLetter}</sup></td>`
+    :`<td>${d}</td>`;
   const dayCell=phName?`<td style="${phStyle}">${dayName}</td>`:`<td class="${isWE?'we-label':''}">${dayName}</td>`;
+  if(isConsMode){
+    return `
+    ${dateCell}
+    ${dayCell}
+    <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isSpecial,selectedType)}</select></td>
+    <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es?.nf||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es?.nt||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es?.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es?.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es?.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es?.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
+    <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${state.originalShifts[d]?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
+  }
   return `
     ${dateCell}
     ${dayCell}
     <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isSpecial,selectedType)}</select></td>
-    <td><input class="time-edit" data-day="${d}" data-field="nf" value="${es.nf||''}" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="nt" value="${es.nt||''}" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="of" value="${es.of||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot" value="${es.ot||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button></td>`;
+    <td><input class="time-edit" data-day="${d}" data-field="nf" value="${es?.nf||''}" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="nt" value="${es?.nt||''}" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="of" value="${es?.of||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot" value="${es?.ot||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${state.originalShifts[d]?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
 }
 
 function attachEditHandlers(){
@@ -3144,15 +3159,18 @@ function attachEditHandlers(){
         row.className='ph-row'+(isWE?' we-row':' ph-wd-row');row.style.opacity='';
         const _phStyle='color:#8B1A1A;font-weight:600;';
         const _phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
+        const _isConsCP=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
+        const _colspanPH=_isConsCP?7:5;
         row.innerHTML=`<td style="${_phStyle}">${d}<sup>${_phLetter}</sup></td><td style="${_phStyle}">${dayName}</td>
-          <td colspan="5" style="font-style:italic;color:#7A3B1E">${phName}</td>
+          <td colspan="${_colspanPH}" style="font-style:italic;color:#7A3B1E">${phName}</td>
           <td class="action-cell"><button class="row-add" title="Add shift" data-day="${d}" data-is-we="1" data-is-special="1">+</button></td>`;
       } else {
         row.className='empty-row'+(isWE?' we-row':'');row.style.opacity='';
-        const _isSpecialE=isWE;
+        const _isConsC=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
+        const _colspan=_isConsC?7:5;
         row.innerHTML=`<td>${d}</td><td class="${isWE?'we-label':''}">${dayName}</td>
-          <td colspan="5"></td>
-          <td class="action-cell"><button class="row-add" title="Add shift" data-day="${d}" data-is-we="${isWE?1:0}" data-is-special="${_isSpecialE?1:0}">+</button></td>`;
+          <td colspan="${_colspan}"></td>
+          <td class="action-cell"><button class="row-add" title="Add shift" data-day="${d}" data-is-we="${isWE?1:0}" data-is-special="${isWE||!!phName?1:0}">+</button></td>`;
       }
       attachEditHandlers();
     });
@@ -3185,9 +3203,14 @@ function attachEditHandlers(){
       try {
         const d=parseInt(btn.dataset.day),isWE=btn.dataset.isWe==='1';
         const isSpecialNew=btn.dataset.isSpecial==='1';
-        const defaultLabel=isSpecialNew?'WE Shift - 08H00':'WD Shift - 08H00';
-        const defaultTimes=SHIFT_TIMES[defaultLabel];
-        const def={...defaultTimes,label:'Custom',typeLabel:defaultLabel,isWE:isWE};
+        const isConsMode=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
+        const defaultLabel=isConsMode
+          ?(isSpecialNew?'Cons. Call - Weekend':'Cons. Normal Hours - Weekday')
+          :(isSpecialNew?'WE Shift - 08H00':'WD Shift - 08H00');
+        const defaultTimes=isConsMode?(CONSULTANT_SHIFT_TIMES[defaultLabel]||{}):(SHIFT_TIMES[defaultLabel]||{});
+        const def=isConsMode
+          ?{nf:defaultTimes.nf||'',nt:defaultTimes.nt||'',ot1f:defaultTimes.ot1f||'',ot1t:defaultTimes.ot1t||'',ot2f:defaultTimes.ot2f||'',ot2t:defaultTimes.ot2t||'',label:'Custom',typeLabel:defaultLabel,isWE:isWE}
+          :{...defaultTimes,label:'Custom',typeLabel:defaultLabel,isWE:isWE};
         state.editedShifts[d]=def;
         const row=document.querySelector(`tr[data-day="${d}"]`);
         const dateObj=new Date(state.previewYear,state.previewMonth,d);
