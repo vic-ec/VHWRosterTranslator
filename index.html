@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260411-0720 -->
+<!-- v20260411-0725 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -3456,6 +3456,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('ecChangeBtn').addEventListener('click', async () => {
     $('ecSelectedRow').style.display = 'none';
     $('ecLoadingRow').style.display  = '';
+    $('headerTitle').textContent = 'EC Roster Translator';
     let profiles = null;
     try {
       profiles = await fetchProfiles();
