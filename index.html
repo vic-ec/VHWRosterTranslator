@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260410-2004 -->
+<!-- v20260411-0650 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -938,12 +938,10 @@ async function parseRosterPDF(arrayBuffer) {
           dm = synthetic.match(DATE_RE);
         }
 
-        if (!dm) {
-          if (/\b\d{1,2}\b/.test(lineText) && lineText.length < 80 && lineText.length > 1)
-          continue;
-        }
+        if (!dm) continue;
       }
 
+      if (!dm) continue;
       const monthIdx = MONTHS_IDX[dm[2].toLowerCase()];
       const dayKey = `${monthIdx}-${dm[1]}`;
       if (seenDays.has(dayKey)) continue;
