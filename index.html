@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- v20260410-1835 -->
+<!-- v20260411-0725 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -248,19 +248,7 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
 </head>
 <body>
 <header>
-  <svg width="28" height="30" viewBox="0 0 28 30" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;opacity:0.9;">
-    <!-- clipboard body -->
-    <rect x="4" y="5" width="16" height="22" rx="2" stroke="white" stroke-width="1.7" fill="none"/>
-    <!-- clipboard top clip -->
-    <rect x="9" y="3" width="6" height="4" rx="1.5" stroke="white" stroke-width="1.5" fill="none"/>
-    <!-- text lines on clipboard -->
-    <line x1="7.5" y1="12" x2="15.5" y2="12" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
-    <line x1="7.5" y1="15.5" x2="15.5" y2="15.5" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
-    <line x1="7.5" y1="19" x2="13" y2="19" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
-    <!-- right-pointing arrow overlaid bottom-right -->
-    <line x1="16" y1="23" x2="26" y2="23" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
-    <polyline points="21.5,18.5 26,23 21.5,27.5" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.9;"><path d="M12 3v17a1 1 0 0 1-1 1H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1H3"/><path d="m16 19 2 2 4-4"/></svg>
   <h1 id="headerTitle">EC Roster Translator</h1>
 </header>
 <div class="app">
@@ -465,6 +453,9 @@ header h1 { font-size: 14px; font-weight: 500; color: rgba(255,255,255,0.92); }
         <button class="btn btn-success" id="proceedDownloadBtn" style="display:none;">&#8595; Download Duty Roster</button>
         <button class="btn-outline" id="annexureCBtn" style="display:none;">&#8595; Download Annexure C (Overtime) Form</button>
         <button class="btn-outline" id="z1aBtn" style="display:none;">&#8595; Download Z1(a) Leave Form</button>
+      </div>
+      <div style="display:flex;justify-content:center;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+        <button id="resetFormBtn" style="font-family:var(--sans);font-size:12px;font-weight:400;color:var(--text-faint);background:none;border:none;cursor:pointer;padding:4px 8px;">&#8635; Start Over</button>
       </div>
     </div>
   
@@ -936,7 +927,7 @@ async function parseRosterPDF(arrayBuffer) {
 
           // Look up weekday from SA PH calendar
           const phKey = rosterYear+'-'+String(monthIdx+1).padStart(2,'0')+'-'+String(dateNum).padStart(2,'0');
-          let computedDay = foundWeekday || phCal.get(phKey);
+          let computedDay = foundWeekday || (phCal ? phCal.get(phKey) : null);
 
           // If not in PH calendar, compute from date arithmetic anyway
           if (!computedDay) {
@@ -947,12 +938,10 @@ async function parseRosterPDF(arrayBuffer) {
           dm = synthetic.match(DATE_RE);
         }
 
-        if (!dm) {
-          if (/\b\d{1,2}\b/.test(lineText) && lineText.length < 80 && lineText.length > 1)
-          continue;
-        }
+        if (!dm) continue;
       }
 
+      if (!dm) continue;
       const monthIdx = MONTHS_IDX[dm[2].toLowerCase()];
       const dayKey = `${monthIdx}-${dm[1]}`;
       if (seenDays.has(dayKey)) continue;
@@ -2762,8 +2751,35 @@ $('clearBtn').addEventListener('click',()=>{
   $('clearDoctorBtn').style.display='none';
 });
 
+// ── Start Over: full form reset (same as clearBtn + also clears step3 details) ──
+function fullReset(){
+  // Trigger the clearBtn logic
+  $('clearBtn').click();
+  // Also clear all detail fields
+  const fields=['detailFirstName','detailSurname','detailPersal','detailSigDate'];
+  fields.forEach(id=>{const el=$(id);if(el)el.value='';});
+  const sels=['detailDesignationSel','detailSupervisorSel','detailShiftWorker','detailCasualEmployee'];
+  sels.forEach(id=>{const el=$(id);if(el)el.selectedIndex=0;});
+  const others=['detailDesignationOther','detailSupervisorOther'];
+  others.forEach(id=>{const el=$(id);if(el){el.value='';el.style.display='none';}});
+  const addr=$('detailAddress');if(addr)addr.value='';
+  $('detailsSection').style.display='none';
+  $('leaveFieldsSection').style.display='none';
+  ['proceedDownloadBtn','annexureCBtn','z1aBtn'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
+  // Reset year to current
+  const yr=$('yearInput');if(yr)yr.value=new Date().getFullYear();
+}
+$('resetFormBtn')?.addEventListener('click',()=>{
+  if(confirm('Clear all data and start over?')) fullReset();
+});
+
 $('parseBtn').addEventListener('click',async()=>{
   if(!state.pendingFiles.length && !state.consultantFile) return;
+  // Block if both shift AND consultant files queued — they use different preview tables
+  if(state.pendingFiles.length && state.consultantFiles?.length){
+    setStatus('Please extract the EC shift roster and consultant roster separately.','error');
+    return;
+  }
   const btn=$('parseBtn');btn.disabled=true;
   btn.innerHTML='<span class="spinner"></span> Extracting\u2026';
   const totalSrc=state.pendingFiles.length+(state.consultantFile?1:0);  setStatus('Extracting from '+totalSrc+' file(s)\u2026','info');
@@ -3440,6 +3456,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('ecChangeBtn').addEventListener('click', async () => {
     $('ecSelectedRow').style.display = 'none';
     $('ecLoadingRow').style.display  = '';
+    $('headerTitle').textContent = 'EC Roster Translator';
     let profiles = null;
     try {
       profiles = await fetchProfiles();
