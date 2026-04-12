@@ -3829,9 +3829,15 @@ document.addEventListener('DOMContentLoaded', () => {
     $('wizSubmitBtn').textContent = 'Submit for Approval';
   });
 
-  // Run initialisation
-  initEcSelector();
+  // Run initialisation — called separately below
 });
+
+// Initialise EC selector independently so a crash above can't prevent it
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => initEcSelector());
+} else {
+  initEcSelector();
+}
 
 
 // ═══════════════════════════════════════════════════════════════
