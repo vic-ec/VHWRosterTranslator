@@ -4017,4 +4017,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if (cZone) {
     cZone.addEventListener('dragover', e => { e.preventDefault(); cZone.classList.add('drag-over'); });
     cZone.addEventListener('dragleave', () => cZone.classList.remove('drag-over'));
-    cZone.addEventL
+    cZone.addEventListener('drop', e => {
+      e.preventDefault();
+      cZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) addConsultantFiles(Array.from(e.dataTransfer.files));
+    });
+  }
+
+});
+</script>
+</body>
+</html>
