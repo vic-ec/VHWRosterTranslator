@@ -177,7 +177,7 @@ async function generateExcel(monthIdx, year, details) {
     const isSpecial = isWE || !!phName;
     const isShift = es.typeLabel && (es.typeLabel.startsWith('WD Shift') || es.typeLabel.startsWith('WE Shift'));
     const isConsultantType = es.typeLabel && (
-      es.typeLabel.startsWith('Consultant Day') || es.typeLabel.startsWith('Consultant Call')
+      es.typeLabel.startsWith('On Call -') || es.typeLabel === 'Normal Hours - Weekday'
     );
 
     if(isConsultantType) {

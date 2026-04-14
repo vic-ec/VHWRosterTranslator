@@ -148,6 +148,7 @@ async function generateAnnexureCDocx(d) {
     }
     return c;
   })();
+  const hasLeave = Object.keys(lc).length > 0;
 
 const annexureDoc = new Document({sections:[{properties:{
   page:{
@@ -238,7 +239,7 @@ const annexureDoc = new Document({sections:[{properties:{
         verticalAlign:VerticalAlign.CENTER,
       }),
       new TableCell({
-        children:[p([t('')],{...S0,alignment:AlignmentType.CENTER})],
+        children:[p([t(hasLeave?'':'✓',{bold:true})],{...S0,alignment:AlignmentType.CENTER})],
         width:{size:360,type:WidthType.DXA},
         borders:allSng,
         margins:{top:30,bottom:30,left:0,right:0},
@@ -436,7 +437,7 @@ async function generateZ1ADocx(d) {
     const groups = {};
     for (const day of days) {
       const es = d.editedShifts[day];
-      if (!es.typeLabel || es.typeLabel.startsWith('WD') || es.typeLabel.startsWith('WE')) continue;
+      if (!es.typeLabel || es.typeLabel.startsWith('WD') || es.typeLabel.startsWith('WE') || es.typeLabel.startsWith('On Call') || es.typeLabel === 'Normal Hours - Weekday') continue;
       const lbl = LEAVE_MAP_Z1[es.typeLabel] || es.typeLabel;
       if (!groups[lbl]) groups[lbl] = { type: es.typeLabel, startDay: day, endDay: day, count: 0 };
       groups[lbl].endDay = day;
@@ -609,13 +610,16 @@ function secBRow(label, isFirst) {
 // Total left: 1092+4330 = 5422 ✓
 // Grand total: 5422+5090 = 10512 ✓
 
-const RIGHT_YN = (label) => [
-  cell([p([b(label)],S0)], 2381, {gridSpan:6,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
-  cell([p([b('Yes')],S0)], 851, {gridSpan:2,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
-  cell([p([t('')],S0)], 585, {gridSpan:3,borders:allSng}),
-  cell([p([b('No')],S0)], 522, {borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
-  cell([p([t('')],S0)], 751, {borders:allSng}),
-];
+const RIGHT_YN = (label, value) => {
+  const isYes = (value||'').toLowerCase() === 'yes';
+  return [
+    cell([p([b(label)],S0)], 2381, {gridSpan:6,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
+    cell([p([b('Yes')],S0)], 851, {gridSpan:2,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
+    cell([p([t(isYes?'✓':'')],{...S0,alignment:AlignmentType.CENTER})], 585, {gridSpan:3,borders:allSng}),
+    cell([p([b('No')],S0)], 522, {borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
+    cell([p([t(isYes?'':'✓')],{...S0,alignment:AlignmentType.CENTER})], 751, {borders:allSng}),
+  ];
+};
 
 const doc = new Document({ sections:[{ properties:{
   page:{
@@ -646,7 +650,7 @@ const doc = new Document({ sections:[{ properties:{
       new TableRow({ children:[
         // PERSAL label + value in one merged cell (avoids label wrapping)
         cell([p([b('PERSAL Number:  '),t(persal||'')],S0)], 5422, {gridSpan:14,borders:allSng}),
-        ...RIGHT_YN('Shift Worker'),
+        ...RIGHT_YN('Shift Worker', shiftWorker),
       ]}),
 
       // Casual Employee — same right layout as Shift Worker above
@@ -659,7 +663,7 @@ const doc = new Document({ sections:[{ properties:{
           borders:{top:NONE_B,bottom:NONE_B,left:SNG,right:NONE_B},
           margins:{top:2,bottom:2,left:40,right:40},
         }),
-        ...RIGHT_YN('Casual Employee'),
+        ...RIGHT_YN('Casual Employee', casualEmployee),
       ]}),
 
       // Department

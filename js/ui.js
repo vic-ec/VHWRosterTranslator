@@ -41,7 +41,12 @@ function hasLeaveInShifts(){
   if(!state.editedShifts) return false;
   return Object.values(state.editedShifts).some(es=>{
     const lbl=es.typeLabel||'';
-    return lbl && !lbl.startsWith('WD Shift') && !lbl.startsWith('WE Shift');
+    if(!lbl) return false;
+    // Shift types — never leave
+    if(lbl.startsWith('WD Shift')||lbl.startsWith('WE Shift')) return false;
+    // Consultant on-call/normal types — never leave
+    if(lbl.startsWith('On Call')||lbl==='Normal Hours - Weekday') return false;
+    return true;
   });
 }
 function updateLeaveFields(){
