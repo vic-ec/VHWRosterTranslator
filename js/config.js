@@ -32,6 +32,7 @@ const LS_PROFILES_KEY = 'ec_roster_profiles_list';
 let activeProfile = null;
 
 // === ACTIVITY TYPES ===
+const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MONTH_NAMES=['January','February','March','April','May','June',
   'July','August','September','October','November','December'];
 const ACTIVITY_TYPES=[

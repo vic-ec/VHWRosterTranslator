@@ -815,7 +815,7 @@ const doc = new Document({ sections:[{ properties:{
 
 
 // === UI ===
-const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
 
 function patchCell(xml,ref,val) {
   const re=new RegExp(`<c r="${ref.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}"[^>]*>.*?<\\/c>`,'s');
