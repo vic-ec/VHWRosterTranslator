@@ -3521,6 +3521,11 @@ function showEcPicker(profiles) {
 
 function showEcOffline(cachedProfile) {
   $('ecOfflineNote').style.display = '';
+  // Offline — always reflect this in the header and note, with or without a cached profile
+  const ecShort = (cachedProfile && (cachedProfile.ec_short || cachedProfile.ec_name)) || 'VHW';
+  $('headerTitle').textContent = `EC Roster Translator — Offline (default ${ecShort} profile)`;
+  const noteText = $('ecOfflineNote').querySelector('span:last-child');
+  if (noteText) noteText.textContent = `Could not reach the EC profile server. Check your internet connection and refresh the page. If the problem persists, contact us to set up your EC offline.`;
   if (cachedProfile) {
     applyProfile(cachedProfile);
     showEcSelected(cachedProfile.ec_name || 'Saved EC');
