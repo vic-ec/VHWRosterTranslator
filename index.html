@@ -1255,15 +1255,38 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     const buckets = { slot1:[], slot2:[], slot3:[], meetings:[], leave:[], call:[] };
     let dateNum = null, weekdayName = null;
 
+    // Track column assignment per word in reading order so we can correct
+    // compound surnames that wrap across a column boundary (e.g. a long name
+    // starting in 'call' but its second word's x-position falls in 'leave').
+    // Without this, a wrapped surname like "Van" (call) + "Schalkwyk" (leave)
+    // would be split across two buckets and misread as a leave entry.
+    let lastBucket = null, lastWord = null;
+
     for (const w of rowWords) {
       const c = colFor(w.x);
       // Date column (x < slot1.x_min)
       if (w.x < cols.slot1.x_min) {
         if (/^\d{1,2}$/.test(w.text)) dateNum = parseInt(w.text);
         else if (WEEKDAYS.has(w.text) || WEEKENDS.has(w.text)) weekdayName = w.text;
-      } else if (c && c in buckets) {
-        buckets[c].push(w.text);
+        continue;
       }
+      if (!(c && c in buckets)) continue;
+
+      // If this word continues a compound surname from the previous word
+      // (e.g. "Van" → "Schalkwyk") but landed in a DIFFERENT bucket than the
+      // previous word, keep it with the previous word's bucket instead —
+      // a name should never be split across two roster columns.
+      if (lastBucket && c !== lastBucket && NAME_PREFIXES.has(lastWord) &&
+          /^[A-Z][a-z]+$/.test(w.text)) {
+        buckets[lastBucket].push(w.text);
+        lastBucket = lastBucket; // stays the same for any further continuation
+        lastWord = w.text;
+        continue;
+      }
+
+      buckets[c].push(w.text);
+      lastBucket = c;
+      lastWord = w.text;
     }
 
     if (dateNum !== null && weekdayName) {
@@ -3525,7 +3548,7 @@ function showEcOffline(cachedProfile) {
   const ecShort = (cachedProfile && (cachedProfile.ec_short || cachedProfile.ec_name)) || 'VHW';
   $('headerTitle').textContent = `EC Roster Translator — Offline (default ${ecShort} profile)`;
   const noteText = $('ecOfflineNote').querySelector('span:last-child');
-  if (noteText) noteText.textContent = `Could not reach the EC profile server. Check your internet connection and refresh the page. If the problem persists, contact us to set up your EC offline.`;
+  if (noteText) noteText.textContent = `Could not reach the EC profile server. Check your internet connection and refresh the page. If the problem persists, contact us to set up your EC offline. App is offline. Default profile set to ${ecShort}.`;
   if (cachedProfile) {
     applyProfile(cachedProfile);
     showEcSelected(cachedProfile.ec_name || 'Saved EC');
