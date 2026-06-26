@@ -1165,7 +1165,6 @@ function getDoctorShifts(rosterData, doctorName, targetMonth) {
 // Returns { days, doctors } in the same format as parseRosterPDF / parseRosterExcel.
 
 async function parseConsultantRosterPDF(arrayBuffer, profile) {
-  const cols  = profile.pdf_columns;   // {slot1,slot2,slot3,meetings,leave,call}
   const rules = profile.time_rules;    // weekday/weekend time bands
   const knownNames = new Set((profile.known_names || []).map(n => n.toLowerCase()));
 
@@ -1174,6 +1173,20 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   const tc    = await page.getTextContent();
   const vp    = page.getViewport({ scale: 1 });
   const H     = vp.height;
+
+  // ── Template auto-detection ──────────────────────────────────────────────
+  // The WCG roster template changed in July 2026 to add LEAVE and EXAM/COURSE
+  // columns, which shifted every column position. Detect which layout this
+  // PDF uses by checking for the literal "LEAVE" header text, then select the
+  // matching column config from the profile. The Supabase ec_profiles table
+  // stores the original (pre-July) column positions directly in the 'profile'
+  // field, and the new layout (if configured) in 'pdf_columns_v2'. Profiles
+  // without pdf_columns_v2 always fall back to 'profile', so older profiles
+  // or single-format ECs are completely unaffected.
+  const rawTextForDetection = tc.items.map(it => it.str).join(' ');
+  const isNewTemplate = profile.pdf_columns_v2 && /\bLEAVE\b/.test(rawTextForDetection);
+  const cols = isNewTemplate ? profile.pdf_columns_v2 : profile.profile;
+  // {slot1,slot2,slot3,meetings,leave,call[,leave_weekend]}
 
   // ── Collect words with x/y (PDF y is bottom-up → flip to top-down) ──
   const words = [];
@@ -1212,8 +1225,20 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   const MONTHS_IDX = {January:0,February:1,March:2,April:3,May:4,June:5,
     July:6,August:7,September:8,October:9,November:10,December:11};
 
-  function colFor(x) {
+  function colFor(x, isWeekend) {
+    // Weekend rows use a different layout: there is no 4th shift-slot ('call')
+    // column at all on weekends — that space is the LEAVE column instead.
+    // If the profile defines 'leave_weekend', use that boundary for weekend
+    // rows and disable 'call' entirely on weekends. Profiles without
+    // 'leave_weekend' behave exactly as before (older single-layout profiles
+    // are unaffected).
+    if (isWeekend && cols.leave_weekend) {
+      const { x_min, x_max } = cols.leave_weekend;
+      if (x >= x_min && x < x_max) return 'leave';
+      if (x >= cols.call.x_min && x < cols.call.x_max) return null; // no call slot on weekends
+    }
     for (const [name, {x_min, x_max}] of Object.entries(cols)) {
+      if (name === 'leave_weekend') continue; // only matched above, for weekends
       if (x >= x_min && x < x_max) return name;
     }
     return null;
@@ -1255,15 +1280,22 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     const buckets = { slot1:[], slot2:[], slot3:[], meetings:[], leave:[], call:[] };
     let dateNum = null, weekdayName = null;
 
+    // Use the day name carried over from the most recent date row to decide if
+    // this row should use the weekend-specific leave column position. The WCG
+    // July 2026+ template visually shifts the LEAVE column ~76pt to the left on
+    // weekend rows (narrower 3-band layout vs 4-band weekday layout), so a
+    // separate 'leave_weekend' boundary is used when the profile defines one.
+    const rowIsWeekend = WEEKENDS.has(currentDayName);
+
     // Track column assignment per word in reading order so we can correct
-    // compound surnames that wrap across a column boundary (e.g. a long name
-    // starting in 'call' but its second word's x-position falls in 'leave').
-    // Without this, a wrapped surname like "Van" (call) + "Schalkwyk" (leave)
-    // would be split across two buckets and misread as a leave entry.
+    // compound surnames that wrap across a column boundary (e.g. "Van" lands
+    // in 'call' but its second word "Schalkwyk" falls just inside 'leave').
+    // Without this, a wrapped surname would be split across two buckets and
+    // misread as a leave entry.
     let lastBucket = null, lastWord = null;
 
     for (const w of rowWords) {
-      const c = colFor(w.x);
+      const c = colFor(w.x, rowIsWeekend);
       // Date column (x < slot1.x_min)
       if (w.x < cols.slot1.x_min) {
         if (/^\d{1,2}$/.test(w.text)) dateNum = parseInt(w.text);
@@ -1272,14 +1304,9 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       }
       if (!(c && c in buckets)) continue;
 
-      // If this word continues a compound surname from the previous word
-      // (e.g. "Van" → "Schalkwyk") but landed in a DIFFERENT bucket than the
-      // previous word, keep it with the previous word's bucket instead —
-      // a name should never be split across two roster columns.
       if (lastBucket && c !== lastBucket && NAME_PREFIXES.has(lastWord) &&
           /^[A-Z][a-z]+$/.test(w.text)) {
         buckets[lastBucket].push(w.text);
-        lastBucket = lastBucket; // stays the same for any further continuation
         lastWord = w.text;
         continue;
       }
@@ -1300,8 +1327,11 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     const slot2Names = joinTokens(buckets.slot2);
     const slot3Names = joinTokens(buckets.slot3);
 
-    // Parse leave: "De Haan Leave" → name is "De Haan", "Leave" is literal word
-    const leaveRaw = joinTokens(buckets.leave.filter(t => t !== 'Leave'));
+    // Parse leave: "De Haan Leave" → name is "De Haan", "Leave" is literal word.
+    // Bracketed tokens (e.g. "[Thomson]") denote a substitute/temp doctor filling
+    // a call slot, not a leave entry — exclude them even if they land in the leave
+    // bucket due to column-width overflow on older roster layouts.
+    const leaveRaw = joinTokens(buckets.leave.filter(t => t !== 'Leave' && !/^\[.*\]?$/.test(t)));
     const isLeave  = buckets.leave.includes('Leave') || leaveRaw.length > 0;
     const leaveNames = leaveRaw;
 
@@ -3487,7 +3517,7 @@ async function fetchProfiles() {
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(
-      `${SUPA_URL}/rest/v1/ec_profiles?status=eq.approved&select=id,ec_name,ec_short,profile`,
+      `${SUPA_URL}/rest/v1/ec_profiles?status=eq.approved&select=id,ec_name,ec_short,profile,pdf_columns_v2`,
       {
         method: 'GET',
         signal: controller.signal,
