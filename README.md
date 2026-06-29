@@ -1,6 +1,6 @@
 # EC Roster Translator
 
-A browser-based tool that parses monthly shift rosters and generates WCG-formatted duty roster timesheets, overtime verification forms, and leave application documents — entirely offline, no installation required. This tool has been built for Victoria Hospital Emergency Centre, Cape Town.
+A browser-based tool that parses monthly shift rosters and generates WCG-formatted duty roster timesheets, overtime verification forms, and leave application documents — entirely offline, no installation required. This tool has been built for Victoria Hospital Emergency Centre, Cape Town, but has capacity to add additional ECs to the Supabase database in the future.
 
 ---
 
