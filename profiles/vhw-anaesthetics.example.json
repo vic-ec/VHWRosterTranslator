@@ -56,11 +56,13 @@
       "label_ph":      "COSMO/SN On Call - Public Holiday"
     },
     "Sessions": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
-      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
-      "label_weekday": "Sessions On Call - Weekday",
-      "label_weekend": "Sessions On Call - Weekend",
-      "label_ph":      "Sessions On Call - Public Holiday"
+      "_note": "Daytime theatre sessions, not call: ordinary working hours, and no post-call day off afterwards.",
+      "is_call": false,
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": null },
+      "weekend_ph": null,
+      "label_weekday": "Normal Hours - Weekday",
+      "label_weekend": "Normal Hours - Weekday",
+      "label_ph":      "Normal Hours - Weekday"
     }
   }
 }

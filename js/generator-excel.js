@@ -255,10 +255,7 @@ function typeOptsFor(isWE, isPH, selectedType) {
     const all = tableActivityTypes();
     filtered = all.filter(t => isSpecial ? !/- Weekday$/.test(t) : !/- (Weekend|Public Holiday)$/.test(t));
     if (!filtered.length) filtered = all;
-    if (selectedType && !filtered.includes(selectedType)) filtered = [selectedType, ...filtered];
-    return filtered;
-  }
-  if (isConsultantMode) {
+  } else if (isConsultantMode) {
     // Normalise selectedType: Consultant Day - HHhMM → Normal Hours - Weekday
     if (selectedType && selectedType.startsWith('Consultant Day')) selectedType = 'Normal Hours - Weekday';
     filtered = CONSULTANT_ACTIVITY_TYPES.filter(t => {
@@ -268,7 +265,7 @@ function typeOptsFor(isWE, isPH, selectedType) {
       if (t === 'On Call - Public Holiday') return isPH;
       return true;
     });
-  } else {
+  } else if (!isTableRosterMode()) {
     filtered = ACTIVITY_TYPES.filter(t => {
       if(t.startsWith('WD Shift')) return !isSpecial;
       if(t.startsWith('WE Shift')) return isSpecial;

@@ -468,6 +468,9 @@ function getTableShifts(tableData, doctorName, targetMonth, profile, targetYear)
     return null;
   };
 
+  // A role is on call unless the profile says otherwise.
+  const isCallRole = (r) => !!r && (rules[r.role] || {}).is_call !== false;
+
   const t = v => (v || '').replace(':', 'H');
   const band = (rule, label, note) => ({
     nf: t(rule.normal ? rule.normal[0] : ''),
@@ -493,23 +496,26 @@ function getTableShifts(tableData, doctorName, targetMonth, profile, targetYear)
     const isPH      = phDays.has(d);
     const today     = roleOn(d);
 
-    // On call today: the roster's own bands win, whatever day it is.
+    // Rostered today: the role's own bands win, whatever day it is. A role
+    // with no rule for this kind of day (daytime work on a weekend, say)
+    // falls through to the ordinary-day logic below.
     if (today) {
-      const rr = rules[today.role];
-      if (!rr) continue;
-      const rule = (isWeekend || isPH) ? rr.weekend_ph : rr.weekday;
-      if (!rule) continue;
-      const label = isPH      ? (rr.label_ph      || `${today.role} - Public Holiday`)
-                  : isWeekend ? (rr.label_weekend || `${today.role} - Weekend`)
-                              : (rr.label_weekday || `${today.role} - Weekday`);
-      result[d] = band(rule, label, today.note);
-      continue;
+      const rr   = rules[today.role];
+      const rule = rr && ((isWeekend || isPH) ? rr.weekend_ph : rr.weekday);
+      if (rule) {
+        const label = isPH      ? (rr.label_ph      || `${today.role} - Public Holiday`)
+                    : isWeekend ? (rr.label_weekend || `${today.role} - Weekend`)
+                                : (rr.label_weekday || `${today.role} - Weekday`);
+        result[d] = band(rule, label, today.note);
+        continue;
+      }
     }
 
     // Post-call: yesterday's call runs into this morning, and the rest of
-    // the day is off. Day 1 cannot be judged — the previous month is not
-    // loaded — so it is treated as an ordinary day.
-    if (postCallOff && d > 1 && roleOn(d - 1)) continue;
+    // the day is off. Only actual call counts — a daytime role such as a
+    // theatre session earns no day off. Day 1 cannot be judged, since the
+    // previous month is not loaded, so it is treated as an ordinary day.
+    if (postCallOff && d > 1 && isCallRole(roleOn(d - 1))) continue;
 
     // Otherwise: an ordinary working weekday, or nothing at all.
     if (isWeekend || isPH || !dflt) continue;
