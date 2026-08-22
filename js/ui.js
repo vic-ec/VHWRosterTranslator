@@ -67,9 +67,13 @@ function checkDetailsComplete() {
   const address=$('detailAddress')?.value.trim()||'';
   const leaveOk=!leaveVisible||(address.length>0);
   const show=!!(first&&surname&&persal&&designation&&dateValid&&leaveOk);
-  $('proceedDownloadBtn').style.display=show?'':'none';
-  $('annexureCBtn').style.display=show?'':'none';
-  $('z1aBtn').style.display=(show&&hasLeaveInShifts())?'':'none';
+  const leave=hasLeaveInShifts();
+  $('proceedDownloadBtn').disabled=!show;
+  $('annexureCBtn').disabled=!show;
+  $('z1aBtn').style.display=leave?'':'none';
+  $('z1aBtn').disabled=!(show&&leave);
+  const lockNote=$('downloadsLocked');
+  if(lockNote) lockNote.style.display=show?'none':'';
 }
 function checkReady(){
   const {month,year}=getMonthYear();
@@ -203,8 +207,9 @@ function renderFileList(){
   rosterList.style.display='';
   rosterList.innerHTML=all.map(f=>`
     <div class="roster-item">
+      <span class="tag tag-accent">${(f.name.split('.').pop()||'').toUpperCase()}</span>
       <span class="ri-name">${f.name}</span>
-      ${f.parsed?`<span class="ri-days">${f.days} days</span>`:`<span class="ri-days" style="color:var(--text-faint)">queued</span>`}
+      ${f.parsed?`<span class="ri-days">${f.days} days</span>`:`<span class="ri-days">queued</span>`}
       <button class="ri-remove" data-name="${f.name}">&times;</button>
     </div>`).join('');
   rosterList.querySelectorAll('.ri-remove').forEach(btn=>btn.addEventListener('click',()=>removeFile(btn.dataset.name)));
@@ -230,7 +235,9 @@ $('clearBtn').addEventListener('click',()=>{
   renderFileList();$('parseBtn').disabled=true;$('clearBtn').style.display='none';
   rosterList.style.display='none';setStatus('');
   $('doctorGrid').innerHTML='<div class="empty">No roster parsed yet</div>';
-  $('previewArea').innerHTML='<div class="empty">Select a doctor and click Preview</div>';
+  const staffCountEl=$('staffCount'); if(staffCountEl) staffCountEl.textContent='0';
+  $('previewArea').innerHTML='<div class="empty">Select a name and click Preview schedule</div>';
+  if(typeof updatePreviewTotals==='function') updatePreviewTotals();
   $('employeeName').value='';
   $('detailsSection').style.display='none';
   const sel=$('monthSelect');while(sel.options.length>1) sel.remove(1);
@@ -255,7 +262,9 @@ function fullReset(){
   const addr=$('detailAddress');if(addr)addr.value='';
   $('detailsSection').style.display='none';
   $('leaveFieldsSection').style.display='none';
-  ['proceedDownloadBtn','annexureCBtn','z1aBtn'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
+  ['proceedDownloadBtn','annexureCBtn','z1aBtn'].forEach(id=>{const el=$(id);if(el)el.disabled=true;});
+  $('z1aBtn').style.display='none';
+  const lockNote=$('downloadsLocked'); if(lockNote) lockNote.style.display='';
   // Reset year to current
   const yr=$('yearInput');if(yr)yr.value=new Date().getFullYear();
 }
@@ -337,10 +346,23 @@ function clearDoctorSelection(){
   $('clearDoctorBtn').style.display='none';
   checkReady();
 }
+function countDoctorDays(name){
+  const nl=String(name||'').toLowerCase();
+  let n=0;
+  for(const day of (state.rosterData?.days||[])){
+    const all=[...(day.allNames||[]),...(day.shifts?.flat()||[])];
+    if(all.some(x=>String(x).toLowerCase()===nl)) n++;
+  }
+  return n;
+}
 function buildDoctorGrid(doctors){
   const sorted=[...doctors].sort();
+  const countEl=$('staffCount'); if(countEl) countEl.textContent=sorted.length;
   if(!sorted.length){$('doctorGrid').innerHTML='<div class="empty">No names detected.</div>';return;}
-  $('doctorGrid').innerHTML=sorted.map(d=>`<div class="doctor-chip" data-name="${d}">${d}</div>`).join('');
+  $('doctorGrid').innerHTML=sorted.map(d=>{
+    const c=countDoctorDays(d);
+    return `<button type="button" class="doctor-chip" data-name="${d}"><span class="dc-name">${d}</span><span class="dc-count">${c} ${c===1?'shift':'shifts'}</span></button>`;
+  }).join('');
   $('doctorGrid').querySelectorAll('.doctor-chip').forEach(chip=>{
     chip.addEventListener('click',()=>{
       $('doctorGrid').querySelectorAll('.doctor-chip').forEach(c=>c.classList.remove('selected'));
@@ -429,6 +451,30 @@ function defaultTypeLabel(isSpecial){
   return isSpecial?'WE Shift - 08H00':'WD Shift - 08H00';
 }
 
+function hoursBetween(from,to){
+  const p=t=>{const m=/^(\d{1,2})[H:](\d{2})$/i.exec(String(t||'').trim());return m?parseInt(m[1],10)*60+parseInt(m[2],10):null;};
+  const s=p(from),e=p(to);
+  if(s===null||e===null) return 0;
+  let d=e-s; if(d<0) d+=1440;
+  return d/60;
+}
+function updatePreviewTotals(){
+  const nEl=$('totalNormal'),oEl=$('totalOt');
+  if(!nEl||!oEl) return;
+  let normal=0,ot=0;
+  for(const es of Object.values(state.editedShifts||{})){
+    normal+=hoursBetween(es.nf,es.nt);
+    // of/ot is a mirror of the OT2 band (or of OT1 where there is no OT2) on
+    // consultant and table rosters, so adding all three would count a night
+    // of call twice. Shift rosters only ever populate of/ot.
+    const banded=hoursBetween(es.ot1f,es.ot1t)+hoursBetween(es.ot2f,es.ot2t);
+    ot+=banded>0?banded:hoursBetween(es.of,es.ot);
+  }
+  const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'')+' h';
+  nEl.textContent=fmt(normal);
+  oEl.textContent=fmt(ot);
+}
+
 function buildPreview(doctorName,targetMonth,targetYear){
   const holidays=getSAPublicHolidays(targetYear);
   const daysInMonth=new Date(targetYear,targetMonth+1,0).getDate();
@@ -490,7 +536,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
     : isConsultantMode2 ? CONSULTANT_ACTIVITY_TYPES : ACTIVITY_TYPES;
   const typeOpts=activeTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   let html=`
-  <div style="margin-bottom:8px;font-family:var(--sans);font-size:12px;color:var(--text-muted);">
+  <div class="preview-note">
     Edit time fields or change activity type — changes save automatically. Click <strong>+</strong> to add an activity.
   </div>
   <div class="preview-wrapper"><table class="preview-table">
@@ -511,7 +557,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
       : (isSpecial ? 'WE Shift - 08H00' : 'WD Shift - 08H00');
     const selectedType=es?.typeLabel||defaultType;
     // PH styling: date cell shows "21*" in dark red, day cell also dark red
-    const phStyle=phName?'color:#8B1A1A;font-weight:600;':'';
+    const phStyle=phName?'color:var(--color-accent-700);font-weight:800;':'';
     const phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
     const dateCell=phName
       ?`<td style="${phStyle}">${d}<sup style="font-size:9px;vertical-align:super">${phLetter}</sup></td>`
@@ -529,10 +575,10 @@ function buildPreview(doctorName,targetMonth,targetYear){
           <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isWE,!!phName,selectedType)}</select></td>
           <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es.nf||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
           <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es.nt||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
           <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button></td>
         </tr>`;
       } else {
@@ -550,7 +596,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
       html+=`<tr data-day="${d}" class="ph-row${isWE?' we-row':' ph-wd-row'}">
         ${dateCell}
         ${dayCell}
-        <td colspan="${cColspan}" style="font-style:italic;color:#7A3B1E">${phName}</td>
+        <td colspan="${cColspan}" style="font-style:italic;color:var(--color-accent-700)">${phName}</td>
         <td class="action-cell"><button class="row-add" title="Add shift" data-day="${d}" data-is-we="1" data-is-special="1">+</button></td>
       </tr>`;
     } else {
@@ -563,11 +609,11 @@ function buildPreview(doctorName,targetMonth,targetYear){
     }
   }
   html+=`</tbody></table></div>
-  <div style="margin-top:10px;font-family:var(--sans);font-size:12px;color:var(--text-muted);">
+  <div class="preview-foot">
     ${sc} activit${sc!==1?'ies':'y'} found &middot; <strong>${doctorName}</strong> &middot; ${MONTH_NAMES[targetMonth]} ${targetYear}
   </div>`;
   if(phFootnotes.length>0){
-    html+=`<div style="margin-top:8px;font-family:var(--sans);font-size:12px;color:#8B1A1A;line-height:1.8;">`+
+    html+=`<div class="ph-footnotes">`+
       phFootnotes.map(f=>`<span style="margin-right:16px;"><sup style="font-size:9px;">${f.letter}</sup> ${f.name}</span>`).join('')+
     `</div>`;
   }
@@ -579,7 +625,7 @@ function makeRowInner(d,isWE,phName,dayName,es){
   const isSpecial=isWE||!!phName;
   const isConsMode=isExtendedRosterMode();
   const selectedType=es?.typeLabel||defaultTypeLabel(isSpecial);
-  const phStyle=phName?'color:#8B1A1A;font-weight:600;':'';
+  const phStyle=phName?'color:var(--color-accent-700);font-weight:800;':'';
   const phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
   const dateCell=phName
     ?`<td style="${phStyle}">${d}<sup style="font-size:9px;vertical-align:super">${phLetter}</sup></td>`
@@ -592,10 +638,10 @@ function makeRowInner(d,isWE,phName,dayName,es){
     <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isWE,!!phName,selectedType)}</select></td>
     <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es?.nf||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
     <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es?.nt||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es?.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es?.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es?.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es?.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es?.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es?.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es?.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es?.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
     <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${state.originalShifts[d]?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
   }
   return `
@@ -610,6 +656,7 @@ function makeRowInner(d,isWE,phName,dayName,es){
 }
 
 function attachEditHandlers(){
+  updatePreviewTotals();
   document.querySelectorAll('.type-select').forEach(sel=>{
     if(sel.dataset.bound) return; // Fix 4: skip if already has listener
     sel.dataset.bound='1';
@@ -698,12 +745,12 @@ function attachEditHandlers(){
       const phName=getSAPublicHolidays(state.previewYear).get(dateKeyLocal(dateObj));
       if(phName){
         row.className='ph-row'+(isWE?' we-row':' ph-wd-row');row.style.opacity='';
-        const _phStyle='color:#8B1A1A;font-weight:600;';
+        const _phStyle='color:var(--color-accent-700);font-weight:800;';
         const _phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
         const _isConsCP=isExtendedRosterMode();
         const _colspanPH=_isConsCP?7:5;
         row.innerHTML=`<td style="${_phStyle}">${d}<sup>${_phLetter}</sup></td><td style="${_phStyle}">${dayName}</td>
-          <td colspan="${_colspanPH}" style="font-style:italic;color:#7A3B1E">${phName}</td>
+          <td colspan="${_colspanPH}" style="font-style:italic;color:var(--color-accent-700)">${phName}</td>
           <td class="action-cell"><button class="row-add" title="Add shift" data-day="${d}" data-is-we="1" data-is-special="1">+</button></td>`;
       } else {
         row.className='empty-row'+(isWE?' we-row':'');row.style.opacity='';
@@ -827,7 +874,8 @@ $('proceedDownloadBtn').addEventListener('click',async()=>{
   const {month,year}=getMonthYear();
   if(!state.selectedDoctor||month===null||!year) return;
   const btn=$('proceedDownloadBtn');btn.disabled=true;
-  btn.innerHTML='<span class="spinner"></span> Generating\u2026';
+  const note=btn.querySelector('.dlnote'),prevNote=note?note.textContent:'';
+  if(note) note.innerHTML='<span class="spinner"></span> Generating\u2026';
   try{
     saveDetailsToState();
     const details=getFormDetails();
@@ -839,13 +887,17 @@ $('proceedDownloadBtn').addEventListener('click',async()=>{
     a.href=url;a.download=`Duty_Roster_${safe}_${MONTH_NAMES[month]}_${year}.xlsx`;
     document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   }catch(err){alert('Error: '+err.message);console.error(err);}
-  btn.disabled=false;btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>Download Duty Roster';
+  btn.disabled=false;
+  if(note) note.textContent=prevNote;
+  checkDetailsComplete();
 });
 
 $('annexureCBtn').addEventListener('click',async()=>{
   const d=getFormDetails();
   const btn=$('annexureCBtn');
-  btn.disabled=true; btn.textContent='Generating…';
+  btn.disabled=true;
+  const note=btn.querySelector('.dlnote'),prevNote=note?note.textContent:'';
+  if(note) note.innerHTML='<span class="spinner"></span> Generating…';
   try{
     const blob=await generateAnnexureCDocx(d);
     const url=URL.createObjectURL(blob);
@@ -854,13 +906,17 @@ $('annexureCBtn').addEventListener('click',async()=>{
     a.href=url; a.download=`Annexure_C_${safe}_${MONTH_NAMES[d.month]}_${d.year}.docx`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   }catch(err){alert('Error generating Annexure C: '+err.message);console.error(err);}
-  btn.disabled=false; btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>Download Annexure C (Overtime) Form';
+  btn.disabled=false;
+  if(note) note.textContent=prevNote;
+  checkDetailsComplete();
 });
 
 $('z1aBtn').addEventListener('click',async()=>{
   const d=getFormDetails();
   const btn=$('z1aBtn');
-  btn.disabled=true; btn.textContent='Generating…';
+  btn.disabled=true;
+  const note=btn.querySelector('.dlnote'),prevNote=note?note.textContent:'';
+  if(note) note.innerHTML='<span class="spinner"></span> Generating…';
   try{
     const blob=await generateZ1ADocx(d);
     const url=URL.createObjectURL(blob);
@@ -869,7 +925,9 @@ $('z1aBtn').addEventListener('click',async()=>{
     a.href=url; a.download=`Z1a_Leave_${safe}_${MONTH_NAMES[d.month]}_${d.year}.docx`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   }catch(err){alert('Error generating Z1(a): '+err.message);console.error(err);}
-  btn.disabled=false; btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>Download Z1(a) Leave Form';
+  btn.disabled=false;
+  if(note) note.textContent=prevNote;
+  checkDetailsComplete();
 });
 
 function readFile(file){
@@ -883,3 +941,32 @@ function readFile(file){
 $('yearInput').value=new Date().getFullYear();
 
 // ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// Section gating hints + "Set up a new EC" entry point.
+// Steps 01–03 are revealed by the app as the user progresses
+// (display toggled on #step1 / #step2 / #detailsSection); each one
+// shows a short placeholder in its section until then.
+// ═══════════════════════════════════════════════════════════════
+(function(){
+  const GATES=[['step1','step1Empty'],['step2','step2Empty'],['detailsSection','sec3Empty']];
+  function syncGates(){
+    for(const [id,hintId] of GATES){
+      const el=document.getElementById(id),hint=document.getElementById(hintId);
+      if(!el||!hint) continue;
+      hint.style.display=getComputedStyle(el).display==='none'?'':'none';
+    }
+  }
+  function init(){
+    syncGates();
+    const mo=new MutationObserver(syncGates);
+    GATES.forEach(([id])=>{const el=document.getElementById(id);if(el)mo.observe(el,{attributes:true,attributeFilter:['style','class']});});
+    const link=document.getElementById('openWizardLink');
+    if(link) link.addEventListener('click',e=>{
+      e.preventDefault();
+      if(typeof window.openWizard==='function') window.openWizard();
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+  else init();
+})();
