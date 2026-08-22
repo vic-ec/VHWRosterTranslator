@@ -23,6 +23,7 @@ There is no build step, package manager, or test suite — this is a static site
 - `js/holidays.js` → SA public holiday calendar
 - `js/parser.js` → roster PDF parsing (coordinate-based extraction via PDF.js)
 - `js/parser-consultant.js` → consultant-roster PDF parsing
+- `js/parser-word.js` → Word roster table parsing (`.docx` via JSZip/OOXML, legacy `.doc` via an OLE + piece-table reader)
 - `js/generator-excel.js` → duty roster `.xlsx` generation (SheetJS)
 - `js/generator-docx.js` → Annexure C / Z1(a) `.docx` generation (docx.js)
 - `js/ui.js` → wizard/step UI, doctor grid, preview table, event wiring
@@ -44,8 +45,25 @@ If you only edit one, the app's real behavior (driven by `index.html`) won't cha
 | Annexure C | `.docx` | Overtime hours verification for HOD sign-off |
 | Z1(a) Leave Form | `.docx` | Official WCG leave application |
 
+## Roster types
+
+`activeProfile.roster_type` selects the parsing path:
+
+| `roster_type` | Input | Parser | Shift lookup |
+|---|---|---|---|
+| `shift` | PDF / Excel | `parser.js` | `getDoctorShifts` (hardcoded shift bands) |
+| `consultant` | PDF | `parser-consultant.js` | `getConsultantShifts` (profile `time_rules`) |
+| `table` | Word `.docx` / `.doc` | `parser-word.js` | `getTableShifts` (profile `role_rules`) |
+
+`consultant` and `table` both emit normal + OT1 + OT2 bands, so they share the
+wider preview layout via `isExtendedRosterMode()`. A Word table carries its
+grid explicitly, so `table` profiles declare what columns *mean*, not where
+they are — see `profiles/README.md`.
+
 ## Notes
 
-- All parsing is coordinate-based against PDF.js text positions, since roster layouts vary — logic in `parser.js`/`parser-consultant.js` (and their inlined counterparts) is layout-sensitive.
+- All PDF parsing is coordinate-based against PDF.js text positions, since roster layouts vary — logic in `parser.js`/`parser-consultant.js` (and their inlined counterparts) is layout-sensitive. Word parsing is not: `parser-word.js` reads real cell boundaries and needs no calibration.
+- **`js/xlsx.full.min.js` is currently a GitHub error page, not SheetJS.** Only `parseRosterExcel` uses `window.XLSX`, so uploading an `.xlsx`/`.xls` roster fails; PDF and Word upload and all three output documents are unaffected (the `.xlsx` output is built from the base64 template with JSZip). Replace the file with a real SheetJS bundle to restore Excel upload.
+- The EC setup wizard's overlay must stay a direct child of `<body>`. It previously sat inside `#detailsSection`, which is `display:none` at the EC-picker step, so the modal could never render.
 - The SA public holiday calendar (`holidays.js`) is a deterministic, hardcoded calendar — no network calls, works fully offline.
 - EC profile submission (the in-app wizard for adding a new EC) writes to Supabase; credentials for this live in `config.js`/the inlined config block.

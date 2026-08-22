@@ -76,6 +76,7 @@ const SHIFT_TIMES = {
 // === APP STATE ===
 const state={
   pendingFiles:[],parsedFiles:[],rosterData:null,selectedDoctor:null,
+  tableData:null,tableWarnings:[],
   editedShifts:{},originalShifts:{},dirtyDays:new Set(),
   previewMonth:null,previewYear:null,
   availableMonths:new Set(),

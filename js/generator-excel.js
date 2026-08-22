@@ -249,8 +249,15 @@ function dateKeyLocal(d) {
 // isWE = Saturday or Sunday; isPH = public holiday (can be any day)
 function typeOptsFor(isWE, isPH, selectedType) {
   const isSpecial = isWE || isPH;
-  const isConsultantMode = activeProfile && activeProfile.roster_type === 'consultant' && state.consultantData;
+  const isConsultantMode = isExtendedRosterMode();
   let filtered;
+  if (isTableRosterMode()) {
+    const all = tableActivityTypes();
+    filtered = all.filter(t => isSpecial ? !/- Weekday$/.test(t) : !/- (Weekend|Public Holiday)$/.test(t));
+    if (!filtered.length) filtered = all;
+    if (selectedType && !filtered.includes(selectedType)) filtered = [selectedType, ...filtered];
+    return filtered;
+  }
   if (isConsultantMode) {
     // Normalise selectedType: Consultant Day - HHhMM → Normal Hours - Weekday
     if (selectedType && selectedType.startsWith('Consultant Day')) selectedType = 'Normal Hours - Weekday';

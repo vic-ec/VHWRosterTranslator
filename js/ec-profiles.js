@@ -191,7 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   function closeWizard() { $('wizardOverlay').style.display = 'none'; }
 
-  // ecNotListedLink is now a mailto link — no JS handler needed
+  // "Set up your EC" opens the wizard; the mailto beside it stays as a
+  // fallback for anyone who would rather have it done for them.
+  const notListed = $('ecNotListedLink');
+  if (notListed) notListed.addEventListener('click', e => { e.preventDefault(); openWizard(); });
   $('wizCloseBtn').addEventListener('click', closeWizard);
   $('wizardOverlay').addEventListener('click', e => { if (e.target === $('wizardOverlay')) closeWizard(); });
 
@@ -458,6 +461,18 @@ document.addEventListener('DOMContentLoaded', () => {
     msg.style.display = '';
     msg.style.color = 'var(--text-muted)';
     msg.textContent = 'Submitting to Supabase…';
+    // Activate locally FIRST. The database only lets anon read rows whose
+    // status is 'approved', so a freshly submitted profile is invisible to the
+    // person who just built it — without this they would finish the wizard and
+    // still have no working EC.
+    const fullProfile = { ...profile, ec_name: ecName, ec_short: profile.ec_short || ecName };
+    try {
+      applyProfile(fullProfile);
+      showEcSelected(ecName);
+    } catch (e) {
+      console.warn('[Wizard] local activation failed:', e);
+    }
+
     try {
       const res = await fetch(`${SUPA_URL}/rest/v1/ec_profiles`, {
         method: 'POST',
@@ -476,7 +491,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (res.ok || res.status === 201) {
         msg.style.color = 'var(--success)';
-        msg.textContent = '✓ Submitted! An administrator will review and approve your profile. You\'ll be notified when it goes live.';
+        msg.textContent = '✓ Your EC is active on this device now. It has also been sent for approval so other users can pick it from the list.';
         $('wizSubmitBtn').style.display = 'none';
         $('wizNextBtn').style.display = 'none';
       } else {
@@ -484,8 +499,12 @@ document.addEventListener('DOMContentLoaded', () => {
         throw new Error(`Server responded ${res.status}: ${txt}`);
       }
     } catch(err) {
+      // Sharing failed, but the profile is already live locally.
       msg.style.color = 'var(--warn)';
-      msg.textContent = 'Error: ' + err.message;
+      msg.textContent = '✓ Your EC is active on this device. Could not send it for approval (' +
+        err.message + ') — it will stay on this device only.';
+      $('wizSubmitBtn').style.display = 'none';
+      $('wizNextBtn').style.display = 'none';
     }
     $('wizSubmitBtn').disabled = false;
     $('wizSubmitBtn').textContent = 'Submit for Approval';

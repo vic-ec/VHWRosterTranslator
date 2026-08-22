@@ -279,7 +279,14 @@ $('parseBtn').addEventListener('click',async()=>{
       const buf=await readFile(file);
       const ext=file.name.split('.').pop().toLowerCase();
       let result;
-      if(ext==='pdf') result=await parseRosterPDF(buf);
+      if(ext==='docx'||ext==='doc'){
+        if(!activeProfile||activeProfile.roster_type!=='table')
+          throw new Error('This EC profile is not set up for Word table rosters');
+        result=await parseWordRosterTable(buf,activeProfile,file.name);
+        state.tableData={days:result.days,doctors:result.doctors};
+        state.tableWarnings=(state.tableWarnings||[]).concat(result.warnings||[]);
+      }
+      else if(ext==='pdf') result=await parseRosterPDF(buf);
       else if(ext==='xlsx'||ext==='xls') result=parseRosterExcel(buf);
       else throw new Error('Unsupported format');
       const monthCounts={};
@@ -379,6 +386,41 @@ $('previewBtn').addEventListener('click',()=>{
   restoreDetailsToForm(false);
 });
 
+// Consultant and Word-table rosters both produce normal + OT1 + OT2 bands,
+// so they share the wider preview layout and their own activity-type list.
+function isTableRosterMode(){
+  return !!(activeProfile && activeProfile.roster_type==='table' && state.tableData);
+}
+function isExtendedRosterMode(){
+  return !!(activeProfile && ((activeProfile.roster_type==='consultant' && state.consultantData)
+                           || (activeProfile.roster_type==='table' && state.tableData)));
+}
+// Activity types for a table roster come from the profile's own role labels.
+function tableActivityTypes(){
+  const rules=(activeProfile&&activeProfile.role_rules)||{};
+  const out=[];
+  for(const [role,r] of Object.entries(rules)){
+    for(const k of ['label_weekday','label_weekend','label_ph']){
+      const v=r[k]||(role+' - '+k.replace('label_',''));
+      if(!out.includes(v)) out.push(v);
+    }
+  }
+  for(const t of ACTIVITY_TYPES) if(/^Leave|^Workshop|^Course|^Conference/.test(t)) out.push(t);
+  return out;
+}
+
+// Default activity type for a newly added row, in the active profile's own
+// vocabulary — a table roster's types come from its role labels, not the
+// consultant list.
+function defaultTypeLabel(isSpecial){
+  if(isTableRosterMode()){
+    const t=tableActivityTypes();
+    return t.find(x=>isSpecial?/- (Weekend|Public Holiday)$/.test(x):/- Weekday$/.test(x))||t[0]||'';
+  }
+  if(isExtendedRosterMode()) return isSpecial?'On Call - Weekend':'Normal Hours - Weekday';
+  return isSpecial?'WE Shift - 08H00':'WD Shift - 08H00';
+}
+
 function buildPreview(doctorName,targetMonth,targetYear){
   const holidays=getSAPublicHolidays(targetYear);
   const daysInMonth=new Date(targetYear,targetMonth+1,0).getDate();
@@ -386,7 +428,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
 
   // Consultant-type profile: use consultant parser output only
   // Skip getDoctorShifts entirely — consultant days in rosterData use different column semantics
-  const isConsultantMode = activeProfile && activeProfile.roster_type === 'consultant' && state.consultantData;
+  const isConsultantMode = isExtendedRosterMode();
 
   if (!isConsultantMode) {
     // Standard shift roster path
@@ -411,7 +453,8 @@ function buildPreview(doctorName,targetMonth,targetYear){
   state.originalShifts=JSON.parse(JSON.stringify(state.editedShifts));
 
   // Overlay consultant shifts (fills editedShifts from consultant parser output)
-  const consultantAdded = overlayConsultantShifts(doctorName, targetMonth, targetYear);
+  const consultantAdded = overlayConsultantShifts(doctorName, targetMonth, targetYear)
+                        + overlayTableShifts(doctorName, targetMonth, targetYear);
   if (consultantAdded > 0) {
     for (const [d, s] of Object.entries(state.editedShifts)) {
       if (!state.originalShifts[d]) state.originalShifts[d] = { ...s };
@@ -423,7 +466,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
   const phFootnotes=[];
   state.phLetterMap={};
   const letters='abcdefghijklmnopqrstuvwxyz';
-  const isConsultantMode2 = activeProfile && activeProfile.roster_type === 'consultant' && state.consultantData;
+  const isConsultantMode2 = isExtendedRosterMode();
   const cColspan=isConsultantMode2?7:5;
   for(let d=1;d<=daysInMonth;d++){
     const dateObj2=new Date(targetYear,targetMonth,d);
@@ -435,7 +478,8 @@ function buildPreview(doctorName,targetMonth,targetYear){
       phFootnotes.push({letter,name:ph2});
     }
   }
-  const activeTypes = isConsultantMode2 ? CONSULTANT_ACTIVITY_TYPES : ACTIVITY_TYPES;
+  const activeTypes = isTableRosterMode() ? tableActivityTypes()
+    : isConsultantMode2 ? CONSULTANT_ACTIVITY_TYPES : ACTIVITY_TYPES;
   const typeOpts=activeTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   let html=`
   <div style="margin-bottom:8px;font-family:var(--sans);font-size:12px;color:var(--text-muted);">
@@ -525,8 +569,8 @@ function buildPreview(doctorName,targetMonth,targetYear){
 
 function makeRowInner(d,isWE,phName,dayName,es){
   const isSpecial=isWE||!!phName;
-  const isConsMode=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
-  const selectedType=es?.typeLabel||(isConsMode?(isSpecial?'On Call - Weekend':'Normal Hours - Weekday'):(isSpecial?'WE Shift - 08H00':'WD Shift - 08H00'));
+  const isConsMode=isExtendedRosterMode();
+  const selectedType=es?.typeLabel||defaultTypeLabel(isSpecial);
   const phStyle=phName?'color:#8B1A1A;font-weight:600;':'';
   const phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
   const dateCell=phName
@@ -648,14 +692,14 @@ function attachEditHandlers(){
         row.className='ph-row'+(isWE?' we-row':' ph-wd-row');row.style.opacity='';
         const _phStyle='color:#8B1A1A;font-weight:600;';
         const _phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
-        const _isConsCP=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
+        const _isConsCP=isExtendedRosterMode();
         const _colspanPH=_isConsCP?7:5;
         row.innerHTML=`<td style="${_phStyle}">${d}<sup>${_phLetter}</sup></td><td style="${_phStyle}">${dayName}</td>
           <td colspan="${_colspanPH}" style="font-style:italic;color:#7A3B1E">${phName}</td>
           <td class="action-cell"><button class="row-add" title="Add shift" data-day="${d}" data-is-we="1" data-is-special="1">+</button></td>`;
       } else {
         row.className='empty-row'+(isWE?' we-row':'');row.style.opacity='';
-        const _isConsC=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
+        const _isConsC=isExtendedRosterMode();
         const _colspan=_isConsC?7:5;
         row.innerHTML=`<td>${d}</td><td class="${isWE?'we-label':''}">${dayName}</td>
           <td colspan="${_colspan}"></td>
@@ -692,10 +736,8 @@ function attachEditHandlers(){
       try {
         const d=parseInt(btn.dataset.day),isWE=btn.dataset.isWe==='1';
         const isSpecialNew=btn.dataset.isSpecial==='1';
-        const isConsMode=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
-        const defaultLabel=isConsMode
-          ?(isSpecialNew?'On Call - Weekend':'Normal Hours - Weekday')
-          :(isSpecialNew?'WE Shift - 08H00':'WD Shift - 08H00');
+        const isConsMode=isExtendedRosterMode();
+        const defaultLabel=defaultTypeLabel(isSpecialNew);
         const defaultTimes=isConsMode?(CONSULTANT_SHIFT_TIMES[defaultLabel]||{}):(SHIFT_TIMES[defaultLabel]||{});
         const def=isConsMode
           ?{nf:defaultTimes.nf||'',nt:defaultTimes.nt||'',ot1f:defaultTimes.ot1f||'',ot1t:defaultTimes.ot1t||'',ot2f:defaultTimes.ot2f||'',ot2t:defaultTimes.ot2t||'',label:'Custom',typeLabel:defaultLabel,isWE:isWE}

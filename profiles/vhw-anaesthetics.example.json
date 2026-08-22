@@ -1,0 +1,58 @@
+{
+  "ec_short": "VHW Anaesthetics",
+  "roster_type": "table",
+  "table": {
+    "header_row": true,
+    "columns": ["Date", "Day", "MO", "Consultant", "IM calls", "COSMO/SN", "Sessions"],
+    "date_col": 0,
+    "day_col": 1,
+    "role_columns": {
+      "MO": 2,
+      "Consultant": 3,
+      "IM calls": 4,
+      "COSMO/SN": 5,
+      "Sessions": 6
+    },
+    "ignore_tokens": []
+  },
+
+  "_time_rules_note": "PLACEHOLDER HOURS — copied from the VHW EC consultant pattern so the pipeline can be tested end to end. These have NOT been confirmed with the Anaesthetics department and must not be used for a real payroll submission until they are.",
+
+  "role_rules": {
+    "MO": {
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:30"], "ot2": ["16:30", "07:30"] },
+      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
+      "label_weekday": "MO On Call - Weekday",
+      "label_weekend": "MO On Call - Weekend",
+      "label_ph":      "MO On Call - Public Holiday"
+    },
+    "Consultant": {
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:30"], "ot2": ["16:30", "07:30"] },
+      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
+      "label_weekday": "On Call - Weekday",
+      "label_weekend": "On Call - Weekend",
+      "label_ph":      "On Call - Public Holiday"
+    },
+    "IM calls": {
+      "weekday":    { "normal": null, "ot1": ["16:00", "07:30"], "ot2": null },
+      "weekend_ph": { "normal": null, "ot1": ["07:30", "07:30"], "ot2": null },
+      "label_weekday": "IM Call - Weekday",
+      "label_weekend": "IM Call - Weekend",
+      "label_ph":      "IM Call - Public Holiday"
+    },
+    "COSMO/SN": {
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": null, "ot2": null },
+      "weekend_ph": { "normal": null, "ot1": ["07:30", "11:30"], "ot2": null },
+      "label_weekday": "COSMO/SN - Weekday",
+      "label_weekend": "COSMO/SN - Weekend",
+      "label_ph":      "COSMO/SN - Public Holiday"
+    },
+    "Sessions": {
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": null, "ot2": null },
+      "weekend_ph": { "normal": null, "ot1": ["07:30", "11:30"], "ot2": null },
+      "label_weekday": "Session - Weekday",
+      "label_weekend": "Session - Weekend",
+      "label_ph":      "Session - Public Holiday"
+    }
+  }
+}
