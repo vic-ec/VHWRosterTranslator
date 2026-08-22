@@ -4303,6 +4303,15 @@ async function initEcSelector() {
       showEcSelected(still.ec_name);
       return;
     }
+    // Saved locally but absent from the approved list: an EC set up through
+    // the wizard and still awaiting approval, or one loaded by hand. Keep
+    // using it rather than dropping the user back to the picker — otherwise
+    // a locally activated profile would survive only until the next reload.
+    // "Change" still opens the picker when they want a different EC.
+    console.log('[EC] restoring local-only profile:', cachedProfile.ec_name);
+    applyProfile(cachedProfile);
+    showEcSelected(cachedProfile.ec_name || cachedProfile.ec_short || 'Saved EC');
+    return;
   }
 
   // No saved selection — show picker
