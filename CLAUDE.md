@@ -16,7 +16,7 @@ There is no build step, package manager, or test suite — this is a static site
 
 ## Architecture — the critical thing to understand
 
-**`index.html` is a single-file bundle.** Everything the app needs — HTML, CSS, and nearly all JS — lives inline in that one file. The `js/` folder (other than the three vendor libraries) is a set of **modular source files that are manually concatenated into `index.html`'s inline `<script>` block**, with their header comments stripped:
+**`index.html` is a single-file bundle.** Everything the app needs — HTML, CSS, and nearly all JS — lives inline in that one file. The `js/` folder (other than the two vendor libraries) is a set of **modular source files that are manually concatenated into `index.html`'s inline `<script>` block**, with their header comments stripped:
 
 - `js/config.js` → app constants, Excel template (base64), Supabase credentials, shift/activity maps, `state` object
 - `js/ec-profiles.js` → EC profile definitions
@@ -24,12 +24,13 @@ There is no build step, package manager, or test suite — this is a static site
 - `js/parser.js` → roster PDF parsing (coordinate-based extraction via PDF.js)
 - `js/parser-consultant.js` → consultant-roster PDF parsing
 - `js/parser-word.js` → Word roster table parsing (`.docx` via JSZip/OOXML, legacy `.doc` via an OLE + piece-table reader)
-- `js/generator-excel.js` → duty roster `.xlsx` generation (SheetJS)
+- `js/parser-xlsx.js` → minimal `.xlsx` reader on JSZip, feeding `parseRosterExcel`
+- `js/generator-excel.js` → duty roster `.xlsx` generation (JSZip over the base64 template)
 - `js/generator-docx.js` → Annexure C / Z1(a) `.docx` generation (docx.js)
 - `js/ui.js` → wizard/step UI, doctor grid, preview table, event wiring
 - `js/consultant.js` → consultant file upload/merge logic
 
-Only the three vendor bundles are loaded via `<script src>` in `index.html`: `js/pdf.min.js`, `js/xlsx.full.min.js`, `js/jszip.min.js` (plus `js/pdf.worker.min.js`, loaded by PDF.js itself). Everything else runs from the inline script starting around `index.html:644`.
+Only two vendor bundles are loaded via `<script src>` in `index.html`: `js/pdf.min.js` and `js/jszip.min.js` (plus `js/pdf.worker.min.js`, loaded by PDF.js itself). Everything else runs from the inline script.
 
 **Because of this, the `js/*.js` module files are not actually loaded at runtime by `index.html`.** When changing app logic (not just markup/CSS), the corresponding code exists in two places that must be kept in sync:
 1. the module file under `js/` (the readable, commented source), and
@@ -63,7 +64,9 @@ they are — see `profiles/README.md`.
 ## Notes
 
 - All PDF parsing is coordinate-based against PDF.js text positions, since roster layouts vary — logic in `parser.js`/`parser-consultant.js` (and their inlined counterparts) is layout-sensitive. Word parsing is not: `parser-word.js` reads real cell boundaries and needs no calibration.
-- **`js/xlsx.full.min.js` is currently a GitHub error page, not SheetJS.** Only `parseRosterExcel` uses `window.XLSX`, so uploading an `.xlsx`/`.xls` roster fails; PDF and Word upload and all three output documents are unaffected (the `.xlsx` output is built from the base64 template with JSZip). Replace the file with a real SheetJS bundle to restore Excel upload.
+- **The app no longer bundles SheetJS.** `js/xlsx.full.min.js` had been a GitHub error page rather than a library, so `window.XLSX` was never defined and Excel upload always failed. It is replaced by `js/parser-xlsx.js`, a small reader over JSZip — an `.xlsx` is a zip of XML, so no extra dependency is needed. SheetJS was not restored because the newest version obtainable from npm is 0.18.5 (March 2022), which carries two unfixed high-severity parsing advisories (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9); the patched builds are only on `cdn.sheetjs.com`. Consequence: legacy binary `.xls` is no longer accepted — the upload zone takes `.pdf,.xlsx,.docx,.doc`, and an `.xls` gets a message telling the user to Save As `.xlsx`.
+- `parseRosterExcel` is **async** (it awaits `readXlsxSheets`); call sites must `await` it.
+- Date cells render as `D Month YYYY` rather than SheetJS's locale-dependent `M/D/YY`. Text cells — which is what the roster parsers actually match on — are byte-identical to SheetJS's `sheet_to_json({header:1, raw:false})`.
 - The EC setup wizard's overlay must stay a direct child of `<body>`. It previously sat inside `#detailsSection`, which is `display:none` at the EC-picker step, so the modal could never render.
 - The SA public holiday calendar (`holidays.js`) is a deterministic, hardcoded calendar — no network calls, works fully offline.
 - EC profile submission (the in-app wizard for adding a new EC) writes to Supabase; credentials for this live in `config.js`/the inlined config block.

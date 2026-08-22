@@ -287,7 +287,8 @@ $('parseBtn').addEventListener('click',async()=>{
         state.tableWarnings=(state.tableWarnings||[]).concat(result.warnings||[]);
       }
       else if(ext==='pdf') result=await parseRosterPDF(buf);
-      else if(ext==='xlsx'||ext==='xls') result=parseRosterExcel(buf);
+      else if(ext==='xls') throw new Error('Legacy .xls is not supported \u2014 open it in Excel and Save As .xlsx');
+      else if(ext==='xlsx') result=await parseRosterExcel(buf);
       else throw new Error('Unsupported format');
       const monthCounts={};
       for(const d of result.days) monthCounts[d.month]=(monthCounts[d.month]||0)+1;
