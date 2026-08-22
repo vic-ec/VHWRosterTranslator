@@ -24,7 +24,21 @@ profile only declares what the columns *mean*:
   bands as `["HH:MM", "HH:MM"]`, or `null` where a band does not apply.
   Public holidays use the SA calendar in `holidays.js` and take `weekend_ph`.
 
-> **The hours in `vhw-anaesthetics.example.json` are placeholders.** They were
-> copied from the VHW EC consultant pattern so the pipeline could be tested
-> end to end, and have not been confirmed with the Anaesthetics department.
-> Confirm them before this profile is used for a real payroll submission.
+### Hours in `vhw-anaesthetics.example.json`
+
+Confirmed with the department: it is an on-call roster, so appearing in any
+role column means being on call that day.
+
+| | Normal | OT1 (handover / on-site) | OT2 (on call) |
+|---|---|---|---|
+| Weekday | 07:30–15:30 | 15:30–16:00 | 16:00–07:30 |
+| Weekend / PH | — | 07:30–11:30 | 11:30–07:30 |
+
+Weekend and public holidays follow the EC consultant split: an on-site
+morning band, then off-site until the next morning. Public holidays are
+detected from `holidays.js`, so they take the weekend bands even midweek.
+
+Every role currently carries identical bands. If a column turns out to be
+daytime-only rather than call — `Sessions` is the likely candidate, since
+the roster marks half-days there ("Woermann AM") — change just that role's
+`weekday`/`weekend_ph` entry; nothing else needs touching.

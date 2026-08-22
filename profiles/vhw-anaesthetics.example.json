@@ -16,43 +16,43 @@
     "ignore_tokens": []
   },
 
-  "_time_rules_note": "PLACEHOLDER HOURS — copied from the VHW EC consultant pattern so the pipeline can be tested end to end. These have NOT been confirmed with the Anaesthetics department and must not be used for a real payroll submission until they are.",
+  "_hours_note": "Weekday: normal 07:30-15:30, handover 15:30-16:00, on-call 16:00-07:30. Weekend/PH: no normal hours; on-site 07:30-11:30 then off-site 11:30-07:30, following the EC consultant pattern. Being named anywhere in the roster means being on call, so every role carries the same bands.",
 
   "role_rules": {
     "MO": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:30"], "ot2": ["16:30", "07:30"] },
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
       "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
       "label_weekday": "MO On Call - Weekday",
       "label_weekend": "MO On Call - Weekend",
       "label_ph":      "MO On Call - Public Holiday"
     },
     "Consultant": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:30"], "ot2": ["16:30", "07:30"] },
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
       "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
-      "label_weekday": "On Call - Weekday",
-      "label_weekend": "On Call - Weekend",
-      "label_ph":      "On Call - Public Holiday"
+      "label_weekday": "Consultant On Call - Weekday",
+      "label_weekend": "Consultant On Call - Weekend",
+      "label_ph":      "Consultant On Call - Public Holiday"
     },
     "IM calls": {
-      "weekday":    { "normal": null, "ot1": ["16:00", "07:30"], "ot2": null },
-      "weekend_ph": { "normal": null, "ot1": ["07:30", "07:30"], "ot2": null },
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
+      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
       "label_weekday": "IM Call - Weekday",
       "label_weekend": "IM Call - Weekend",
       "label_ph":      "IM Call - Public Holiday"
     },
     "COSMO/SN": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": null, "ot2": null },
-      "weekend_ph": { "normal": null, "ot1": ["07:30", "11:30"], "ot2": null },
-      "label_weekday": "COSMO/SN - Weekday",
-      "label_weekend": "COSMO/SN - Weekend",
-      "label_ph":      "COSMO/SN - Public Holiday"
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
+      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
+      "label_weekday": "COSMO/SN On Call - Weekday",
+      "label_weekend": "COSMO/SN On Call - Weekend",
+      "label_ph":      "COSMO/SN On Call - Public Holiday"
     },
     "Sessions": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": null, "ot2": null },
-      "weekend_ph": { "normal": null, "ot1": ["07:30", "11:30"], "ot2": null },
-      "label_weekday": "Session - Weekday",
-      "label_weekend": "Session - Weekend",
-      "label_ph":      "Session - Public Holiday"
+      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
+      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
+      "label_weekday": "Sessions On Call - Weekday",
+      "label_weekend": "Sessions On Call - Weekend",
+      "label_ph":      "Sessions On Call - Public Holiday"
     }
   }
 }
