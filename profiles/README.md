@@ -1,8 +1,9 @@
 # EC profile examples
 
-Profiles live in the Supabase `ec_profiles` table — these files are reference
-copies showing the shape of each `roster_type`, so a new EC can be set up by
-copying and editing rather than starting from a blank JSON.
+Profiles live in the Supabase `ec_profiles` table. A `table` profile can be
+built in the app — "Not listed? Set up your EC" → **Word Table Roster** — which
+reads a sample roster, guesses what each column means, and asks for the hours.
+These files are reference copies of the same shape, for editing by hand.
 
 | File | roster_type | Source format |
 |---|---|---|

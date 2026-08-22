@@ -190,6 +190,13 @@ document.addEventListener('DOMContentLoaded', () => {
     yLinePx: 0,             // red line Y (canvas px)
   };
   const COL_NAMES   = ['slot1','slot2','slot3','meetings','leave','call'];
+  // Offered as activity types for a Word-table profile. The EC WD/WE shift
+  // types are deliberately absent — those belong to the EC roster alone.
+  const WIZ_LEAVE_DEFAULTS = ['Leave - Annual','Leave - Sick','Leave - Family Responsibility',
+    'Leave - Study','Leave - Special','Leave - Prenatal','Leave - Maternity','Leave - Paternity',
+    'Workshop','Course','Conference'];
+  const wizRosterType = () =>
+    document.querySelector('input[name="wizRosterType"]:checked')?.value || 'shift';
   const COL_COLOURS = ['#2D6B45','#1A6B3A','#5b9bd5','#9b59b6','#c0392b','#e67e22'];
   const WIZ_STEPS   = 4;
 
@@ -209,12 +216,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function wizGoto(step) {
     wizState.step = step;
-    const isConsultant = document.querySelector('input[name="wizRosterType"]:checked')?.value === 'consultant';
+    const rt = wizRosterType();
+    const isConsultant = rt === 'consultant';
+    const isTable      = rt === 'table';
     // Show/hide steps
     for (let i = 1; i <= WIZ_STEPS; i++) {
       const el = $('wizStep' + i);
       if (el) el.style.display = i === step ? '' : 'none';
     }
+    // Steps 2 and 3 hold one pane per roster type.
+    const pane = (consId, tblId) => {
+      const c = $(consId), t = $(tblId);
+      if (c) c.style.display = isTable ? 'none' : '';
+      if (t) t.style.display = isTable ? '' : 'none';
+    };
+    pane('wizStep2Cons', 'wizStep2Table');
+    pane('wizStep3Cons', 'wizStep3Table');
+    if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Word File' : '2 &nbsp;Upload PDF';
+    if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
     // Update tabs
     for (let i = 1; i <= WIZ_STEPS; i++) {
       const tab = $('wizTab' + i);
@@ -227,16 +246,17 @@ document.addEventListener('DOMContentLoaded', () => {
     $('wizSubmitBtn').style.display = step === WIZ_STEPS ? '' : 'none';
     $('wizSubmitMsg').style.display = 'none';
 
-    // Step-specific init
-    if (step === 2 && !isConsultant) { wizGoto(4); return; } // skip steps 2+3 for shift-only
-    if (step === 3 && !isConsultant) { wizGoto(4); return; }
-    if (step === 3) wizInitColStep();
+    // Step-specific init. A shift-only EC needs no sample file, so it jumps
+    // straight to review.
+    if ((step === 2 || step === 3) && !isConsultant && !isTable) { wizGoto(4); return; }
+    if (step === 3 && isConsultant) wizInitColStep();
+    if (step === 3 && isTable) wizInitTableCols();
     if (step === 4) wizBuildJson();
   }
 
   $('wizBackBtn').addEventListener('click', () => {
-    const isConsultant = document.querySelector('input[name="wizRosterType"]:checked')?.value === 'consultant';
-    if (wizState.step === 4 && !isConsultant) wizGoto(1);
+    const rt = wizRosterType();
+    if (wizState.step === 4 && rt === 'shift') wizGoto(1);
     else if (wizState.step > 1) wizGoto(wizState.step - 1);
   });
 
@@ -248,8 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Step 1: show/hide data_start_y when consultant selected
   document.querySelectorAll('input[name="wizRosterType"]').forEach(r => {
     r.addEventListener('change', () => {
-      const isCons = r.value === 'consultant';
-      $('wizDataYWrap').style.display = isCons ? '' : 'none';
+      $('wizDataYWrap').style.display = r.value === 'consultant' ? '' : 'none';
     });
   });
 
@@ -258,8 +277,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!$('wizEcName').value.trim()) { $('wizEcName').focus(); return false; }
       if (!$('wizEcShort').value.trim()) { $('wizEcShort').focus(); return false; }
     }
-    if (step === 2) {
+    if (step === 2 && wizRosterType() === 'consultant') {
       if (!wizState.pdfBuf) { $('wizPdfStatus').textContent = 'Please upload a PDF first.'; return false; }
+    }
+    if (step === 2 && wizRosterType() === 'table') {
+      if (!wizState.tableRows) { $('wizDocStatus').textContent = 'Please upload a Word roster first.'; return false; }
+    }
+    if (step === 3 && wizRosterType() === 'table') {
+      const m = wizReadColMap();
+      if (m.dateCol < 0) { alert('Mark which column holds the date.'); return false; }
+      if (!Object.keys(m.roleCols).length) { alert('Name at least one duty column.'); return false; }
     }
     return true;
   }
@@ -347,6 +374,168 @@ document.addEventListener('DOMContentLoaded', () => {
     yLine.addEventListener('touchstart', e => { e.preventDefault(); startDrag(e.touches[0].clientY); }, {passive:false});
   }
 
+  // ── Word-table branch: upload, map columns, build the profile ────────────
+  const wizDocFileEl = $('wizDocFile');
+  if (wizDocFileEl) wizDocFileEl.addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    $('wizDocStatus').textContent = 'Reading\u2026';
+    try {
+      const buf = await readFile(file);
+      const det = await detectWordTable(buf, file.name);
+      wizState.tableRows = det.rows;
+      wizState.tableCols = det.columns;
+      $('wizDocStatus').textContent =
+        `\u2713 ${file.name} \u2014 ${det.columns} columns, ${det.rows.length} rows`;
+      wizRenderDocPreview();
+      $('wizDocPreviewWrap').style.display = '';
+    } catch (err) {
+      wizState.tableRows = null;
+      $('wizDocStatus').textContent = 'Error: ' + err.message;
+      $('wizDocPreviewWrap').style.display = 'none';
+    }
+    e.target.value = '';
+  });
+
+  function wizRenderDocPreview() {
+    const rows = wizState.tableRows || [];
+    const tbl = $('wizDocPreview');
+    if (!tbl) return;
+    const head = rows[0] || [];
+    const body = rows.slice(1, 7);
+    tbl.innerHTML =
+      '<thead><tr>' + head.map((c, i) =>
+        `<th>${i}: ${c || '<span style="opacity:.5">(blank)</span>'}</th>`).join('') + '</tr></thead>' +
+      '<tbody>' + body.map(r =>
+        '<tr>' + head.map((_, i) => `<td>${(r[i] || '')}</td>`).join('') + '</tr>').join('') + '</tbody>';
+  }
+
+  // Guess each column's meaning so the common case needs no clicking.
+  function wizGuessColumns() {
+    const rows = wizState.tableRows || [];
+    const header = rows[0] || [];
+    const body = rows.slice(1);
+    const DAYS = /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)$/i;
+    const score = (i, test) =>
+      body.reduce((n, r) => n + (test(String(r[i] || '').trim()) ? 1 : 0), 0);
+    const out = [];
+    for (let i = 0; i < (wizState.tableCols || header.length); i++) {
+      const label = String(header[i] || '').trim();
+      let kind = 'role';
+      if (score(i, v => !!parseDateCell(v)) > body.length * 0.5) kind = 'date';
+      else if (score(i, v => DAYS.test(v)) > body.length * 0.5) kind = 'day';
+      else if (!label && score(i, v => !!v) === 0) kind = 'ignore';
+      out.push({ kind, name: label || `Column ${i}`, isCall: kind === 'role' });
+    }
+    return out;
+  }
+
+  function wizInitTableCols() {
+    const wrap = $('wizTblCols');
+    if (!wrap) return;
+    if (!wizState.colMap || wizState.colMap.length !== (wizState.tableCols || 0)) {
+      wizState.colMap = wizGuessColumns();
+    }
+    const rows = wizState.tableRows || [];
+    const samples = i => rows.slice(1, 5).map(r => r[i]).filter(Boolean).slice(0, 3).join(', ') || '\u2014';
+    wrap.innerHTML =
+      '<table class="wiz-rules-table"><thead><tr><th>#</th><th>Sample values</th>' +
+      '<th>Meaning</th><th>Name on timesheet</th><th>On call?</th></tr></thead><tbody>' +
+      wizState.colMap.map((c, i) => `
+        <tr>
+          <td style="font-family:var(--mono);">${i}</td>
+          <td style="font-size:11px;color:var(--text-muted);">${samples(i)}</td>
+          <td><select class="wiz-input wizColKind" data-i="${i}" style="min-width:120px;">
+            <option value="date"${c.kind==='date'?' selected':''}>Date</option>
+            <option value="day"${c.kind==='day'?' selected':''}>Weekday</option>
+            <option value="role"${c.kind==='role'?' selected':''}>Duty column</option>
+            <option value="ignore"${c.kind==='ignore'?' selected':''}>Ignore</option>
+          </select></td>
+          <td><input class="wiz-input wizColName" data-i="${i}" value="${(c.name||'').replace(/"/g,'&quot;')}"
+              ${c.kind==='role'?'':'disabled'} style="min-width:140px;"></td>
+          <td style="text-align:center;"><input type="checkbox" class="wizColCall" data-i="${i}"
+              ${c.isCall?'checked':''} ${c.kind==='role'?'':'disabled'}></td>
+        </tr>`).join('') + '</tbody></table>';
+
+    wrap.querySelectorAll('.wizColKind').forEach(sel =>
+      sel.addEventListener('change', () => {
+        const i = +sel.dataset.i;
+        wizState.colMap[i].kind = sel.value;
+        wizInitTableCols();
+      }));
+    wrap.querySelectorAll('.wizColName').forEach(inp =>
+      inp.addEventListener('input', () => { wizState.colMap[+inp.dataset.i].name = inp.value; }));
+    wrap.querySelectorAll('.wizColCall').forEach(cb =>
+      cb.addEventListener('change', () => { wizState.colMap[+cb.dataset.i].isCall = cb.checked; }));
+
+    const leave = $('wizLeaveTypes');
+    if (leave && !leave.children.length) {
+      leave.innerHTML = WIZ_LEAVE_DEFAULTS.map(t =>
+        `<label class="wiz-radio-lbl"><input type="checkbox" class="wizLeaveType" value="${t}" checked> ${t}</label>`).join('');
+    }
+  }
+
+  function wizReadColMap() {
+    const map = wizState.colMap || [];
+    const columns = [], roleCols = {};
+    let dateCol = -1, dayCol = -1;
+    map.forEach((c, i) => {
+      columns.push(c.kind === 'role' ? (c.name || `Column ${i}`)
+                 : c.kind === 'date' ? 'Date'
+                 : c.kind === 'day'  ? 'Day' : (c.name || `Column ${i}`));
+      if (c.kind === 'date' && dateCol < 0) dateCol = i;
+      if (c.kind === 'day'  && dayCol  < 0) dayCol  = i;
+      if (c.kind === 'role') roleCols[c.name || `Column ${i}`] = i;
+    });
+    return { columns, roleCols, dateCol, dayCol, map };
+  }
+
+  function wizBuildTableProfile(ecShort) {
+    const t = id => ($(id) ? $(id).value.trim() : '') || null;
+    const pair = (a, b) => (t(a) && t(b)) ? [t(a), t(b)] : null;
+    const { columns, roleCols, dateCol, dayCol, map } = wizReadColMap();
+
+    const dayRule  = { normal: pair('wt_day_nf','wt_day_nt'), ot1: pair('wt_day_o1f','wt_day_o1t'), ot2: pair('wt_day_o2f','wt_day_o2t') };
+    const callWd   = { normal: pair('wt_wd_nf','wt_wd_nt'),   ot1: pair('wt_wd_o1f','wt_wd_o1t'),   ot2: pair('wt_wd_o2f','wt_wd_o2t') };
+    const callWe   = { normal: pair('wt_we_nf','wt_we_nt'),   ot1: pair('wt_we_o1f','wt_we_o1t'),   ot2: pair('wt_we_o2f','wt_we_o2t') };
+    const DAY_LABEL = 'Normal Hours - Weekday';
+
+    const role_rules = {};
+    for (const [name, idx] of Object.entries(roleCols)) {
+      const isCall = (map[idx] || {}).isCall !== false;
+      role_rules[name] = isCall ? {
+        is_call: true,
+        weekday: callWd,
+        weekend_ph: callWe,
+        label_weekday: `${name} On Call - Weekday`,
+        label_weekend: `${name} On Call - Weekend`,
+        label_ph:      `${name} On Call - Public Holiday`,
+      } : {
+        is_call: false,
+        weekday: dayRule,
+        weekend_ph: null,
+        label_weekday: DAY_LABEL, label_weekend: DAY_LABEL, label_ph: DAY_LABEL,
+      };
+    }
+
+    const leaveTypes = [...document.querySelectorAll('.wizLeaveType')]
+      .filter(cb => cb.checked).map(cb => cb.value);
+
+    return {
+      ec_short: ecShort,
+      roster_type: 'table',
+      table: {
+        header_row: $('wizDocHeader') ? $('wizDocHeader').checked : true,
+        columns, date_col: dateCol, day_col: dayCol,
+        role_columns: roleCols, ignore_tokens: [],
+      },
+      default_weekday: { ...dayRule, label: DAY_LABEL },
+      post_call_off: $('wizPostCallOff') ? $('wizPostCallOff').checked : true,
+      leave_types: leaveTypes,
+      role_rules,
+    };
+  }
+
   // ── Step 3: column dividers ───────────────────────────────────────────────
   function wizInitColStep() {
     const wrap3 = $('wizCanvasWrap3');
@@ -430,7 +619,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Step 4: build profile JSON ───────────────────────────────────────────
   function wizBuildJson() {
-    const isConsultant = document.querySelector('input[name="wizRosterType"]:checked')?.value === 'consultant';
+    const rt = wizRosterType();
+    const isConsultant = rt === 'consultant';
+    if (rt === 'table') {
+      const built = wizBuildTableProfile($('wizEcShort').value.trim());
+      $('wizJsonPreview').textContent = JSON.stringify(built, null, 2);
+      return { ecName: $('wizEcName').value.trim(), profile: built };
+    }
     const profile = {
       ec_short:    $('wizEcShort').value.trim(),
       roster_type: isConsultant ? 'consultant' : 'shift',

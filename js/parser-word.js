@@ -540,3 +540,63 @@ function overlayTableShifts(doctorName, targetMonth, targetYear) {
   }
   return added;
 }
+
+// ── Setup-time table detection (no profile yet) ──────────────────────────────
+// The EC wizard needs the grid before a profile exists to describe it. For
+// .docx the structure is explicit. For .doc the row length is unknown — cell
+// and row marks are the same byte — so candidate widths are scored by how
+// many rows begin with something date-shaped, and the best one wins.
+function inferDocColumnCount(text) {
+  const last = text.lastIndexOf('\u0007');
+  if (last < 0) return 0;
+  const tokens = text.slice(0, last + 1).split('\u0007');
+  tokens.pop();
+  let bestN = 0, bestRatio = 0;
+  for (let n = 2; n <= 15; n++) {
+    let dated = 0, rows = 0;
+    for (let i = 0; i + n <= tokens.length; i += n + 1) {
+      rows++;
+      if (parseDateCell(tokens[i])) dated++;
+    }
+    if (rows < 3 || dated < 3) continue;
+    // Score by the PROPORTION of rows that start with a date, not the count.
+    // A divisor of the true width lands on a row boundary every so often and
+    // so finds just as many dates, but across far more rows — the true width
+    // is the one where nearly every row begins with one. Ties go to the wider
+    // grid, since a divisor can never beat it outright.
+    const ratio = dated / rows;
+    if (ratio > bestRatio + 1e-9 || (Math.abs(ratio - bestRatio) < 1e-9 && n > bestN)) {
+      bestRatio = ratio; bestN = n;
+    }
+  }
+  return bestN;
+}
+
+async function detectWordTable(arrayBuffer, fileName) {
+  const isDocx = /\.docx$/i.test(fileName || '') ||
+    (new Uint8Array(arrayBuffer, 0, 2)[0] === 0x50 && new Uint8Array(arrayBuffer, 0, 2)[1] === 0x4B);
+
+  let rows;
+  if (isDocx) {
+    const tables = await extractDocxTables(arrayBuffer);
+    if (!tables.length) throw new Error('No tables found in this document');
+    // The roster is the table with the most date-shaped first cells.
+    let best = null, bestScore = -1;
+    for (const t of tables) {
+      const s = t.reduce((n, r) => n + (parseDateCell(r[0]) ? 1 : 0), 0);
+      if (s > bestScore) { bestScore = s; best = t; }
+    }
+    rows = best;
+  } else {
+    const text = extractDocText(arrayBuffer);
+    const n = inferDocColumnCount(text);
+    if (!n) throw new Error('Could not find a table in this .doc — try saving it as .docx');
+    const tables = extractDocTables(arrayBuffer, n);
+    rows = tables.length ? tables[0] : [];
+  }
+
+  if (!rows || !rows.length) throw new Error('No table rows found');
+  const width = Math.max(...rows.map(r => r.length));
+  const norm = rows.map(r => { const c = r.slice(); while (c.length < width) c.push(''); return c; });
+  return { rows: norm, columns: width, isDocx };
+}

@@ -409,7 +409,11 @@ function tableActivityTypes(){
       if(!out.includes(v)) out.push(v);
     }
   }
-  for(const t of ACTIVITY_TYPES) if(/^Leave|^Workshop|^Course|^Conference/.test(t)) out.push(t);
+  // Leave and other non-roster activities come from the profile when it says
+  // so — the EC WD/WE shift types never apply to a table roster.
+  const leave=(activeProfile&&activeProfile.leave_types)
+    || ACTIVITY_TYPES.filter(t=>/^Leave|^Workshop|^Course|^Conference/.test(t));
+  for(const t of leave) if(!out.includes(t)) out.push(t);
   return out;
 }
 
