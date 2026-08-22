@@ -26,19 +26,33 @@ profile only declares what the columns *mean*:
 
 ### Hours in `vhw-anaesthetics.example.json`
 
-Confirmed with the department: it is an on-call roster, so appearing in any
-role column means being on call that day.
+**The roster records call only.** The ordinary working week never appears in
+the file, so the parser fills it in. Each day of the month resolves in this
+order:
 
-| | Normal | OT1 (handover / on-site) | OT2 (on call) |
+1. **On call that day** (named in any role column) → that role's bands.
+2. **Post-call** (on call the day before) → *off*. Last night's call already
+   runs to 07:30 that morning, and the rest of the day is leave.
+   Set `post_call_off: false` to disable.
+3. **An ordinary weekday** → `default_weekday`.
+4. Otherwise (weekend or public holiday, not on call) → nothing.
+
+On call today always wins, so a consultant covering a whole week is on duty
+throughout rather than post-call every second day.
+
+| | Normal | OT1 (handover / on-site) | OT2 (call) |
 |---|---|---|---|
-| Weekday | 07:30–15:30 | 15:30–16:00 | 16:00–07:30 |
-| Weekend / PH | — | 07:30–11:30 | 11:30–07:30 |
+| `default_weekday` | 07:30–15:30 | 15:30–16:00 | — |
+| Call, weekday | 07:30–15:30 | 15:30–16:00 | 16:00–07:30 |
+| Call, weekend / PH | — | 07:30–11:30 | 11:30–07:30 |
 
-Weekend and public holidays follow the EC consultant split: an on-site
-morning band, then off-site until the next morning. Public holidays are
-detected from `holidays.js`, so they take the weekend bands even midweek.
+Weekends and public holidays follow the EC consultant split: an on-site
+morning band, then off-site until the next morning. Public holidays come
+from `holidays.js`, so they take the weekend bands even midweek.
 
-Every role currently carries identical bands. If a column turns out to be
-daytime-only rather than call — `Sessions` is the likely candidate, since
-the roster marks half-days there ("Woermann AM") — change just that role's
-`weekday`/`weekend_ph` entry; nothing else needs touching.
+Two limits worth knowing. The first of the month cannot be judged post-call,
+because the previous month's roster is not loaded — it is treated as an
+ordinary day. And every role carries identical bands; if a column turns out
+to be daytime work rather than call — `Sessions` is the likely candidate,
+since the roster marks half-days there ("Woermann AM") — change just that
+role's entry.

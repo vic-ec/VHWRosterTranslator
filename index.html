@@ -1759,60 +1759,88 @@ function monthFromFileName(fileName) {
 // Excel generator and the docx generators need no changes.
 function getTableShifts(tableData, doctorName, targetMonth, profile, targetYear) {
   if (!tableData || !profile) return {};
-  const rules = profile.role_rules || {};
-  const result = {};
-  const nl = String(doctorName || '').toLowerCase();
+  const rules     = profile.role_rules || {};
+  const roleOrder = Object.keys((profile.table && profile.table.role_columns) || {});
+  const result    = {};
+  const nl   = String(doctorName || '').toLowerCase();
+  const year = targetYear || new Date().getFullYear();
 
+  // Public holidays take the weekend bands even midweek.
   const phDays = new Set();
   if (typeof getSAPublicHolidays === 'function') {
-    const phYear = targetYear || new Date().getFullYear();
-    const phMap = getSAPublicHolidays(phYear);
+    const phMap = getSAPublicHolidays(year);
     for (let d = 1; d <= 31; d++) {
-      const dt = new Date(phYear, targetMonth, d);
+      const dt = new Date(year, targetMonth, d);
       if (dt.getMonth() !== targetMonth) continue;
-      const key = phYear + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' +
+      const key = year + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' +
         String(dt.getDate()).padStart(2, '0');
       if (phMap.has(key)) phDays.add(d);
     }
   }
 
-  const t = v => (v || '').replace(':', 'H');
-
+  const byDate = new Map();
   for (const day of tableData.days) {
-    if (day.month !== targetMonth) continue;
+    if (day.month === targetMonth) byDate.set(day.date, day);
+  }
 
-    // Which role is this doctor filling today? First match wins, in the
-    // profile's declared column order.
-    let role = null, note = '';
-    for (const key of Object.keys(profile.table.role_columns || {})) {
+  // The role this doctor is rostered for on a given date, or null. First
+  // match wins, in the profile's declared column order.
+  const roleOn = (d) => {
+    const day = byDate.get(d);
+    if (!day) return null;
+    for (const key of roleOrder) {
       const hit = (day.roles[key] || []).find(p => p.name.toLowerCase() === nl);
-      if (hit) { role = key; note = hit.note; break; }
+      if (hit) return { role: key, note: hit.note };
     }
-    if (!role) continue;
+    return null;
+  };
 
-    const roleRule = rules[role];
-    if (!roleRule) continue;
+  const t = v => (v || '').replace(':', 'H');
+  const band = (rule, label, note) => ({
+    nf: t(rule.normal ? rule.normal[0] : ''),
+    nt: t(rule.normal ? rule.normal[1] : ''),
+    of: t(rule.ot2 ? rule.ot2[0] : (rule.ot1 ? rule.ot1[0] : '')),
+    ot: t(rule.ot2 ? rule.ot2[1] : (rule.ot1 ? rule.ot1[1] : '')),
+    typeLabel: note ? `${label} (${note})` : label,
+    ot1f: t(rule.ot1 ? rule.ot1[0] : ''),
+    ot1t: t(rule.ot1 ? rule.ot1[1] : ''),
+    ot2f: t(rule.ot2 ? rule.ot2[0] : ''),
+    ot2t: t(rule.ot2 ? rule.ot2[1] : ''),
+  });
 
-    const isPH = phDays.has(day.date);
-    const isSpecial = day.isWeekend || isPH;
-    const rule = isSpecial ? roleRule.weekend_ph : roleRule.weekday;
-    if (!rule) continue;
+  // A call roster records overtime only — the ordinary working week is
+  // implied, so it is filled in here rather than read from the file.
+  const dflt        = profile.default_weekday || null;
+  const postCallOff = profile.post_call_off !== false;
+  const daysInMonth = new Date(year, targetMonth + 1, 0).getDate();
 
-    const label = isPH ? (roleRule.label_ph || `${role} - Public Holiday`)
-      : day.isWeekend ? (roleRule.label_weekend || `${role} - Weekend`)
-        : (roleRule.label_weekday || `${role} - Weekday`);
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dow       = new Date(year, targetMonth, d).getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const isPH      = phDays.has(d);
+    const today     = roleOn(d);
 
-    result[day.date] = {
-      nf: t(rule.normal ? rule.normal[0] : ''),
-      nt: t(rule.normal ? rule.normal[1] : ''),
-      of: t(rule.ot2 ? rule.ot2[0] : (rule.ot1 ? rule.ot1[0] : '')),
-      ot: t(rule.ot2 ? rule.ot2[1] : (rule.ot1 ? rule.ot1[1] : '')),
-      typeLabel: note ? `${label} (${note})` : label,
-      ot1f: t(rule.ot1 ? rule.ot1[0] : ''),
-      ot1t: t(rule.ot1 ? rule.ot1[1] : ''),
-      ot2f: t(rule.ot2 ? rule.ot2[0] : ''),
-      ot2t: t(rule.ot2 ? rule.ot2[1] : ''),
-    };
+    // On call today: the roster's own bands win, whatever day it is.
+    if (today) {
+      const rr = rules[today.role];
+      if (!rr) continue;
+      const rule = (isWeekend || isPH) ? rr.weekend_ph : rr.weekday;
+      if (!rule) continue;
+      const label = isPH      ? (rr.label_ph      || `${today.role} - Public Holiday`)
+                  : isWeekend ? (rr.label_weekend || `${today.role} - Weekend`)
+                              : (rr.label_weekday || `${today.role} - Weekday`);
+      result[d] = band(rule, label, today.note);
+      continue;
+    }
+
+    // Post-call: yesterday's call runs into this morning, and the rest of
+    // the day is off. Day 1 cannot be judged — the previous month is not
+    // loaded — so it is treated as an ordinary day.
+    if (postCallOff && d > 1 && roleOn(d - 1)) continue;
+
+    // Otherwise: an ordinary working weekday, or nothing at all.
+    if (isWeekend || isPH || !dflt) continue;
+    result[d] = band(dflt, dflt.label || 'Normal Hours - Weekday', '');
   }
   return result;
 }
@@ -3668,6 +3696,9 @@ function isExtendedRosterMode(){
 function tableActivityTypes(){
   const rules=(activeProfile&&activeProfile.role_rules)||{};
   const out=[];
+  // The implied ordinary working day comes first — it is the most common row.
+  const dflt=activeProfile&&activeProfile.default_weekday;
+  if(dflt) out.push(dflt.label||'Normal Hours - Weekday');
   for(const [role,r] of Object.entries(rules)){
     for(const k of ['label_weekday','label_weekend','label_ph']){
       const v=r[k]||(role+' - '+k.replace('label_',''));

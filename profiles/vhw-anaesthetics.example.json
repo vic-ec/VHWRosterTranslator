@@ -16,7 +16,15 @@
     "ignore_tokens": []
   },
 
-  "_hours_note": "Weekday: normal 07:30-15:30, handover 15:30-16:00, on-call 16:00-07:30. Weekend/PH: no normal hours; on-site 07:30-11:30 then off-site 11:30-07:30, following the EC consultant pattern. Being named anywhere in the roster means being on call, so every role carries the same bands.",
+  "_hours_note": "The roster records call only. Every weekday is an ordinary working day (default_weekday) unless the person is on call, or post-call from the night before, in which case they are off. Weekday call: normal 07:30-15:30, handover 15:30-16:00, call 16:00-07:30. Weekend/PH call: no normal hours; on-site 07:30-11:30 then off-site 11:30-07:30, following the EC consultant pattern.",
+
+  "default_weekday": {
+    "normal": ["07:30", "15:30"],
+    "ot1":    ["15:30", "16:00"],
+    "ot2":    null,
+    "label":  "Normal Hours - Weekday"
+  },
+  "post_call_off": true,
 
   "role_rules": {
     "MO": {

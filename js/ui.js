@@ -400,6 +400,9 @@ function isExtendedRosterMode(){
 function tableActivityTypes(){
   const rules=(activeProfile&&activeProfile.role_rules)||{};
   const out=[];
+  // The implied ordinary working day comes first — it is the most common row.
+  const dflt=activeProfile&&activeProfile.default_weekday;
+  if(dflt) out.push(dflt.label||'Normal Hours - Weekday');
   for(const [role,r] of Object.entries(rules)){
     for(const k of ['label_weekday','label_weekend','label_ph']){
       const v=r[k]||(role+' - '+k.replace('label_',''));
