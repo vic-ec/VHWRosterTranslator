@@ -49,7 +49,11 @@ function applyProfile(profile) {
   activeProfile = profile;
   // Update header
   const ecShort = profile.ec_short || profile.ec_name;
-  $('headerTitle').textContent = `EC Roster Translator — ${ecShort}`;
+  // The EC name lives in the header chip (#ecSelectedName) — the brand
+  // line stays constant, and the offline badge is cleared here.
+  $('headerTitle').textContent = 'EC Roster Translator';
+  const modeEl = $('ecMode');
+  if (modeEl) { modeEl.textContent = ''; modeEl.style.display = 'none'; }
   // Store in localStorage for offline use
   localStorage.setItem(LS_PROFILE_KEY, JSON.stringify(profile));
   // Show/hide consultant zone based on profile type
@@ -190,6 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
     wizGoto(1);
   }
   function closeWizard() { $('wizardOverlay').style.display = 'none'; }
+  // Opened from the "Set up a new EC" link in the footer.
+  window.openWizard = openWizard;
 
   // ecNotListedLink is now a mailto link — no JS handler needed
   $('wizCloseBtn').addEventListener('click', closeWizard);

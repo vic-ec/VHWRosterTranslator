@@ -36,6 +36,16 @@ Only the three vendor bundles are loaded via `<script src>` in `index.html`: `js
 
 If you only edit one, the app's real behavior (driven by `index.html`) won't change, and/or the module source will drift out of sync. When asked to fix or add functionality, check whether the same logic block exists in both places and update both — don't assume editing `js/` alone is sufficient.
 
+## Design system — "Modernist"
+
+The interface is built on the Modernist design system: flat and architectural, set entirely in Archivo, near-mono ink (`#201e1d`) on bone (`#f3f2f2`) with a single red accent (`#ec3013`), **zero corner radius**, and 2px rules between major sections instead of cards or shadows.
+
+- The token sheet and component layer live at the top of `index.html`'s inline `<style>` block: `:root` custom properties (`--color-*`, `--font-*`, `--space-*`, `--radius-*`, `--shadow-*`), then the component classes (`.btn`, `.input`, `.field`, `.tag`, `.table`), then the app layout.
+- **Take every colour, font and spacing value from the tokens** — never hard-code a hex, a font name or a radius. Ramp steps (`--color-neutral-100…900`, `--color-accent-100…900`) exist for tints, hovers and pressed states.
+- A block of legacy aliases (`--bg`, `--surface`, `--border`, `--text-muted`, `--accent-mid`, `--warn`, `--success`, `--sans`, `--mono`, `--radius`) maps the old variable names — still emitted by some template strings in the app script — onto Modernist tokens. Don't add new uses; prefer the `--color-*` tokens.
+- Rules that must hold: no rounded corners, no centred hero copy, hovers and pressed states come from the accent ramp, and keyboard focus is the 2px accent `:focus-visible` ring.
+- Page structure: sticky header (brand + EC chip + Start over) → masthead (hero + process list, and the EC picker before one is chosen) → numbered sections `#sec-1`…`#sec-4` → footer. The progressive-disclosure gates (`#step1`, `#step2`, `#detailsSection`) are still toggled by the app script; a small `MutationObserver` at the end of `ui.js` mirrors those toggles onto the placeholder blocks (`#step1Empty`, `#step2Empty`, `#sec3Empty`).
+
 ## Output documents
 
 | Document | Format | Purpose |
