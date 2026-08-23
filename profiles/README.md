@@ -57,3 +57,22 @@ ordinary day. And every role carries identical bands; if a column turns out
 to be daytime work rather than call — `Sessions` is the likely candidate,
 since the roster marks half-days there ("Woermann AM") — change just that
 role's entry.
+
+## Presentation and form fields
+
+Optional keys any profile can set:
+
+| Key | Effect | Default |
+|---|---|---|
+| `duty_noun` | What section 2 calls a duty — "Preview & edit *calls*" | `shifts` |
+| `z1_component` | Component line on the Z1(a) leave form | `Emergency Medicine — Victoria Hospital` |
+| `supervisors` | Names for the supervisor dropdown. Empty or absent gives a free-text box (except the original EC `shift` profile, which keeps its built-in list) | — |
+| `leave_types` | Activity types offered alongside the roster's own duty labels | the standard leave list |
+
+Leave is classified **positively**: an activity counts as leave only if it is a
+known leave type or appears in `leave_types`. Anything else is duty. Deciding
+by exclusion used to misread role-prefixed labels such as
+`COSMO/SN On Call - Weekday` as leave, which put call days on the leave form
+and wrote the label into the timesheet instead of the hours. Only `Leave - *`
+types unlock the Z1(a); a workshop or course is official duty and belongs on
+Annexure C.

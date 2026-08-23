@@ -523,7 +523,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
           <div class="upload-zone-col">
             <div class="upload-zone-head">
               <span class="upload-zone-label">EC shift roster</span>
-              <span class="upload-zone-formats">PDF &middot; XLSX &middot; XLS</span>
+              <span class="upload-zone-formats" id="uploadFormats">PDF &middot; XLSX &middot; DOCX &middot; DOC</span>
             </div>
             <label class="upload-zone" id="rosterZone">
               <input type="file" id="rosterFile" accept=".pdf,.xlsx,.docx,.doc" multiple
@@ -2996,6 +2996,7 @@ async function generateZ1ADocx(d) {
   const casualEmployee = d.casualEmployee || 'no';
   const addressDuringLeave = d.addressDuringLeave || '';
   const supervisorName = d.supervisorName || '';
+  const component = d.component || 'Emergency Medicine \u2014 Victoria Hospital';
   const leaveData = (function() {
     const LEAVE_MAP_Z1 = {
       'Leave - Annual':'Annual Leave','Leave - Sick':'Normal Sick Leave',
@@ -3009,7 +3010,8 @@ async function generateZ1ADocx(d) {
     const groups = {};
     for (const day of days) {
       const es = d.editedShifts[day];
-      if (!es.typeLabel || es.typeLabel.startsWith('WD') || es.typeLabel.startsWith('WE') || es.typeLabel.startsWith('On Call') || es.typeLabel === 'Normal Hours - Weekday' || es.typeLabel.startsWith('Consultant')) continue;
+      // Positive test: only recognised leave types belong on a leave form.
+      if (!isZ1LeaveActivity(es.typeLabel)) continue;
       const lbl = LEAVE_MAP_Z1[es.typeLabel] || es.typeLabel;
       if (!groups[lbl]) groups[lbl] = { type: es.typeLabel, startDay: day, endDay: day, count: 0 };
       groups[lbl].endDay = day;
@@ -3252,7 +3254,7 @@ const doc = new Document({ sections:[{ properties:{
       ]}),
       new TableRow({ children:[
         cell([p([t('')],S0)], 5422, {gridSpan:14,borders:{top:NONE_B,bottom:{style:BorderStyle.SINGLE,size:4,color:'000000'},left:SNG,right:NONE_B}}),
-        cell([p([t('Emergency Medicine \u2014 Victoria Hospital',{size:FSS})])], 5090, {gridSpan:13,borders:allSng}),
+        cell([p([t(component,{size:FSS})])], 5090, {gridSpan:13,borders:allSng}),
       ]}),
 
       sectionRow('SECTION A: For Periods covering a full day'),
@@ -3577,11 +3579,14 @@ async function generateExcel(monthIdx, year, details) {
     const dk = `${year}-${String(monthIdx+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const phName = phMap ? phMap.get(dk) : null;
     const isSpecial = isWE || !!phName;
-    const isShift = es.typeLabel && (es.typeLabel.startsWith('WD Shift') || es.typeLabel.startsWith('WE Shift'));
-    const isConsultantType = es.typeLabel && (
-      es.typeLabel.startsWith('Consultant Day') || es.typeLabel.startsWith('Consultant Call') ||
-      es.typeLabel.startsWith('On Call -') || es.typeLabel === 'Normal Hours - Weekday'
-    );
+    // Classify by what the row HAS, not by how its label reads. Table rosters
+    // prefix the role ("COSMO/SN On Call - Weekday"), which no label test for
+    // "On Call -" would ever match.
+    const isLeaveRow = isLeaveActivity(es.typeLabel);
+    const isShift = !isLeaveRow && es.typeLabel &&
+      (es.typeLabel.startsWith('WD Shift') || es.typeLabel.startsWith('WE Shift'));
+    const isConsultantType = !isLeaveRow && !isShift &&
+      !!(es.nf || es.nt || es.ot1f || es.ot1t || es.ot2f || es.ot2t);
 
     if(isConsultantType) {
       // Consultant mode: 6 time columns
@@ -3666,6 +3671,31 @@ const CONSULTANT_ACTIVITY_TYPES=[
   'Leave - Study','Leave - Special','Leave - Prenatal','Leave - Maternity',
   'Leave - Paternity','Workshop','Course','Conference'
 ];
+
+// Leave and other non-duty activities. Classification is POSITIVE: anything
+// not named here (or in the profile's own leave_types) is duty. Deciding by
+// exclusion used to misread a table roster's role-prefixed labels — such as
+// "COSMO/SN On Call - Weekday" — as leave, which put call days on the leave
+// form and wrote the label into the timesheet's normal-hours column.
+const LEAVE_ACTIVITY_TYPES = ['Leave - Annual','Leave - Sick','Leave - Family Responsibility',
+  'Leave - Study','Leave - Special','Leave - Prenatal','Leave - Maternity','Leave - Paternity',
+  'Workshop','Course','Conference'];
+// Only actual leave reaches the Z1(a). A workshop or course is official duty
+// and is declared on Annexure C instead.
+const Z1_LEAVE_TYPES = LEAVE_ACTIVITY_TYPES.filter(t => t.startsWith('Leave - '));
+
+function isLeaveActivity(label) {
+  if (!label) return false;
+  if (LEAVE_ACTIVITY_TYPES.includes(label)) return true;
+  const lt = (typeof activeProfile !== 'undefined' && activeProfile && activeProfile.leave_types) || null;
+  return !!lt && lt.includes(label);
+}
+function isZ1LeaveActivity(label) { return !!label && Z1_LEAVE_TYPES.includes(label); }
+
+// Supervisor names are department-specific. A profile may declare its own;
+// the original EC roster keeps the built-in list, and anything else gets a
+// free-text box rather than someone else's consultants.
+const LEGACY_EC_SUPERVISORS = ['Philip Cloete','Sebastian De Haan','Paul Xafis'];
 
 // Consultant shift type → auto-fill times (6 fields: nf,nt,ot1f,ot1t,ot2f,ot2t)
 const CONSULTANT_SHIFT_TIMES = {
@@ -3758,15 +3788,39 @@ function getMonthYear(){
 }
 function hasLeaveInShifts(){
   if(!state.editedShifts) return false;
-  return Object.values(state.editedShifts).some(es=>{
-    const lbl=es.typeLabel||'';
-    if(!lbl) return false;
-    if(lbl.startsWith('WD Shift')||lbl.startsWith('WE Shift')) return false;
-    if(lbl.startsWith('On Call')||lbl==='Normal Hours - Weekday') return false;
-    if(lbl.startsWith('Consultant Day')||lbl.startsWith('Consultant Call')) return false;
-    return true;
-  });
+  return Object.values(state.editedShifts).some(es=>isLeaveActivity(es.typeLabel));
 }
+// The Z1(a) is a leave application, so only actual leave unlocks it.
+function hasZ1LeaveInShifts(){
+  if(!state.editedShifts) return false;
+  return Object.values(state.editedShifts).some(es=>isZ1LeaveActivity(es.typeLabel));
+}
+// Names for the supervisor dropdown, or null to use a plain text box.
+function supervisorOptionsFor(){
+  if(activeProfile&&Array.isArray(activeProfile.supervisors)&&activeProfile.supervisors.length)
+    return activeProfile.supervisors;
+  if(activeProfile&&activeProfile.roster_type==='shift') return LEGACY_EC_SUPERVISORS;
+  return null;
+}
+function applySupervisorMode(){
+  const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
+  if(!sel||!other) return;
+  const list=supervisorOptionsFor();
+  if(!list){
+    sel.style.display='none';
+    other.style.display='';
+    return;
+  }
+  sel.style.display='';
+  while(sel.options.length>1) sel.remove(1);
+  for(const n of list){
+    const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o);
+  }
+  const oth=document.createElement('option');
+  oth.value='other'; oth.textContent='Other\u2026'; sel.appendChild(oth);
+  if(sel.value!=='other') other.style.display='none';
+}
+
 function updateLeaveFields(){
   const sec=$('leaveFieldsSection');
   if(sec) sec.style.display=hasLeaveInShifts()?'':'none';
@@ -3785,11 +3839,13 @@ function checkDetailsComplete() {
   const address=$('detailAddress')?.value.trim()||'';
   const leaveOk=!leaveVisible||(address.length>0);
   const show=!!(first&&surname&&persal&&designation&&dateValid&&leaveOk);
-  const leave=hasLeaveInShifts();
+  // The duty roster and Annexure C never depend on leave; the Z1(a) is
+  // hidden outright unless some leave was captured.
+  const z1=hasZ1LeaveInShifts();
   $('proceedDownloadBtn').disabled=!show;
   $('annexureCBtn').disabled=!show;
-  $('z1aBtn').style.display=leave?'':'none';
-  $('z1aBtn').disabled=!(show&&leave);
+  $('z1aBtn').style.display=z1?'':'none';
+  $('z1aBtn').disabled=!(show&&z1);
   const lockNote=$('downloadsLocked');
   if(lockNote) lockNote.style.display=show?'none':'';
 }
@@ -3814,6 +3870,21 @@ function normaliseTime(val) {
   const h=parseInt(m[1]),min=parseInt(m[2]);
   if(h>23||min>59) return null;
   return String(h).padStart(2,'0')+'H'+String(min).padStart(2,'0');
+}
+
+// EC staff work shifts; other departments work ordinary hours and do calls.
+// The profile decides what the preview section calls them.
+function dutyNoun(){ return (activeProfile&&activeProfile.duty_noun)||'shifts'; }
+function applyDutyNoun(){
+  const noun=dutyNoun();
+  const cap=noun.charAt(0).toUpperCase()+noun.slice(1);
+  const head=document.querySelector('#sec-2 .sec-head h2');
+  if(head) head.textContent='Preview & edit '+noun;
+  const link=document.querySelector('a.steplink[href="#sec-2"] .label');
+  if(link) link.textContent='Preview & edit '+noun;
+  const empty=$('step2Empty');
+  if(empty) empty.textContent='Extract a roster to see detected staff and their '+noun+'.';
+  void cap;
 }
 
 function rebuildMonthDropdown() {
@@ -3851,7 +3922,9 @@ function saveDetailsToState() {
   state.savedDetails.persal=$('detailPersal').value.trim();
   // Fix 3: supervisor — use dropdown value, or 'other' text input
   const supSel=$('detailSupervisorSel').value;
-  state.savedDetails.supervisor=supSel==='other'?$('detailSupervisorOther').value.trim():supSel;
+  // With no dropdown for this profile the text box is the only source.
+  state.savedDetails.supervisor=(!supervisorOptionsFor()||supSel==='other')
+    ? $('detailSupervisorOther').value.trim() : supSel;
   state.savedDetails.sigDate=$('detailSigDate').value.trim();
   const desSel=$('detailDesignationSel').value;
   state.savedDetails.designation=desSel==='other'?$('detailDesignationOther').value.trim():desSel;
@@ -4612,6 +4685,7 @@ function getFormDetails(){
     designation:state.savedDetails.designation,
     signatureDate:state.savedDetails.sigDate,
     addressDuringLeave:state.savedDetails.address||'',
+    component:(activeProfile&&activeProfile.z1_component)||'Emergency Medicine \u2014 Victoria Hospital',
     shiftWorker:state.savedDetails.shiftWorker||'yes',
     casualEmployee:state.savedDetails.casualEmployee||'no',
     editedShifts:state.editedShifts,
@@ -4739,6 +4813,10 @@ function applyProfile(profile) {
   // Show/hide consultant zone based on profile type
   // (safe to call even before DOM is fully ready — guarded inside)
   if (typeof updateConsultantZoneVisibility === 'function') updateConsultantZoneVisibility();
+  // Department-specific presentation: supervisor names and what this roster
+  // calls a duty come from the profile, not from the EC defaults.
+  if (typeof applySupervisorMode === 'function') applySupervisorMode();
+  if (typeof applyDutyNoun === 'function') applyDutyNoun();
 }
 
 function showEcSelected(name) {

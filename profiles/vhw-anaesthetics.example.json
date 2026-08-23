@@ -3,7 +3,15 @@
   "roster_type": "table",
   "table": {
     "header_row": true,
-    "columns": ["Date", "Day", "MO", "Consultant", "IM calls", "COSMO/SN", "Sessions"],
+    "columns": [
+      "Date",
+      "Day",
+      "MO",
+      "Consultant",
+      "IM calls",
+      "COSMO/SN",
+      "Sessions"
+    ],
     "date_col": 0,
     "day_col": 1,
     "role_columns": {
@@ -15,54 +23,162 @@
     },
     "ignore_tokens": []
   },
-
   "_hours_note": "The roster records call only. Every weekday is an ordinary working day (default_weekday) unless the person is on call, or post-call from the night before, in which case they are off. Weekday call: normal 07:30-15:30, handover 15:30-16:00, call 16:00-07:30. Weekend/PH call: no normal hours; on-site 07:30-11:30 then off-site 11:30-07:30, following the EC consultant pattern.",
-
   "default_weekday": {
-    "normal": ["07:30", "15:30"],
-    "ot1":    ["15:30", "16:00"],
-    "ot2":    null,
-    "label":  "Normal Hours - Weekday"
+    "normal": [
+      "07:30",
+      "15:30"
+    ],
+    "ot1": [
+      "15:30",
+      "16:00"
+    ],
+    "ot2": null,
+    "label": "Normal Hours - Weekday"
   },
   "post_call_off": true,
-
+  "duty_noun": "calls",
+  "z1_component": "Anaesthetics — Victoria Hospital",
+  "supervisors": [],
   "role_rules": {
     "MO": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
-      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
+      "weekday": {
+        "normal": [
+          "07:30",
+          "15:30"
+        ],
+        "ot1": [
+          "15:30",
+          "16:00"
+        ],
+        "ot2": [
+          "16:00",
+          "07:30"
+        ]
+      },
+      "weekend_ph": {
+        "normal": null,
+        "ot1": [
+          "07:30",
+          "11:30"
+        ],
+        "ot2": [
+          "11:30",
+          "07:30"
+        ]
+      },
       "label_weekday": "MO On Call - Weekday",
       "label_weekend": "MO On Call - Weekend",
-      "label_ph":      "MO On Call - Public Holiday"
+      "label_ph": "MO On Call - Public Holiday"
     },
     "Consultant": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
-      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
+      "weekday": {
+        "normal": [
+          "07:30",
+          "15:30"
+        ],
+        "ot1": [
+          "15:30",
+          "16:00"
+        ],
+        "ot2": [
+          "16:00",
+          "07:30"
+        ]
+      },
+      "weekend_ph": {
+        "normal": null,
+        "ot1": [
+          "07:30",
+          "11:30"
+        ],
+        "ot2": [
+          "11:30",
+          "07:30"
+        ]
+      },
       "label_weekday": "Consultant On Call - Weekday",
       "label_weekend": "Consultant On Call - Weekend",
-      "label_ph":      "Consultant On Call - Public Holiday"
+      "label_ph": "Consultant On Call - Public Holiday"
     },
     "IM calls": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
-      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
+      "weekday": {
+        "normal": [
+          "07:30",
+          "15:30"
+        ],
+        "ot1": [
+          "15:30",
+          "16:00"
+        ],
+        "ot2": [
+          "16:00",
+          "07:30"
+        ]
+      },
+      "weekend_ph": {
+        "normal": null,
+        "ot1": [
+          "07:30",
+          "11:30"
+        ],
+        "ot2": [
+          "11:30",
+          "07:30"
+        ]
+      },
       "label_weekday": "IM Call - Weekday",
       "label_weekend": "IM Call - Weekend",
-      "label_ph":      "IM Call - Public Holiday"
+      "label_ph": "IM Call - Public Holiday"
     },
     "COSMO/SN": {
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": ["16:00", "07:30"] },
-      "weekend_ph": { "normal": null,               "ot1": ["07:30", "11:30"], "ot2": ["11:30", "07:30"] },
+      "weekday": {
+        "normal": [
+          "07:30",
+          "15:30"
+        ],
+        "ot1": [
+          "15:30",
+          "16:00"
+        ],
+        "ot2": [
+          "16:00",
+          "07:30"
+        ]
+      },
+      "weekend_ph": {
+        "normal": null,
+        "ot1": [
+          "07:30",
+          "11:30"
+        ],
+        "ot2": [
+          "11:30",
+          "07:30"
+        ]
+      },
       "label_weekday": "COSMO/SN On Call - Weekday",
       "label_weekend": "COSMO/SN On Call - Weekend",
-      "label_ph":      "COSMO/SN On Call - Public Holiday"
+      "label_ph": "COSMO/SN On Call - Public Holiday"
     },
     "Sessions": {
       "_note": "Daytime theatre sessions, not call: ordinary working hours, and no post-call day off afterwards.",
       "is_call": false,
-      "weekday":    { "normal": ["07:30", "15:30"], "ot1": ["15:30", "16:00"], "ot2": null },
+      "weekday": {
+        "normal": [
+          "07:30",
+          "15:30"
+        ],
+        "ot1": [
+          "15:30",
+          "16:00"
+        ],
+        "ot2": null
+      },
       "weekend_ph": null,
       "label_weekday": "Normal Hours - Weekday",
       "label_weekend": "Normal Hours - Weekday",
-      "label_ph":      "Normal Hours - Weekday"
+      "label_ph": "Normal Hours - Weekday"
     }
   }
 }

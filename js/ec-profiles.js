@@ -59,6 +59,10 @@ function applyProfile(profile) {
   // Show/hide consultant zone based on profile type
   // (safe to call even before DOM is fully ready — guarded inside)
   if (typeof updateConsultantZoneVisibility === 'function') updateConsultantZoneVisibility();
+  // Department-specific presentation: supervisor names and what this roster
+  // calls a duty come from the profile, not from the EC defaults.
+  if (typeof applySupervisorMode === 'function') applySupervisorMode();
+  if (typeof applyDutyNoun === 'function') applyDutyNoun();
 }
 
 function showEcSelected(name) {

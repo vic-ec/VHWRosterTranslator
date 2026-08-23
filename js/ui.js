@@ -39,16 +39,39 @@ function getMonthYear(){
 }
 function hasLeaveInShifts(){
   if(!state.editedShifts) return false;
-  return Object.values(state.editedShifts).some(es=>{
-    const lbl=es.typeLabel||'';
-    if(!lbl) return false;
-    // Shift types — never leave
-    if(lbl.startsWith('WD Shift')||lbl.startsWith('WE Shift')) return false;
-    // Consultant on-call/normal types — never leave
-    if(lbl.startsWith('On Call')||lbl==='Normal Hours - Weekday') return false;
-    return true;
-  });
+  return Object.values(state.editedShifts).some(es=>isLeaveActivity(es.typeLabel));
 }
+// The Z1(a) is a leave application, so only actual leave unlocks it.
+function hasZ1LeaveInShifts(){
+  if(!state.editedShifts) return false;
+  return Object.values(state.editedShifts).some(es=>isZ1LeaveActivity(es.typeLabel));
+}
+// Names for the supervisor dropdown, or null to use a plain text box.
+function supervisorOptionsFor(){
+  if(activeProfile&&Array.isArray(activeProfile.supervisors)&&activeProfile.supervisors.length)
+    return activeProfile.supervisors;
+  if(activeProfile&&activeProfile.roster_type==='shift') return LEGACY_EC_SUPERVISORS;
+  return null;
+}
+function applySupervisorMode(){
+  const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
+  if(!sel||!other) return;
+  const list=supervisorOptionsFor();
+  if(!list){
+    sel.style.display='none';
+    other.style.display='';
+    return;
+  }
+  sel.style.display='';
+  while(sel.options.length>1) sel.remove(1);
+  for(const n of list){
+    const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o);
+  }
+  const oth=document.createElement('option');
+  oth.value='other'; oth.textContent='Other\u2026'; sel.appendChild(oth);
+  if(sel.value!=='other') other.style.display='none';
+}
+
 function updateLeaveFields(){
   const sec=$('leaveFieldsSection');
   if(sec) sec.style.display=hasLeaveInShifts()?'':'none';
@@ -67,11 +90,13 @@ function checkDetailsComplete() {
   const address=$('detailAddress')?.value.trim()||'';
   const leaveOk=!leaveVisible||(address.length>0);
   const show=!!(first&&surname&&persal&&designation&&dateValid&&leaveOk);
-  const leave=hasLeaveInShifts();
+  // The duty roster and Annexure C never depend on leave; the Z1(a) is
+  // hidden outright unless some leave was captured.
+  const z1=hasZ1LeaveInShifts();
   $('proceedDownloadBtn').disabled=!show;
   $('annexureCBtn').disabled=!show;
-  $('z1aBtn').style.display=leave?'':'none';
-  $('z1aBtn').disabled=!(show&&leave);
+  $('z1aBtn').style.display=z1?'':'none';
+  $('z1aBtn').disabled=!(show&&z1);
   const lockNote=$('downloadsLocked');
   if(lockNote) lockNote.style.display=show?'none':'';
 }
@@ -96,6 +121,21 @@ function normaliseTime(val) {
   const h=parseInt(m[1]),min=parseInt(m[2]);
   if(h>23||min>59) return null;
   return String(h).padStart(2,'0')+'H'+String(min).padStart(2,'0');
+}
+
+// EC staff work shifts; other departments work ordinary hours and do calls.
+// The profile decides what the preview section calls them.
+function dutyNoun(){ return (activeProfile&&activeProfile.duty_noun)||'shifts'; }
+function applyDutyNoun(){
+  const noun=dutyNoun();
+  const cap=noun.charAt(0).toUpperCase()+noun.slice(1);
+  const head=document.querySelector('#sec-2 .sec-head h2');
+  if(head) head.textContent='Preview & edit '+noun;
+  const link=document.querySelector('a.steplink[href="#sec-2"] .label');
+  if(link) link.textContent='Preview & edit '+noun;
+  const empty=$('step2Empty');
+  if(empty) empty.textContent='Extract a roster to see detected staff and their '+noun+'.';
+  void cap;
 }
 
 function rebuildMonthDropdown() {
@@ -133,7 +173,9 @@ function saveDetailsToState() {
   state.savedDetails.persal=$('detailPersal').value.trim();
   // Fix 3: supervisor — use dropdown value, or 'other' text input
   const supSel=$('detailSupervisorSel').value;
-  state.savedDetails.supervisor=supSel==='other'?$('detailSupervisorOther').value.trim():supSel;
+  // With no dropdown for this profile the text box is the only source.
+  state.savedDetails.supervisor=(!supervisorOptionsFor()||supSel==='other')
+    ? $('detailSupervisorOther').value.trim() : supSel;
   state.savedDetails.sigDate=$('detailSigDate').value.trim();
   const desSel=$('detailDesignationSel').value;
   state.savedDetails.designation=desSel==='other'?$('detailDesignationOther').value.trim():desSel;
@@ -863,6 +905,7 @@ function getFormDetails(){
     designation:state.savedDetails.designation,
     signatureDate:state.savedDetails.sigDate,
     addressDuringLeave:state.savedDetails.address||'',
+    component:(activeProfile&&activeProfile.z1_component)||'Emergency Medicine \u2014 Victoria Hospital',
     shiftWorker:state.savedDetails.shiftWorker||'yes',
     casualEmployee:state.savedDetails.casualEmployee||'no',
     editedShifts:state.editedShifts,

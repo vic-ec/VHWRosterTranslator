@@ -175,10 +175,14 @@ async function generateExcel(monthIdx, year, details) {
     const dk = `${year}-${String(monthIdx+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const phName = phMap ? phMap.get(dk) : null;
     const isSpecial = isWE || !!phName;
-    const isShift = es.typeLabel && (es.typeLabel.startsWith('WD Shift') || es.typeLabel.startsWith('WE Shift'));
-    const isConsultantType = es.typeLabel && (
-      es.typeLabel.startsWith('On Call -') || es.typeLabel === 'Normal Hours - Weekday'
-    );
+    // Classify by what the row HAS, not by how its label reads. Table rosters
+    // prefix the role ("COSMO/SN On Call - Weekday"), which no label test for
+    // "On Call -" would ever match.
+    const isLeaveRow = isLeaveActivity(es.typeLabel);
+    const isShift = !isLeaveRow && es.typeLabel &&
+      (es.typeLabel.startsWith('WD Shift') || es.typeLabel.startsWith('WE Shift'));
+    const isConsultantType = !isLeaveRow && !isShift &&
+      !!(es.nf || es.nt || es.ot1f || es.ot1t || es.ot2f || es.ot2t);
 
     if(isConsultantType) {
       // Consultant mode: 6 time columns
