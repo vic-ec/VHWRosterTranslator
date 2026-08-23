@@ -4,6 +4,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500&family=Inter+Tight:wght@500;600;700;800&display=swap">
 <title>Hospital Roster Translator</title>
 <script src="js/pdf.min.js"></script>
 <script src="js/jszip.min.js"></script>
@@ -14,16 +17,17 @@
 <style>
 /* ═══════════════════════════════════════════════════════════════
    Modernist — design-system tokens (source: _ds/modernist styles.css).
-   Flat, architectural, set in Archivo: near-mono ink on bone with a
-   single red accent, zero corner radius, 2px rules doing the work.
+   Flat, architectural: Inter Tight 800 for headings and label-as-object,
+   IBM Plex Sans 400 for everything that reads as prose. Near-mono ink on
+   bone with a single royal-blue accent, zero corner radius, 2px rules doing
+   the work. The two families below are the only place a font is named, and
+   the ramp below is the only place a colour is.
    ═══════════════════════════════════════════════════════════════ */
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
-
 :root {
   --color-bg: #f3f2f2;
   --color-surface: #eae9e9;
   --color-text: #201e1d;
-  --color-accent: #ec3013;
+  --color-accent: var(--color-accent-500);
   --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
 
   --color-neutral-100: #f8f4f4;
@@ -36,19 +40,19 @@
   --color-neutral-800: #444141;
   --color-neutral-900: #2d2b2b;
 
-  --color-accent-100: #fff2ef;
-  --color-accent-200: #ffe0d9;
-  --color-accent-300: #ffc4b8;
-  --color-accent-400: #ff9783;
-  --color-accent-500: #ff563c;
-  --color-accent-600: #dd2b0f;
-  --color-accent-700: #ae1800;
-  --color-accent-800: #7c1405;
-  --color-accent-900: #4d170e;
+  --color-accent-100: #e9eefd;
+  --color-accent-200: #cddaf9;
+  --color-accent-300: #9db6f2;
+  --color-accent-400: #6a8ce8;
+  --color-accent-500: #3560db;
+  --color-accent-600: #2a4eb4;
+  --color-accent-700: #1f3b8c;
+  --color-accent-800: #182d6b;
+  --color-accent-900: #0f1d46;
 
-  --font-heading: "Archivo", system-ui, sans-serif;
+  --font-heading: "Inter Tight", system-ui, sans-serif;
   --font-heading-weight: 800;
-  --font-body: "Archivo", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, sans-serif;
 
   --space-1: 4px; --space-2: 8px; --space-3: 12px;
   --space-4: 16px; --space-6: 24px; --space-8: 32px;
@@ -97,11 +101,11 @@ h1, h2, h3, h4, h5, h6 {
 h1 { font-size: 42px; } h2 { font-size: 32px; } h3 { font-size: 25px; }
 h4 { font-size: 20px; } h5 { font-size: 16px; } h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
 p { margin: 0 0 var(--space-3); }
-a { color: var(--color-accent); text-underline-offset: 3px; }
+a { color: var(--color-accent-700); text-underline-offset: 3px; }
 img { display: block; max-width: 100%; }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+::selection { background: var(--color-accent-200); }
 .text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
 .hr { height: 2px; border: 0; margin: var(--space-4) 0; background: var(--color-divider); }
 
@@ -123,7 +127,7 @@ img { display: block; max-width: 100%; }
 .btn-secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .btn-secondary:active:not(:disabled) { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
 .btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
-.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:hover { background: var(--color-accent-100); }
 .btn-success { background: var(--color-accent); color: var(--color-bg); }
 .btn-success:hover:not(:disabled) { background: var(--color-accent-600); }
 .btn-clear {
@@ -149,7 +153,7 @@ select.input, .field select {
   background-position: calc(100% - 16px) 15px, calc(100% - 11px) 15px;
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 32px;
 }
-.req-star { color: var(--color-accent); margin-left: 2px; }
+.req-star { color: var(--color-accent-700); margin-left: 2px; }
 
 /* ── tags ───────────────────────────────────────────────────── */
 .tag { display: inline-flex; align-items: center; font-size: 11px; letter-spacing: 0.02em; padding: 3px 10px; border-radius: 0; white-space: nowrap; }
@@ -160,7 +164,7 @@ select.input, .field select {
 /* ── tables ─────────────────────────────────────────────────── */
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th {
-  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  text-align: left; font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
   color: color-mix(in srgb, var(--color-text) 60%, transparent);
   padding: var(--space-2); border-bottom: 2px solid var(--color-divider);
 }
@@ -197,7 +201,7 @@ header {
 .masthead { padding: 56px 32px 40px; border-bottom: 2px solid var(--color-neutral-500); }
 .masthead-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: end; }
 .kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700); margin-bottom: 16px; }
-.masthead h1 { font-size: 64px; line-height: 0.98; letter-spacing: -0.035em; margin: 0 0 20px; max-width: 12ch; }
+.masthead h1 { font-size: 66px; line-height: 0.96; letter-spacing: -0.04em; margin: 0 0 20px; max-width: 12ch; }
 .masthead-lede { font-size: 17px; line-height: 1.5; max-width: 46ch; color: var(--color-neutral-800); margin: 0 0 40px; }
 .process { border-top: 2px solid var(--color-neutral-500); padding: 16px 0 2px; margin: 0; }
 .process-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 12px; }
@@ -206,8 +210,8 @@ header {
   padding: 2px 12px 6px; border-left: 1px solid var(--color-neutral-400);
 }
 .steplink:hover { color: var(--color-accent); }
-.steplink .num { font-family: var(--font-heading); font-weight: 800; font-size: 11px; color: var(--color-accent); }
-.steplink .label { font-family: var(--font-heading); font-weight: 800; font-size: 13px; line-height: 1.25; letter-spacing: -0.01em; }
+.steplink .num { font-family: var(--font-heading); font-weight: 800; font-size: 12px; color: var(--color-accent); }
+.steplink .label { font-family: var(--font-heading); font-weight: 800; font-size: 16px; line-height: 1.15; letter-spacing: -0.015em; }
 
 /* EC picker (masthead, before an EC is chosen) */
 .ec-select-wrap { margin: 0 0 40px; max-width: 46ch; }
@@ -251,7 +255,7 @@ main { padding: 40px 32px 0; }
 .roster-list { display: block; margin-top: 4px; }
 .roster-item { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--color-divider); }
 .roster-item .ri-name { font-size: 13px; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.roster-item .ri-days { font-size: 11px; color: var(--color-neutral-600); white-space: nowrap; }
+.roster-item .ri-days { font-size: 11px; color: var(--color-neutral-600); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .roster-item .ri-remove { border: 0; background: none; cursor: pointer; font-size: 15px; color: var(--color-neutral-600); padding: 0 2px; line-height: 1; }
 .roster-item .ri-remove:hover { color: var(--color-accent); }
 
@@ -274,7 +278,7 @@ main { padding: 40px 32px 0; }
   background: transparent; color: var(--color-text);
 }
 .doctor-chip .dc-name { font-size: 13px; font-family: var(--font-heading); font-weight: 800; margin-right: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.doctor-chip .dc-count { font-size: 11px; opacity: 0.7; white-space: nowrap; }
+.doctor-chip .dc-count { font-size: 11px; opacity: 0.7; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .doctor-chip:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
 .doctor-chip.selected { background: var(--color-accent); color: var(--color-bg); border-left-color: var(--color-accent-700); }
 .doctor-chip.selected:hover { background: var(--color-accent-600); }
@@ -307,8 +311,8 @@ main { padding: 40px 32px 0; }
   color: color-mix(in srgb, var(--color-text) 60%, transparent);
   padding: 8px; border-bottom: 2px solid var(--color-divider); white-space: nowrap;
 }
-.preview-table td { padding: 5px 8px; border-bottom: 1px solid var(--color-divider); white-space: nowrap; overflow: hidden; }
-.preview-table td:first-child { font-family: var(--font-heading); font-weight: 800; font-variant-numeric: tabular-nums; }
+.preview-table td { padding: 5px 8px; border-bottom: 1px solid var(--color-divider); white-space: nowrap; overflow: hidden; font-variant-numeric: tabular-nums; }
+.preview-table td:first-child { font-family: var(--font-heading); font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
 .preview-table .we-label { color: var(--color-neutral-600); }
 .preview-table td:nth-child(2) { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-neutral-600); }
 .we-row td { background: color-mix(in srgb, var(--color-text) 5%, transparent); }
@@ -344,7 +348,7 @@ main { padding: 40px 32px 0; }
 .totals-bar .totals-label { margin-right: auto; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-neutral-700); align-self: center; }
 .totals-bar .t-key { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-neutral-600); display: block; }
 .totals-bar .t-val { font-family: var(--font-heading); font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; }
-.totals-bar .t-val.accent { color: var(--color-accent); }
+.totals-bar .t-val.accent { color: var(--color-accent-700); }
 .empty { padding: 20px 16px; color: var(--color-neutral-600); font-size: 13px; }
 .sec-empty { border: 1px solid var(--color-divider); background: var(--color-surface); padding: 22px 20px; font-size: 13px; color: var(--color-neutral-700); }
 
@@ -412,7 +416,7 @@ main { padding: 40px 32px 0; }
 .profile-panel .ec-badge-label { display: block; font-size: 11px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--color-neutral-700); margin-bottom: 4px; }
 .profile-panel .ec-badge-name { display: block; font-family: var(--font-heading);
-  font-weight: 800; font-size: 18px; line-height: 1.2; }
+  font-weight: 800; font-size: 17px; line-height: 1.2; }
 
 /* ── Clickable step number opens its screenshot ───────────────────── */
 .printstep .num { display: block; }
@@ -433,7 +437,7 @@ button.shot-num:focus-visible { outline: 2px solid var(--color-accent); outline-
   background: var(--color-neutral-900); color: #fff; flex: 0 0 auto; }
 .shotbar .cap { font-size: 13px; flex: 1; }
 .shotbar button { appearance: none; background: none; border: 1px solid rgba(255,255,255,.35);
-  color: #fff; font-family: var(--font-mono); font-size: 13px; line-height: 1;
+  color: #fff; font-family: var(--font-body); font-size: 13px; line-height: 1;
   padding: 6px 10px; cursor: pointer; }
 .shotbar button:hover { background: rgba(255,255,255,.14); }
 .shotstage { flex: 1; overflow: hidden; display: flex; align-items: center;
@@ -519,7 +523,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   <div class="brand">
     <span class="brand-mark"></span>
     <span class="brand-name" id="headerTitle">Hospital Roster Translator</span>
-    <span class="brand-ver">v09.07.2026</span>
+    <span class="brand-ver">23.08.2026</span>
   </div>
   <span class="ec-mode" id="ecMode" style="display:none;"></span>
 </header>
@@ -789,7 +793,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
 <footer>
   <div class="wrap footer-inner">
-    <span class="copy">&copy; vic-ec &middot; Hospital Roster Translator v09.07.2026</span>
+    <span class="copy">&copy; vic-ec &middot; Hospital Roster Translator 23.08.2026</span>
     <a href="mailto:Paul.Xafis&#64;westerncape.gov.za?subject=EC%20Roster%20Translator%20%E2%80%94%20Feedback">Send feedback</a>
     <a href="#" id="openWizardLink">Set up a new department profile</a>
   </div>
@@ -871,7 +875,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
         <span class="upload-label">Upload sample Word roster</span>
         <span class="upload-hint">.docx or .doc &mdash; click or drag &amp; drop</span>
       </label>
-      <div id="wizDocStatus" style="font-family:var(--mono);font-size:11px;color:var(--text-muted);margin-bottom:8px;"></div>
+      <div id="wizDocStatus" style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin-bottom:8px;"></div>
       <div id="wizDocPreviewWrap" style="display:none;">
         <div class="wiz-section-title">What we found</div>
         <div style="overflow-x:auto;border:1px solid var(--color-divider);">
@@ -4282,7 +4286,7 @@ $('previewBtn').addEventListener('click',()=>{
     buildPreview(state.selectedDoctor,month,year);
   } catch(err) {
     console.error('buildPreview error:', err);
-    $('previewArea').innerHTML='<div style="color:red;padding:16px;font-family:monospace;font-size:12px;">Preview error: '+err.message+'<br><pre>'+err.stack+'</pre></div>';
+    $('previewArea').innerHTML='<div style="color:red;padding:16px;font-family:var(--font-body);font-size:12px;">Preview error: '+err.message+'<br><pre>'+err.stack+'</pre></div>';
   }
   // Fix 2: reveal step 3 now
   unlock(step3);
@@ -5321,7 +5325,7 @@ document.addEventListener('DOMContentLoaded', () => {
       '<th>Meaning</th><th>Name on timesheet</th><th>On call?</th></tr></thead><tbody>' +
       wizState.colMap.map((c, i) => `
         <tr>
-          <td style="font-family:var(--mono);">${i}</td>
+          <td style="font-family:var(--font-body);font-variant-numeric:tabular-nums;">${i}</td>
           <td style="font-size:11px;color:var(--text-muted);">${samples(i)}</td>
           <td><select class="wiz-input wizColKind" data-i="${i}" style="min-width:120px;">
             <option value="date"${c.kind==='date'?' selected':''}>Date</option>
@@ -5436,7 +5440,7 @@ document.addEventListener('DOMContentLoaded', () => {
       div.style.left = wizState.divPositions[i] + 'px';
       // Label pip
       const pip = document.createElement('div');
-      pip.style.cssText = `position:absolute;top:4px;left:50%;transform:translateX(-50%);background:${COL_COLOURS[i]};color:#fff;font-size:9px;font-family:monospace;padding:1px 4px;border-radius:2px;white-space:nowrap;`;
+      pip.style.cssText = `position:absolute;top:4px;left:50%;transform:translateX(-50%);background:${COL_COLOURS[i]};color:#fff;font-size:9px;font-family:var(--font-body);padding:1px 4px;border-radius:2px;white-space:nowrap;`;
       pip.textContent = COL_NAMES[i + 1];
       div.appendChild(pip);
       wrap3.appendChild(div);
@@ -5824,7 +5828,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <div class="shotbar">
     <span class="cap"></span>
     <button type="button" id="shotOut" aria-label="Zoom out">&minus;</button>
-    <span id="shotPct" style="font-family:var(--font-mono);font-size:12px;min-width:46px;text-align:center;">100%</span>
+    <span id="shotPct" style="font-family:var(--font-body);font-size:12px;min-width:46px;font-variant-numeric:tabular-nums;text-align:center;">100%</span>
     <button type="button" id="shotIn" aria-label="Zoom in">+</button>
     <button type="button" id="shotReset">Reset</button>
     <button type="button" id="shotClose" aria-label="Close">Close</button>

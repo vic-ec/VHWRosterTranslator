@@ -40,7 +40,7 @@ If you only edit one, the app's real behavior (driven by `index.html`) won't cha
 
 ## Design system — "Modernist"
 
-The interface is built on the Modernist design system: flat and architectural, set entirely in Archivo, near-mono ink (`#201e1d`) on bone (`#f3f2f2`) with a single red accent (`#ec3013`), **zero corner radius**, and 2px rules between major sections instead of cards or shadows.
+The interface is built on the Modernist design system: flat and architectural, headings and label-as-object in Inter Tight 800, prose in IBM Plex Sans 400, near-mono ink (`#201e1d`) on bone (`#f3f2f2`) with a single royal-blue accent (`--color-accent-500`, `#3560db`), **zero corner radius**, and 2px rules between major sections instead of cards or shadows.
 
 - The token sheet and component layer live at the top of `index.html`'s inline `<style>` block: `:root` custom properties (`--color-*`, `--font-*`, `--space-*`, `--radius-*`, `--shadow-*`), then the component classes (`.btn`, `.input`, `.field`, `.tag`, `.table`), then the app layout.
 - **Take every colour, font and spacing value from the tokens** — never hard-code a hex, a font name or a radius. Ramp steps (`--color-neutral-100…900`, `--color-accent-100…900`) exist for tints, hovers and pressed states.

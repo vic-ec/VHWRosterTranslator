@@ -472,7 +472,7 @@ $('previewBtn').addEventListener('click',()=>{
     buildPreview(state.selectedDoctor,month,year);
   } catch(err) {
     console.error('buildPreview error:', err);
-    $('previewArea').innerHTML='<div style="color:red;padding:16px;font-family:monospace;font-size:12px;">Preview error: '+err.message+'<br><pre>'+err.stack+'</pre></div>';
+    $('previewArea').innerHTML='<div style="color:red;padding:16px;font-family:var(--font-body);font-size:12px;">Preview error: '+err.message+'<br><pre>'+err.stack+'</pre></div>';
   }
   // Fix 2: reveal step 3 now
   unlock(step3);

@@ -453,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
       '<th>Meaning</th><th>Name on timesheet</th><th>On call?</th></tr></thead><tbody>' +
       wizState.colMap.map((c, i) => `
         <tr>
-          <td style="font-family:var(--mono);">${i}</td>
+          <td style="font-family:var(--font-body);font-variant-numeric:tabular-nums;">${i}</td>
           <td style="font-size:11px;color:var(--text-muted);">${samples(i)}</td>
           <td><select class="wiz-input wizColKind" data-i="${i}" style="min-width:120px;">
             <option value="date"${c.kind==='date'?' selected':''}>Date</option>
@@ -568,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
       div.style.left = wizState.divPositions[i] + 'px';
       // Label pip
       const pip = document.createElement('div');
-      pip.style.cssText = `position:absolute;top:4px;left:50%;transform:translateX(-50%);background:${COL_COLOURS[i]};color:#fff;font-size:9px;font-family:monospace;padding:1px 4px;border-radius:2px;white-space:nowrap;`;
+      pip.style.cssText = `position:absolute;top:4px;left:50%;transform:translateX(-50%);background:${COL_COLOURS[i]};color:#fff;font-size:9px;font-family:var(--font-body);padding:1px 4px;border-radius:2px;white-space:nowrap;`;
       pip.textContent = COL_NAMES[i + 1];
       div.appendChild(pip);
       wrap3.appendChild(div);
