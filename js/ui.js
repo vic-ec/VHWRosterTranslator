@@ -788,7 +788,7 @@ function attachEditHandlers(){
       let v=fresh.value.replace(/[^0-9H:]/gi,'').toUpperCase();
       if(/^\d{3,4}$/.test(v)) v=v.slice(0,2)+'H'+v.slice(2);
       if(v!==fresh.value) fresh.value=v;
-      fresh.style.borderColor=v.length>0&&!normaliseTime(v)?'var(--warn)':'';
+      fresh.style.borderColor=v.length>0&&!normaliseTime(v)?'var(--color-danger)':'';
     });
     fresh.addEventListener('blur',()=>{
       const d=parseInt(fresh.dataset.day),field=fresh.dataset.field;
@@ -804,7 +804,7 @@ function attachEditHandlers(){
       } else if(val===''){
         fresh.style.borderColor='';
         if(state.editedShifts[d]&&state.editedShifts[d][field]!==null){state.editedShifts[d][field]=null;markDirty(d);}
-      } else {fresh.style.borderColor='var(--warn)';fresh.title='Format: HHH00 (e.g. 08H00)';}
+      } else {fresh.style.borderColor='var(--color-danger)';fresh.title='Format: HHH00 (e.g. 08H00)';}
     });
   });
 

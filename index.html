@@ -50,6 +50,13 @@
   --color-accent-800: #182d6b;
   --color-accent-900: #0f1d46;
 
+  /* Error state only — never decoration, never a second accent. 500 for
+     borders and icons, 700 for text, 100 for a tinted fill. */
+  --color-danger-100: #fdecea;
+  --color-danger-500: #c62828;
+  --color-danger-700: #8f1d1d;
+  --color-danger: var(--color-danger-500);
+
   --font-heading: "Inter Tight", system-ui, sans-serif;
   --font-heading-weight: 800;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
@@ -78,7 +85,7 @@
   --accent-light: var(--color-accent-100);
   --accent-mid: var(--color-accent-700);
   --accent-dark: var(--color-accent-800);
-  --warn: var(--color-accent-700);
+  --warn: var(--color-danger-700);
   --success: var(--color-neutral-800);
   --sans: var(--font-body);
   --mono: var(--font-body);
@@ -221,7 +228,7 @@ header {
 .ec-select-row .btn { padding: 8px 18px; }
 .ec-not-listed { font-size: 12px; color: var(--color-neutral-600); margin-top: 10px; }
 .ec-loading { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-neutral-700); }
-.info-note { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--color-accent-700); border-left: 2px solid var(--color-accent); padding: 8px 0 8px 12px; margin-top: 12px; }
+.info-note { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--color-danger-700); border-left: 2px solid var(--color-danger); padding: 8px 0 8px 12px; margin-top: 12px; }
 .info-note .icon { flex-shrink: 0; }
 
 /* ── sections ───────────────────────────────────────────────── */
@@ -375,7 +382,7 @@ main { padding: 40px 32px 0; }
 .dl:disabled { cursor: not-allowed; opacity: 0.45; }
 .dl .dlkicker { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; display: block; opacity: 0.8; }
 .dl .dltitle { font-family: var(--font-heading); font-weight: 800; font-size: 21px; line-height: 1.1; display: block; margin: 8px 0 6px; }
-.dl .dlnote { font-size: 12px; display: block; color: var(--color-accent-200); }
+.dl .dlnote { font-size: 12px; display: block; color: var(--color-accent-100); }
 .downloads-locked { font-size: 12px; color: var(--color-neutral-600); margin-top: 12px; }
 
 .printguide { margin-top: 32px; border-top: 2px solid var(--color-divider); padding-top: 24px; }
@@ -523,7 +530,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   <div class="brand">
     <span class="brand-mark"></span>
     <span class="brand-name" id="headerTitle">Hospital Roster Translator</span>
-    <span class="brand-ver">23.08.2026</span>
+    <span class="brand-ver">v23.08.2026</span>
   </div>
   <span class="ec-mode" id="ecMode" style="display:none;"></span>
 </header>
@@ -793,7 +800,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
 <footer>
   <div class="wrap footer-inner">
-    <span class="copy">&copy; vic-ec &middot; Hospital Roster Translator 23.08.2026</span>
+    <span class="copy">&copy; vic-ec &middot; Hospital Roster Translator v23.08.2026</span>
     <a href="mailto:Paul.Xafis&#64;westerncape.gov.za?subject=EC%20Roster%20Translator%20%E2%80%94%20Feedback">Send feedback</a>
     <a href="#" id="openWizardLink">Set up a new department profile</a>
   </div>
@@ -4609,7 +4616,7 @@ function attachEditHandlers(){
       let v=fresh.value.replace(/[^0-9H:]/gi,'').toUpperCase();
       if(/^\d{3,4}$/.test(v)) v=v.slice(0,2)+'H'+v.slice(2);
       if(v!==fresh.value) fresh.value=v;
-      fresh.style.borderColor=v.length>0&&!normaliseTime(v)?'var(--warn)':'';
+      fresh.style.borderColor=v.length>0&&!normaliseTime(v)?'var(--color-danger)':'';
     });
     fresh.addEventListener('blur',()=>{
       const d=parseInt(fresh.dataset.day),field=fresh.dataset.field;
@@ -4646,7 +4653,7 @@ function attachEditHandlers(){
       } else if(val===''){
         fresh.style.borderColor='';
         if(state.editedShifts[d]&&state.editedShifts[d][field]!==null){state.editedShifts[d][field]=null;markDirty(d);}
-      } else {fresh.style.borderColor='var(--warn)';fresh.title='Format: HHH00 (e.g. 08H00)';}
+      } else {fresh.style.borderColor='var(--color-danger)';fresh.title='Format: HHH00 (e.g. 08H00)';}
     });
   });
 
