@@ -194,17 +194,16 @@ header {
 #resetFormBtn.btn { font-size: 12px; white-space: nowrap; }
 
 /* ── masthead ───────────────────────────────────────────────── */
-.masthead { padding: 56px 32px 0; border-bottom: 2px solid var(--color-divider); }
+.masthead { padding: 56px 32px 28px; border-bottom: 2px solid var(--color-divider); }
 .masthead-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 48px; align-items: end; }
 .kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700); margin-bottom: 16px; }
 .masthead h1 { font-size: 64px; line-height: 0.98; letter-spacing: -0.035em; margin: 0 0 20px; max-width: 12ch; }
 .masthead-lede { font-size: 17px; line-height: 1.5; max-width: 46ch; color: var(--color-neutral-800); margin: 0 0 40px; }
-.process { border-left: 2px solid var(--color-divider); padding-left: 32px; margin-bottom: 40px; }
+.process { border-top: 2px solid var(--color-text); padding: 18px 0 4px; margin: 44px 0 0; }
 .process-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 12px; }
 .steplink {
-  display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: baseline;
-  text-decoration: none; color: var(--color-text); padding: 11px 0;
-  border-top: 1px solid var(--color-divider);
+  display: block; text-decoration: none; color: var(--color-text);
+  padding: 4px 24px 10px; border-left: 1px solid var(--color-divider);
 }
 .steplink:hover { color: var(--color-accent); }
 .steplink .num { font-family: var(--font-heading); font-weight: 800; font-size: 12px; color: var(--color-accent); }
@@ -386,13 +385,29 @@ main { padding: 40px 32px 0; }
 #printHelpDetails > summary { cursor: pointer; list-style: none; padding: 12px 0; display: flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-neutral-700); user-select: none; }
 #printHelpDetails > summary::-webkit-details-marker { display: none; }
 #printHelpDetails > summary:hover { color: var(--color-accent); }
+/* ── Masthead: profile panel beside the hero, process a full-width row ─── */
+.masthead-grid { align-items: start; }
+.profile-panel { border: 2px solid var(--color-text); padding: 20px 22px 22px; }
+.profile-panel .ec-select-wrap { margin: 0; max-width: none; }
+.profile-panel .ec-select-head { border-bottom-color: var(--color-neutral-400); }
+
+.process .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.steplink:first-child { border-left: 0; padding-left: 0; }
+.steplink .num { display: block; margin-bottom: 6px; }
+.steplink .label { display: block; }
+.steplink:hover .label { color: var(--color-accent); }
+
+/* Selected profile sits in the same panel as the picker it replaces. */
+.profile-panel .ec-badge { border: 0; padding: 0; white-space: normal; }
+.profile-panel .ec-badge-name { font-size: 20px; }
+
 /* ── Rail: profile picker sits above the process list ─────────────── */
-.rail { display: flex; flex-direction: column; gap: 28px; }
+.rail { display: flex; flex-direction: column; gap: 28px; } /* legacy, unused */
 .ec-badge-actions { display: flex; gap: 8px; margin-top: 10px; }
-.rail .ec-badge { display: block; }
-.rail .ec-badge-label { display: block; font-size: 11px; letter-spacing: .08em;
+.profile-panel .ec-badge { display: block; }
+.profile-panel .ec-badge-label { display: block; font-size: 11px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--color-neutral-700); margin-bottom: 4px; }
-.rail .ec-badge-name { display: block; font-family: var(--font-heading);
+.profile-panel .ec-badge-name { display: block; font-family: var(--font-heading);
   font-weight: 800; font-size: 18px; line-height: 1.2; }
 
 /* ── Per-step screenshot button ───────────────────────────────────── */
@@ -473,7 +488,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .masthead { padding: 36px 20px 0; }
   .masthead-grid { grid-template-columns: 1fr; gap: 28px; align-items: start; }
   .masthead h1 { font-size: 44px; max-width: none; }
-  .process { border-left: 0; border-top: 2px solid var(--color-divider); padding-left: 0; padding-top: 20px; margin-bottom: 32px; }
+  .process { margin-top: 32px; }
+  .process .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .steplink { padding: 10px 16px 8px; border-left: 1px solid var(--color-divider); }
+  .steplink:nth-child(3) { border-left: 0; padding-left: 0; }
   main { padding: 32px 20px 0; }
   .split { grid-template-columns: 1fr; }
   .staff-col { border-right: 0; border-bottom: 1px solid var(--color-divider); }
@@ -484,6 +502,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 }
 @media (max-width: 560px) {
   .masthead h1 { font-size: 36px; }
+  .process .steps { grid-template-columns: 1fr; }
+  .steplink { border-left: 0; padding: 8px 0; border-top: 1px solid var(--color-divider); }
+  .steplink:nth-child(3) { padding-left: 0; }
+  .steplink:first-child { border-top: 0; }
   .details-grid { grid-template-columns: 1fr; }
   .step2-controls { gap: 12px; }
   .step2-controls .field-name { min-width: 100%; }
@@ -510,7 +532,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
     </div>
 
-    <div class="rail">
+    <aside class="profile-panel">
       <div class="ec-select-wrap">
         <div id="ecLoadingRow" class="ec-loading">
           <span class="spinner-dark"></span>
@@ -539,15 +561,19 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
           </div>
         </div>
       </div>
+    </aside>
+  </div>
 
-    <div class="process">
+  <div class="wrap">
+    <nav class="process">
       <div class="process-label">Process</div>
+      <div class="steps">
       <a class="steplink" href="#sec-1"><span class="num">01</span><span class="label">Upload roster files</span></a>
       <a class="steplink" href="#sec-2"><span class="num">02</span><span class="label">Preview &amp; edit shifts</span></a>
       <a class="steplink" href="#sec-3"><span class="num">03</span><span class="label">Your details</span></a>
       <a class="steplink" href="#sec-4"><span class="num">04</span><span class="label">Download</span></a>
-    </div>
-    </div>
+      </div>
+    </nav>
   </div>
 </section>
 
