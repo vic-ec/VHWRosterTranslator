@@ -127,15 +127,10 @@ function normaliseTime(val) {
 // The profile decides what the preview section calls them.
 function dutyNoun(){ return (activeProfile&&activeProfile.duty_noun)||'shifts'; }
 function applyDutyNoun(){
-  const noun=dutyNoun();
-  const cap=noun.charAt(0).toUpperCase()+noun.slice(1);
-  const head=document.querySelector('#sec-2 .sec-head h2');
-  if(head) head.textContent='Preview & edit '+noun;
-  const link=document.querySelector('a.steplink[href="#sec-2"] .label');
-  if(link) link.textContent='Preview & edit '+noun;
+  // The section heading is now duty-neutral ("Preview & edit"), so the
+  // profile's word is only needed where the copy actually describes them.
   const empty=$('step2Empty');
-  if(empty) empty.textContent='Extract a roster to see detected staff and their '+noun+'.';
-  void cap;
+  if(empty) empty.textContent='Extract a roster to see detected staff and their '+dutyNoun()+'.';
 }
 
 function rebuildMonthDropdown() {
