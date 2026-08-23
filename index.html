@@ -404,6 +404,10 @@ main { padding: 40px 32px 0; }
 /* ── Rail: profile picker sits above the process list ─────────────── */
 .rail { display: flex; flex-direction: column; gap: 26px; }
 .ec-badge-actions { display: flex; gap: 8px; margin-top: 10px; }
+/* The two actions read as a pair, so they take the same width whatever
+   their labels are — .ec-change's tighter type is overridden here. */
+.ec-badge-actions .btn { flex: 1 1 0; min-width: 0; font-size: 12px;
+  padding: var(--space-2) var(--space-2); }
 .profile-panel .ec-badge { display: block; }
 .profile-panel .ec-badge-label { display: block; font-size: 11px; letter-spacing: .08em;
   text-transform: uppercase; color: var(--color-neutral-700); margin-bottom: 4px; }
@@ -566,7 +570,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       <a class="steplink" href="#sec-1"><span class="num">01</span><span class="label">Upload roster files</span></a>
       <a class="steplink" href="#sec-2"><span class="num">02</span><span class="label">Preview &amp; edit</span></a>
       <a class="steplink" href="#sec-3"><span class="num">03</span><span class="label">Capture your details</span></a>
-      <a class="steplink" href="#sec-4"><span class="num">04</span><span class="label">Download documents</span></a>
+      <a class="steplink" href="#sec-4"><span class="num">04</span><span class="label">Download</span></a>
       </div>
     </nav>
     </div>
@@ -742,7 +746,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
     <!-- ── 04 · DOWNLOAD ───────────────────────────────────────── -->
     <section class="sec" id="sec-4">
-      <div class="sec-head"><span class="sec-num">04</span><h2>Download documents</h2></div>
+      <div class="sec-head"><span class="sec-num">04</span><h2>Download</h2></div>
       <p class="sec-intro">Three documents, generated from the roster above.</p>
 
       <div class="downloads-row">
@@ -3877,6 +3881,21 @@ function applySupervisorMode(){
   oth.value='other'; oth.textContent='Other\u2026'; sel.appendChild(oth);
   if(sel.value!=='other') other.style.display='none';
 }
+// Put a saved name back into whichever control this profile uses. Everything
+// that restores the form goes through here: a profile without a supervisor
+// list has no dropdown to hide the text box behind, and the old restore code
+// hid both, leaving the field with nothing on screen.
+function setSupervisorValue(saved){
+  const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
+  if(!sel||!other) return;
+  applySupervisorMode();
+  const list=supervisorOptionsFor();
+  saved=saved||'';
+  if(!list){ sel.value=''; other.value=saved; other.style.display=''; return; }
+  if(saved&&list.includes(saved)){ sel.value=saved; other.value=''; other.style.display='none'; }
+  else if(saved){ sel.value='other'; other.value=saved; other.style.display=''; }
+  else { sel.value=''; other.value=''; other.style.display='none'; }
+}
 
 function updateLeaveFields(){
   const sec=$('leaveFieldsSection');
@@ -4015,23 +4034,14 @@ function saveDetailsToState() {
 function restoreDetailsToForm(isNewDoctor) {
   if(isNewDoctor) {
     $('detailFirstName').value=''; $('detailSurname').value=state.selectedDoctor||'';
-    $('detailPersal').value=''; $('detailSupervisorSel').value=''; $('detailSupervisorOther').value=''; $('detailSupervisorOther').style.display='none'; $('detailSigDate').value=''; $('detailDesignationSel').value=''; $('detailDesignationOther').value=''; $('detailDesignationOther').style.display='none';
+    $('detailPersal').value=''; setSupervisorValue(''); $('detailSigDate').value=''; $('detailDesignationSel').value=''; $('detailDesignationOther').value=''; $('detailDesignationOther').style.display='none';
     state.savedDetails={firstName:'',surname:state.selectedDoctor||'',persal:'',supervisor:'',sigDate:''};
   } else {
     $('detailFirstName').value=state.savedDetails.firstName||'';
     $('detailSurname').value=state.savedDetails.surname||state.selectedDoctor||'';
     $('detailPersal').value=state.savedDetails.persal||'';
-    // Fix 3: restore supervisor dropdown + other
-    const saved=state.savedDetails.supervisor||'';
-    const knownSups=['Philip Cloete','Sebastian De Haan','Paul Xafis'];
-    if(knownSups.includes(saved)){
-      $('detailSupervisorSel').value=saved; $('detailSupervisorOther').style.display='none';
-    } else if(saved){
-      $('detailSupervisorSel').value='other'; $('detailSupervisorOther').style.display='';
-      $('detailSupervisorOther').value=saved;
-    } else {
-      $('detailSupervisorSel').value=''; $('detailSupervisorOther').style.display='none';
-    }
+    // The known names are the ones this profile offers, not a fixed EC list.
+    setSupervisorValue(state.savedDetails.supervisor||'');
     $('detailSigDate').value=state.savedDetails.sigDate||'';
     const _sd=state.savedDetails.sigDate||'';
     const _sdm=_sd.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -4129,6 +4139,7 @@ function fullReset(){
   sels.forEach(id=>{const el=$(id);if(el)el.selectedIndex=0;});
   const others=['detailDesignationOther','detailSupervisorOther'];
   others.forEach(id=>{const el=$(id);if(el){el.value='';el.style.display='none';}});
+  applySupervisorMode();
   const addr=$('detailAddress');if(addr)addr.value='';
   $('detailsSection').style.display='none';
   $('leaveFieldsSection').style.display='none';
@@ -4756,6 +4767,17 @@ $('detailSigDate').addEventListener('input',e=>{
   el.addEventListener('input',()=>{saveDetailsToState();checkDetailsComplete();});
 });
 
+// Component line on the Z1(a). A department profile names itself; only the
+// original EC profile — or a profile too old to carry either key — falls back
+// to the Emergency Medicine wording the form was first written for.
+function z1ComponentFor(){
+  const DEFAULT='Emergency Medicine \u2014 Victoria Hospital';
+  if(!activeProfile) return DEFAULT;
+  if(activeProfile.z1_component) return activeProfile.z1_component;
+  if(activeProfile.roster_type==='shift') return DEFAULT;
+  const name=activeProfile.ec_short||activeProfile.ec_name;
+  return name?name:DEFAULT;
+}
 function getFormDetails(){
   saveDetailsToState();
   const {month,year}=getMonthYear();
@@ -4765,7 +4787,7 @@ function getFormDetails(){
     designation:state.savedDetails.designation,
     signatureDate:state.savedDetails.sigDate,
     addressDuringLeave:state.savedDetails.address||'',
-    component:(activeProfile&&activeProfile.z1_component)||'Emergency Medicine \u2014 Victoria Hospital',
+    component:z1ComponentFor(),
     shiftWorker:state.savedDetails.shiftWorker||'yes',
     casualEmployee:state.savedDetails.casualEmployee||'no',
     editedShifts:state.editedShifts,

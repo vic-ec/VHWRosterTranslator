@@ -71,6 +71,21 @@ function applySupervisorMode(){
   oth.value='other'; oth.textContent='Other\u2026'; sel.appendChild(oth);
   if(sel.value!=='other') other.style.display='none';
 }
+// Put a saved name back into whichever control this profile uses. Everything
+// that restores the form goes through here: a profile without a supervisor
+// list has no dropdown to hide the text box behind, and the old restore code
+// hid both, leaving the field with nothing on screen.
+function setSupervisorValue(saved){
+  const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
+  if(!sel||!other) return;
+  applySupervisorMode();
+  const list=supervisorOptionsFor();
+  saved=saved||'';
+  if(!list){ sel.value=''; other.value=saved; other.style.display=''; return; }
+  if(saved&&list.includes(saved)){ sel.value=saved; other.value=''; other.style.display='none'; }
+  else if(saved){ sel.value='other'; other.value=saved; other.style.display=''; }
+  else { sel.value=''; other.value=''; other.style.display='none'; }
+}
 
 function updateLeaveFields(){
   const sec=$('leaveFieldsSection');
@@ -209,23 +224,14 @@ function saveDetailsToState() {
 function restoreDetailsToForm(isNewDoctor) {
   if(isNewDoctor) {
     $('detailFirstName').value=''; $('detailSurname').value=state.selectedDoctor||'';
-    $('detailPersal').value=''; $('detailSupervisorSel').value=''; $('detailSupervisorOther').value=''; $('detailSupervisorOther').style.display='none'; $('detailSigDate').value=''; $('detailDesignationSel').value=''; $('detailDesignationOther').value=''; $('detailDesignationOther').style.display='none';
+    $('detailPersal').value=''; setSupervisorValue(''); $('detailSigDate').value=''; $('detailDesignationSel').value=''; $('detailDesignationOther').value=''; $('detailDesignationOther').style.display='none';
     state.savedDetails={firstName:'',surname:state.selectedDoctor||'',persal:'',supervisor:'',sigDate:''};
   } else {
     $('detailFirstName').value=state.savedDetails.firstName||'';
     $('detailSurname').value=state.savedDetails.surname||state.selectedDoctor||'';
     $('detailPersal').value=state.savedDetails.persal||'';
-    // Fix 3: restore supervisor dropdown + other
-    const saved=state.savedDetails.supervisor||'';
-    const knownSups=['Philip Cloete','Sebastian De Haan','Paul Xafis'];
-    if(knownSups.includes(saved)){
-      $('detailSupervisorSel').value=saved; $('detailSupervisorOther').style.display='none';
-    } else if(saved){
-      $('detailSupervisorSel').value='other'; $('detailSupervisorOther').style.display='';
-      $('detailSupervisorOther').value=saved;
-    } else {
-      $('detailSupervisorSel').value=''; $('detailSupervisorOther').style.display='none';
-    }
+    // The known names are the ones this profile offers, not a fixed EC list.
+    setSupervisorValue(state.savedDetails.supervisor||'');
     $('detailSigDate').value=state.savedDetails.sigDate||'';
     const _sd=state.savedDetails.sigDate||'';
     const _sdm=_sd.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -323,6 +329,7 @@ function fullReset(){
   sels.forEach(id=>{const el=$(id);if(el)el.selectedIndex=0;});
   const others=['detailDesignationOther','detailSupervisorOther'];
   others.forEach(id=>{const el=$(id);if(el){el.value='';el.style.display='none';}});
+  applySupervisorMode();
   const addr=$('detailAddress');if(addr)addr.value='';
   $('detailsSection').style.display='none';
   $('leaveFieldsSection').style.display='none';
@@ -922,6 +929,17 @@ $('detailSigDate').addEventListener('input',e=>{
   el.addEventListener('input',()=>{saveDetailsToState();checkDetailsComplete();});
 });
 
+// Component line on the Z1(a). A department profile names itself; only the
+// original EC profile — or a profile too old to carry either key — falls back
+// to the Emergency Medicine wording the form was first written for.
+function z1ComponentFor(){
+  const DEFAULT='Emergency Medicine \u2014 Victoria Hospital';
+  if(!activeProfile) return DEFAULT;
+  if(activeProfile.z1_component) return activeProfile.z1_component;
+  if(activeProfile.roster_type==='shift') return DEFAULT;
+  const name=activeProfile.ec_short||activeProfile.ec_name;
+  return name?name:DEFAULT;
+}
 function getFormDetails(){
   saveDetailsToState();
   const {month,year}=getMonthYear();
@@ -931,7 +949,7 @@ function getFormDetails(){
     designation:state.savedDetails.designation,
     signatureDate:state.savedDetails.sigDate,
     addressDuringLeave:state.savedDetails.address||'',
-    component:(activeProfile&&activeProfile.z1_component)||'Emergency Medicine \u2014 Victoria Hospital',
+    component:z1ComponentFor(),
     shiftWorker:state.savedDetails.shiftWorker||'yes',
     casualEmployee:state.savedDetails.casualEmployee||'no',
     editedShifts:state.editedShifts,
