@@ -250,7 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     pane('wizStep2Cons', 'wizStep2Table');
     pane('wizStep3Cons', 'wizStep3Table');
-    if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Word File' : '2 &nbsp;Upload PDF';
+    if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Roster File' : '2 &nbsp;Upload PDF';
     if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
     // Update tabs
     for (let i = 1; i <= WIZ_STEPS; i++) {
@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
       $('wizDataYWrap').style.display = r.value === 'consultant' ? '' : 'none';
       const isTable = r.value === 'table';
       if ($('wizPatternWrap')) $('wizPatternWrap').style.display = isTable ? '' : 'none';
-      if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Word File' : '2 &nbsp;Upload PDF';
+      if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Roster File' : '2 &nbsp;Upload PDF';
       if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
     });
   });
@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!wizState.pdfBuf) { $('wizPdfStatus').textContent = 'Please upload a PDF first.'; return false; }
     }
     if (step === 2 && wizRosterType() === 'table') {
-      if (!wizState.tableRows) { $('wizDocStatus').textContent = 'Please upload a Word roster first.'; return false; }
+      if (!wizState.tableRows) { $('wizDocStatus').textContent = 'Please upload a sample roster first.'; return false; }
     }
     if (step === 3 && wizRosterType() === 'table') {
       const m = wizReadColMap();

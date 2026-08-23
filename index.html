@@ -948,12 +948,12 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     </div>
 
     <div id="wizStep2Table" style="display:none;">
-      <p class="wiz-intro">Upload one month of your roster as a Word file. The table inside it is read directly, so there is nothing to line up by eye &mdash; you only confirm what each column means.</p>
+      <p class="wiz-intro">Upload one month of your roster &mdash; an Excel workbook or a Word file. The grid inside it is read directly, so there is nothing to line up by eye &mdash; you only confirm what each column means.</p>
       <label class="upload-zone" id="wizDocZone" style="margin-bottom:12px;cursor:pointer;position:relative;">
         <input type="file" id="wizDocFile" accept=".xlsx,.docx,.doc" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:1;">
         <span class="upload-icon">&#128196;</span>
-        <span class="upload-label">Upload sample Word roster</span>
-        <span class="upload-hint">.docx or .doc &mdash; click or drag &amp; drop</span>
+        <span class="upload-label">Upload a sample roster</span>
+        <span class="upload-hint">.xlsx, .docx or .doc &mdash; click or drag &amp; drop</span>
       </label>
       <div id="wizDocStatus" style="font-family:var(--font-body);font-size:11px;color:var(--text-muted);margin-bottom:8px;"></div>
       <div id="wizDocPreviewWrap" style="display:none;">
@@ -5248,7 +5248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     pane('wizStep2Cons', 'wizStep2Table');
     pane('wizStep3Cons', 'wizStep3Table');
-    if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Word File' : '2 &nbsp;Upload PDF';
+    if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Roster File' : '2 &nbsp;Upload PDF';
     if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
     // Update tabs
     for (let i = 1; i <= WIZ_STEPS; i++) {
@@ -5287,7 +5287,7 @@ document.addEventListener('DOMContentLoaded', () => {
       $('wizDataYWrap').style.display = r.value === 'consultant' ? '' : 'none';
       const isTable = r.value === 'table';
       if ($('wizPatternWrap')) $('wizPatternWrap').style.display = isTable ? '' : 'none';
-      if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Word File' : '2 &nbsp;Upload PDF';
+      if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Roster File' : '2 &nbsp;Upload PDF';
       if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
     });
   });
@@ -5305,7 +5305,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!wizState.pdfBuf) { $('wizPdfStatus').textContent = 'Please upload a PDF first.'; return false; }
     }
     if (step === 2 && wizRosterType() === 'table') {
-      if (!wizState.tableRows) { $('wizDocStatus').textContent = 'Please upload a Word roster first.'; return false; }
+      if (!wizState.tableRows) { $('wizDocStatus').textContent = 'Please upload a sample roster first.'; return false; }
     }
     if (step === 3 && wizRosterType() === 'table') {
       const m = wizReadColMap();
