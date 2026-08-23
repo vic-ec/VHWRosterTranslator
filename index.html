@@ -95,7 +95,10 @@
 
 /* ── base ───────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; }
-html { scroll-behavior: smooth; }
+/* Reserve the scrollbar's width whether or not it is showing. Opening a
+   modal locks scrolling, and without this the scrollbar's slot collapses,
+   the layout gets that width back and the whole page slides sideways. */
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 body {
   margin: 0; background: var(--color-bg); color: var(--color-text);
   font-family: var(--font-body); font-size: 15px; line-height: 1.55; font-weight: 400;
@@ -613,7 +616,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       <div class="steps">
       <a class="steplink" href="#sec-1"><span class="num">01</span><span class="label">Upload roster files</span></a>
       <a class="steplink" href="#sec-2"><span class="num">02</span><span class="label">Preview &amp; edit</span></a>
-      <a class="steplink" href="#sec-3"><span class="num">03</span><span class="label">Capture your details</span></a>
+      <a class="steplink" href="#sec-3"><span class="num">03</span><span class="label">Your details</span></a>
       <a class="steplink" href="#sec-4"><span class="num">04</span><span class="label">Download</span></a>
       </div>
     </nav>
@@ -728,7 +731,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
     <!-- ── 03 · YOUR DETAILS ───────────────────────────────────── -->
     <section class="sec" id="sec-3">
-      <div class="sec-head"><span class="sec-num">03</span><h2>Capture your details</h2></div>
+      <div class="sec-head"><span class="sec-num">03</span><h2>Your details</h2></div>
       <p class="sec-intro">These print onto the forms. Everything marked with an asterisk is required before the downloads unlock.</p>
 
       <div class="sec-empty" id="sec3Empty" style="display:none;">Preview a schedule to fill in your details.</div>
@@ -5871,6 +5874,20 @@ document.addEventListener('DOMContentLoaded', () => {
   else init();
 })();
 
+// Locking the page hides the scrollbar. Where its slot is not already
+// reserved by scrollbar-gutter, the layout widens by that much and every
+// centred thing jumps right, so put back exactly the width locking took.
+function lockPageScroll(){
+  const before=document.documentElement.clientWidth;
+  document.body.style.overflow='hidden';
+  const grew=document.documentElement.clientWidth-before;
+  if(grew>0) document.body.style.paddingRight=grew+'px';
+}
+function unlockPageScroll(){
+  document.body.style.overflow='';
+  document.body.style.paddingRight='';
+}
+
 // ── Privacy panel ──────────────────────────────────────────────────────────
 // Opening it marks .shell inert, so the page behind is genuinely muted to
 // clicks, tabbing and assistive tech rather than just painted over.
@@ -5888,14 +5905,14 @@ document.addEventListener('DOMContentLoaded', () => {
     lastFocus=document.activeElement;
     ov.classList.add('open');
     btn.setAttribute('aria-expanded','true');
-    document.body.style.overflow='hidden';
+    lockPageScroll();
     if(shell) shell.inert=true;
     closeBtn.focus();
   }
   function close(){
     ov.classList.remove('open');
     btn.setAttribute('aria-expanded','false');
-    document.body.style.overflow='';
+    unlockPageScroll();
     if(shell) shell.inert=false;
     if(lastFocus&&lastFocus.focus) lastFocus.focus();
   }
@@ -5972,12 +5989,12 @@ document.addEventListener('DOMContentLoaded', () => {
     cap.textContent = 'Step ' + parseInt(step, 10) + ' \u2014 ' + (src.dataset.cap || '');
     reset();
     box.classList.add('open');
-    document.body.style.overflow = 'hidden';
+    lockPageScroll();
     box.querySelector('#shotClose').focus();
   }
   function close(){
     box.classList.remove('open');
-    document.body.style.overflow = '';
+    unlockPageScroll();
     img.removeAttribute('src');
   }
 

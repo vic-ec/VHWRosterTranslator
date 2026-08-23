@@ -1068,6 +1068,20 @@ $('yearInput').value=new Date().getFullYear();
   else init();
 })();
 
+// Locking the page hides the scrollbar. Where its slot is not already
+// reserved by scrollbar-gutter, the layout widens by that much and every
+// centred thing jumps right, so put back exactly the width locking took.
+function lockPageScroll(){
+  const before=document.documentElement.clientWidth;
+  document.body.style.overflow='hidden';
+  const grew=document.documentElement.clientWidth-before;
+  if(grew>0) document.body.style.paddingRight=grew+'px';
+}
+function unlockPageScroll(){
+  document.body.style.overflow='';
+  document.body.style.paddingRight='';
+}
+
 // ── Privacy panel ──────────────────────────────────────────────────────────
 // Opening it marks .shell inert, so the page behind is genuinely muted to
 // clicks, tabbing and assistive tech rather than just painted over.
@@ -1085,14 +1099,14 @@ $('yearInput').value=new Date().getFullYear();
     lastFocus=document.activeElement;
     ov.classList.add('open');
     btn.setAttribute('aria-expanded','true');
-    document.body.style.overflow='hidden';
+    lockPageScroll();
     if(shell) shell.inert=true;
     closeBtn.focus();
   }
   function close(){
     ov.classList.remove('open');
     btn.setAttribute('aria-expanded','false');
-    document.body.style.overflow='';
+    unlockPageScroll();
     if(shell) shell.inert=false;
     if(lastFocus&&lastFocus.focus) lastFocus.focus();
   }
