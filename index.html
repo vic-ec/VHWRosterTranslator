@@ -230,6 +230,11 @@ header {
 .ec-loading { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-neutral-700); }
 .info-note { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--color-danger-700); border-left: 2px solid var(--color-danger); padding: 8px 0 8px 12px; margin-top: 12px; }
 .info-note .icon { flex-shrink: 0; }
+/* Reassurance, not a warning — neutral rule, never the danger ramp. */
+.privacy-note { border-left: 2px solid var(--color-neutral-500); padding: 8px 0 8px 12px;
+  margin: 0 0 26px; max-width: 82ch; font-size: 12px; line-height: 1.55;
+  color: var(--color-neutral-700); }
+.privacy-note b { font-family: var(--font-heading); font-weight: 800; color: var(--color-text); }
 
 /* ── sections ───────────────────────────────────────────────── */
 main { padding: 40px 32px 0; }
@@ -595,6 +600,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <section class="sec" id="sec-1">
       <div class="sec-head"><span class="sec-num">01</span><h2>Upload roster files</h2></div>
       <p class="sec-intro">Up to five files, one month per file. PDF, Excel or Word for shift and table rosters; PDF for the consultant on-call roster.</p>
+
+      <p class="privacy-note"><b>Your data stays on this device.</b> Rosters are read in your browser &mdash; the files you upload and the details you type are never sent anywhere and never saved. Close or reload the page and they are gone. The only thing kept between visits is your chosen department profile, so you do not have to pick it again.</p>
 
       <div class="sec-empty" id="step1Empty" style="display:none;">Choose your department profile above to unlock uploads.</div>
 

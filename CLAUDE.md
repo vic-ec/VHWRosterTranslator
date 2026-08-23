@@ -80,3 +80,15 @@ they are — see `profiles/README.md`.
 - The EC setup wizard's overlay must stay a direct child of `<body>`. It previously sat inside `#detailsSection`, which is `display:none` at the EC-picker step, so the modal could never render.
 - The SA public holiday calendar (`holidays.js`) is a deterministic, hardcoded calendar — no network calls, works fully offline.
 - EC profile submission (the in-app wizard for adding a new EC) writes to Supabase; credentials for this live in `config.js`/the inlined config block.
+- **What persists, and what the privacy note in section 01 promises.** Roster
+  files, parsed shifts, staff names and the personal details typed into
+  section 03 live only in the `state` object — they are never written to
+  storage and never sent anywhere; all three documents are generated in the
+  page. `localStorage` holds exactly two keys, both of them configuration:
+  `ec_roster_profile` (the chosen department profile) and
+  `ec_roster_profiles_list` (a cache of the public catalogue). Neither is ever
+  removed — nothing in the app calls `removeItem` or `clear`, so "Start over"
+  and "Change" leave the profile in place. Outbound requests are a GET of the
+  approved-profile catalogue on load, the wizard's POST of a new profile
+  (structure and hours only, no roster content), and the Google Fonts
+  stylesheet. Keep it that way, or change the note in `#sec-1` to match.
