@@ -155,6 +155,33 @@ function rebuildMonthDropdown() {
   checkReady();
 }
 
+// Overtime bands run back to back: OT1 starts where normal hours end, and OT2
+// starts where OT1 ends. Editing the end of one band therefore moves the start
+// of the next to match — but only where that next band is actually in use, so
+// an empty overtime column is never filled in by accident.
+function syncFollowingBand(d,field,value){
+  const es=state.editedShifts[d];
+  if(!es||!value) return [];
+  const follows=isExtendedRosterMode()
+    ? {nt:{target:'ot1f',pair:['ot1f','ot1t']}, ot1t:{target:'ot2f',pair:['ot2f','ot2t']}}
+    : {nt:{target:'of',pair:['of','ot']}};
+  const rule=follows[field];
+  if(!rule) return [];
+  const inUse=rule.pair.some(f=>!!es[f]);
+  if(!inUse||es[rule.target]===value) return [];
+  es[rule.target]=value;
+  return [rule.target];
+}
+// Show a programmatic band change in the row the user is looking at.
+function applyBandSync(d,fields,value){
+  if(!fields.length) return;
+  const row=document.querySelector('[data-day="'+d+'"]');
+  if(!row) return;
+  row.querySelectorAll('.time-edit').forEach(inp=>{
+    if(fields.includes(inp.dataset.field)){ inp.value=value; inp.style.borderColor=''; inp.title=''; }
+  });
+}
+
 function markDirty(day) {
   // Data already captured in state.editedShifts — auto-clean immediately
   markClean(day);
@@ -767,7 +794,11 @@ function attachEditHandlers(){
       if(normalised){
         fresh.value=normalised;fresh.style.borderColor='';fresh.title='';
         if(!state.editedShifts[d]) state.editedShifts[d]={nf:'',nt:'',of:null,ot:null,label:'Custom',typeLabel:'WD Shift - 08H00',isWE:false};
-        if(state.editedShifts[d][field]!==normalised){state.editedShifts[d][field]=normalised;markDirty(d);}
+        if(state.editedShifts[d][field]!==normalised){
+          state.editedShifts[d][field]=normalised;
+          applyBandSync(d,syncFollowingBand(d,field,normalised),normalised);
+          markDirty(d);
+        }
       } else if(val===''){
         fresh.style.borderColor='';
         if(state.editedShifts[d]&&state.editedShifts[d][field]!==null){state.editedShifts[d][field]=null;markDirty(d);}
