@@ -171,10 +171,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Change link — go back to picker
-  $('ecChangeBtn').addEventListener('click', async () => {
+  window.reopenEcPicker = async function reopenEcPicker() {
     $('ecSelectedRow').style.display = 'none';
     $('ecLoadingRow').style.display  = '';
     $('headerTitle').textContent = 'Hospital Roster Translator';
+    const step1 = $('step1');
+    if (step1) step1.style.display = 'none';
     let profiles = null;
     try {
       profiles = await fetchProfiles();
@@ -184,7 +186,8 @@ document.addEventListener('DOMContentLoaded', () => {
       profiles = cached ? JSON.parse(cached) : [];
     }
     showEcPicker(profiles);
-  });
+  };
+  $('ecChangeBtn').addEventListener('click', () => window.reopenEcPicker());
 
   // ── EC Profile Setup Wizard ──────────────────────────────────────────────────
   let wizState = {

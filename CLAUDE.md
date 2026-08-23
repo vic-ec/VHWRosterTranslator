@@ -84,11 +84,15 @@ they are — see `profiles/README.md`.
   files, parsed shifts, staff names and the personal details typed into
   section 03 live only in the `state` object — they are never written to
   storage and never sent anywhere; all three documents are generated in the
-  page. `localStorage` holds exactly two keys, both of them configuration:
+  page (the wording lives in the `#privacyOverlay` panel, opened by the
+  header chip `#privacyBtn`). `localStorage` holds exactly two keys, both of
+  them configuration:
   `ec_roster_profile` (the chosen department profile) and
   `ec_roster_profiles_list` (a cache of the public catalogue). Neither is ever
-  removed — nothing in the app calls `removeItem` or `clear`, so "Start over"
-  and "Change" leave the profile in place. Outbound requests are a GET of the
+  removed by "Change", but "Start over" (`fullReset`) removes
+  `ec_roster_profile` and reopens the picker; the catalogue cache is left
+  alone, since it is the public department list and holds nothing about the
+  user. Outbound requests are a GET of the
   approved-profile catalogue on load, the wizard's POST of a new profile
   (structure and hours only, no roster content), and the Google Fonts
-  stylesheet. Keep it that way, or change the note in `#sec-1` to match.
+  stylesheet. Keep it that way, or change the panel copy to match.

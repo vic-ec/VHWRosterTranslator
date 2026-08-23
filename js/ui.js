@@ -338,9 +338,19 @@ function fullReset(){
   const lockNote=$('downloadsLocked'); if(lockNote) lockNote.style.display='';
   // Reset year to current
   const yr=$('yearInput');if(yr)yr.value=new Date().getFullYear();
+  // Start over means start over. The saved department profile is the only
+  // thing the app keeps between visits, so it goes too and the next visit
+  // begins at the picker. The catalogue cache stays — it is the public list
+  // of departments, holds nothing about the user, and is what lets the
+  // picker still work offline.
+  try { localStorage.removeItem(LS_PROFILE_KEY); } catch(e) {}
+  activeProfile=null;
+  const modeEl=$('ecMode'); if(modeEl){modeEl.textContent='';modeEl.style.display='none';}
+  const offNote=$('ecOfflineNote'); if(offNote) offNote.style.display='none';
+  if(typeof window.reopenEcPicker==='function') window.reopenEcPicker();
 }
 $('resetFormBtn')?.addEventListener('click',()=>{
-  if(confirm('Clear all data and start over?')) fullReset();
+  if(confirm('Clear all data and start over? Your saved department profile is cleared too, so you will be asked to pick it again.')) fullReset();
 });
 
 $('parseBtn').addEventListener('click',async()=>{
@@ -1057,3 +1067,44 @@ $('yearInput').value=new Date().getFullYear();
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
   else init();
 })();
+
+// ── Privacy panel ──────────────────────────────────────────────────────────
+// Opening it marks .shell inert, so the page behind is genuinely muted to
+// clicks, tabbing and assistive tech rather than just painted over.
+(function(){
+  // #privacyOverlay is body-level markup that comes after this script, so the
+  // wiring waits for the document rather than running at parse time.
+  function wire(){
+  const btn=document.getElementById('privacyBtn');
+  const ov=document.getElementById('privacyOverlay');
+  if(!btn||!ov) return;
+  const closeBtn=document.getElementById('privacyCloseBtn');
+  const shell=document.querySelector('.shell');
+  let lastFocus=null;
+  function open(){
+    lastFocus=document.activeElement;
+    ov.classList.add('open');
+    btn.setAttribute('aria-expanded','true');
+    document.body.style.overflow='hidden';
+    if(shell) shell.inert=true;
+    closeBtn.focus();
+  }
+  function close(){
+    ov.classList.remove('open');
+    btn.setAttribute('aria-expanded','false');
+    document.body.style.overflow='';
+    if(shell) shell.inert=false;
+    if(lastFocus&&lastFocus.focus) lastFocus.focus();
+  }
+  btn.addEventListener('click',open);
+  closeBtn.addEventListener('click',close);
+  // Clicking the backdrop, but not the panel, closes it.
+  ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&ov.classList.contains('open')) close();
+  });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
+  else wire();
+})();
+

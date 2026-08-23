@@ -230,11 +230,38 @@ header {
 .ec-loading { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--color-neutral-700); }
 .info-note { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--color-danger-700); border-left: 2px solid var(--color-danger); padding: 8px 0 8px 12px; margin-top: 12px; }
 .info-note .icon { flex-shrink: 0; }
-/* Reassurance, not a warning — neutral rule, never the danger ramp. */
-.privacy-note { border-left: 2px solid var(--color-neutral-500); padding: 8px 0 8px 12px;
-  margin: 0 0 26px; max-width: 82ch; font-size: 12px; line-height: 1.55;
+/* Privacy chip in the header, and the panel it opens. Reassurance, not a
+   warning, so it takes the accent ramp and never the danger ramp. */
+.safe-btn {
+  appearance: none; cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+  font-family: var(--font-heading); font-weight: 800; font-size: 12px; line-height: 1;
+  color: var(--color-text); background: var(--color-bg);
+  border: 1px solid var(--color-divider); border-radius: 0;
+  padding: 7px 12px; white-space: nowrap;
+  transition: background 110ms linear, border-color 110ms linear, color 110ms linear;
+}
+.safe-btn svg { display: block; width: 13px; height: 13px; flex: none; }
+.safe-btn:hover { background: var(--color-accent-100); border-color: var(--color-accent);
+  color: var(--color-accent-700); }
+.safe-btn:active, .safe-btn[aria-expanded="true"] { background: var(--color-accent-200);
+  border-color: var(--color-accent-600); color: var(--color-accent-800); }
+
+#privacyOverlay { position: fixed; inset: 0; z-index: 1100; display: none;
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+  align-items: center; justify-content: center; padding: 24px 16px; }
+#privacyOverlay.open { display: flex; }
+#privacyModal { background: var(--color-bg); border: 1px solid var(--color-divider);
+  box-shadow: var(--shadow-lg); max-width: 540px; width: 100%; }
+.privacy-head { display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px; padding: 20px 22px 0; }
+.privacy-head h3 { margin: 0; font-size: 24px; letter-spacing: -0.02em; }
+#privacyCloseBtn { appearance: none; background: none; border: 0; cursor: pointer;
+  font-family: var(--font-heading); font-weight: 800; font-size: 24px; line-height: 1;
+  color: var(--color-neutral-600); padding: 0 2px; margin-top: -2px; }
+#privacyCloseBtn:hover { color: var(--color-accent); }
+.privacy-body { padding: 14px 22px 24px; font-size: 13px; line-height: 1.65;
   color: var(--color-neutral-700); }
-.privacy-note b { font-family: var(--font-heading); font-weight: 800; color: var(--color-text); }
+.privacy-body p { margin: 0; }
 
 /* ── sections ───────────────────────────────────────────────── */
 main { padding: 40px 32px 0; }
@@ -538,6 +565,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <span class="brand-ver">v23.08.2026</span>
   </div>
   <span class="ec-mode" id="ecMode" style="display:none;"></span>
+  <button type="button" class="safe-btn" id="privacyBtn" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>Your data is safe.</button>
 </header>
 
 <section class="masthead">
@@ -600,8 +628,6 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <section class="sec" id="sec-1">
       <div class="sec-head"><span class="sec-num">01</span><h2>Upload roster files</h2></div>
       <p class="sec-intro">Up to five files, one month per file. PDF, Excel or Word for shift and table rosters; PDF for the consultant on-call roster.</p>
-
-      <p class="privacy-note"><b>Your data stays on this device.</b> Rosters are read in your browser &mdash; the files you upload and the details you type are never sent anywhere and never saved. Close or reload the page and they are gone. The only thing kept between visits is your chosen department profile, so you do not have to pick it again.</p>
 
       <div class="sec-empty" id="step1Empty" style="display:none;">Choose your department profile above to unlock uploads.</div>
 
@@ -4166,9 +4192,19 @@ function fullReset(){
   const lockNote=$('downloadsLocked'); if(lockNote) lockNote.style.display='';
   // Reset year to current
   const yr=$('yearInput');if(yr)yr.value=new Date().getFullYear();
+  // Start over means start over. The saved department profile is the only
+  // thing the app keeps between visits, so it goes too and the next visit
+  // begins at the picker. The catalogue cache stays — it is the public list
+  // of departments, holds nothing about the user, and is what lets the
+  // picker still work offline.
+  try { localStorage.removeItem(LS_PROFILE_KEY); } catch(e) {}
+  activeProfile=null;
+  const modeEl=$('ecMode'); if(modeEl){modeEl.textContent='';modeEl.style.display='none';}
+  const offNote=$('ecOfflineNote'); if(offNote) offNote.style.display='none';
+  if(typeof window.reopenEcPicker==='function') window.reopenEcPicker();
 }
 $('resetFormBtn')?.addEventListener('click',()=>{
-  if(confirm('Clear all data and start over?')) fullReset();
+  if(confirm('Clear all data and start over? Your saved department profile is cleared too, so you will be asked to pick it again.')) fullReset();
 });
 
 $('parseBtn').addEventListener('click',async()=>{
@@ -5057,10 +5093,12 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Change link — go back to picker
-  $('ecChangeBtn').addEventListener('click', async () => {
+  window.reopenEcPicker = async function reopenEcPicker() {
     $('ecSelectedRow').style.display = 'none';
     $('ecLoadingRow').style.display  = '';
     $('headerTitle').textContent = 'Hospital Roster Translator';
+    const step1 = $('step1');
+    if (step1) step1.style.display = 'none';
     let profiles = null;
     try {
       profiles = await fetchProfiles();
@@ -5070,7 +5108,8 @@ document.addEventListener('DOMContentLoaded', () => {
       profiles = cached ? JSON.parse(cached) : [];
     }
     showEcPicker(profiles);
-  });
+  };
+  $('ecChangeBtn').addEventListener('click', () => window.reopenEcPicker());
 
   // ── EC Profile Setup Wizard ──────────────────────────────────────────────────
   let wizState = {
@@ -5831,10 +5870,65 @@ document.addEventListener('DOMContentLoaded', () => {
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
   else init();
 })();
+
+// ── Privacy panel ──────────────────────────────────────────────────────────
+// Opening it marks .shell inert, so the page behind is genuinely muted to
+// clicks, tabbing and assistive tech rather than just painted over.
+(function(){
+  // #privacyOverlay is body-level markup that comes after this script, so the
+  // wiring waits for the document rather than running at parse time.
+  function wire(){
+  const btn=document.getElementById('privacyBtn');
+  const ov=document.getElementById('privacyOverlay');
+  if(!btn||!ov) return;
+  const closeBtn=document.getElementById('privacyCloseBtn');
+  const shell=document.querySelector('.shell');
+  let lastFocus=null;
+  function open(){
+    lastFocus=document.activeElement;
+    ov.classList.add('open');
+    btn.setAttribute('aria-expanded','true');
+    document.body.style.overflow='hidden';
+    if(shell) shell.inert=true;
+    closeBtn.focus();
+  }
+  function close(){
+    ov.classList.remove('open');
+    btn.setAttribute('aria-expanded','false');
+    document.body.style.overflow='';
+    if(shell) shell.inert=false;
+    if(lastFocus&&lastFocus.focus) lastFocus.focus();
+  }
+  btn.addEventListener('click',open);
+  closeBtn.addEventListener('click',close);
+  // Clicking the backdrop, but not the panel, closes it.
+  ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&ov.classList.contains('open')) close();
+  });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
+  else wire();
+})();
+
 </script>
 
 
 
+
+<!-- Privacy panel. Body level, outside .shell, so opening it can mark the
+     whole page inert rather than merely covering it. -->
+<div id="privacyOverlay" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+  <div id="privacyModal">
+    <div class="privacy-head">
+      <h3 id="privacyTitle">Your data is safe.</h3>
+      <button type="button" id="privacyCloseBtn" aria-label="Close">&times;</button>
+    </div>
+    <div class="privacy-body">
+      <p>Rosters are read in your browser. The files you upload and the details you type are never sent anywhere and never saved. Close or reload the page and they are gone. The only thing kept between visits is your chosen department profile, so you do not have to pick it again.</p>
+    </div>
+  </div>
+</div>
 
 <!-- Screenshot viewer for the printing guide — body level so it is never
      trapped inside a hidden section. -->
