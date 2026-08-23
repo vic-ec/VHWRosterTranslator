@@ -905,6 +905,21 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
           </label>
         </div>
       </div>
+      <div id="wizPatternWrap" class="wiz-field">
+        <label class="wiz-label">How does your department work? <span class="req-star">*</span></label>
+        <div class="wiz-choices">
+          <label class="wiz-choice">
+            <input type="radio" name="wizPattern" value="calls" checked>
+            <span class="t">Ordinary weekday hours, with overtime worked as calls</span>
+            <span class="d">Everyone works the normal Monday&ndash;Friday day. The roster records who is on call; the ordinary week is filled in for you.</span>
+          </label>
+          <label class="wiz-choice">
+            <input type="radio" name="wizPattern" value="shifts">
+            <span class="t">Shifts &mdash; nobody works an ordinary weekday</span>
+            <span class="d">Staff work only the shifts they are rostered onto, each with its own start and finish. You give the times for every shift column in step 3.</span>
+          </label>
+        </div>
+      </div>
       <div id="wizDataYWrap" class="wiz-field" style="display:none;">
         <label class="wiz-label">Header rows end at Y &asymp; <span id="wizDataYDisplay">188</span> px</label>
         <input id="wizDataY" type="range" min="80" max="400" value="188" style="width:100%;margin-top:6px;" oninput="$('wizDataYDisplay').textContent=this.value">
@@ -935,7 +950,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <div id="wizStep2Table" style="display:none;">
       <p class="wiz-intro">Upload one month of your roster as a Word file. The table inside it is read directly, so there is nothing to line up by eye &mdash; you only confirm what each column means.</p>
       <label class="upload-zone" id="wizDocZone" style="margin-bottom:12px;cursor:pointer;position:relative;">
-        <input type="file" id="wizDocFile" accept=".docx,.doc" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:1;">
+        <input type="file" id="wizDocFile" accept=".xlsx,.docx,.doc" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:1;">
         <span class="upload-icon">&#128196;</span>
         <span class="upload-label">Upload sample Word roster</span>
         <span class="upload-hint">.docx or .doc &mdash; click or drag &amp; drop</span>
@@ -979,9 +994,16 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
     <div id="wizStep3Table" style="display:none;">
       <div class="wiz-section-title">What each column means</div>
-      <p class="wiz-hint" style="margin-bottom:10px;">Mark the date and weekday columns, then name each duty column. Untick &ldquo;on call&rdquo; for daytime work such as theatre sessions &mdash; those earn no overnight overtime and no day off afterwards.</p>
+      <p class="wiz-hint" id="wizColsHint" style="margin-bottom:10px;"></p>
       <div id="wizTblCols" style="overflow-x:auto;"></div>
 
+      <div id="wizShiftHours" style="display:none;">
+        <div class="wiz-section-title" style="margin-top:20px;">Shift times</div>
+        <p class="wiz-hint" style="margin-bottom:10px;">Give each shift column its own times, 24-hour HH:MM. A shift crossing midnight is expected &mdash; 22:00 to 06:00 means overnight. Leave the overtime finish blank if the shift carries no overtime tail.</p>
+        <div id="wizShiftTimes" style="overflow-x:auto;"></div>
+      </div>
+
+      <div id="wizCallHours">
       <div class="wiz-section-title" style="margin-top:20px;">Hours</div>
       <p class="wiz-hint" style="margin-bottom:10px;">24-hour times, HH:MM. Leave a pair blank where a band does not apply. A band crossing midnight is expected &mdash; 16:00 to 07:30 means overnight.</p>
       <table class="wiz-rules-table">
@@ -996,6 +1018,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
         <input type="checkbox" id="wizPostCallOff" checked> The day after a call is off (post-call)
       </label>
       <div class="wiz-hint" style="margin-top:4px;">Last night&rsquo;s call already runs into this morning, so the rest of the day is leave. Being on call again that day overrides it.</div>
+      </div>
 
       <div class="wiz-section-title" style="margin-top:20px;">Leave and other activity types</div>
       <p class="wiz-hint" style="margin-bottom:10px;">These fill the activity dropdown so any row can be changed by hand. The EC shift types (WD/WE Shift) are not offered &mdash; they belong to the EC roster only.</p>
@@ -2092,10 +2115,32 @@ async function extractDocxTables(arrayBuffer) {
   return out;
 }
 
+// A roster table is a grid of rows and cells; which file carries it only
+// decides how the grid is recovered. .xlsx and .docx are both zips, so the
+// extension is checked before the PK magic — otherwise a workbook would be
+// read as a Word document.
+function gridKind(arrayBuffer, fileName) {
+  const n = String(fileName || '');
+  if (/\.xlsx$/i.test(n)) return 'xlsx';
+  if (/\.docx$/i.test(n)) return 'docx';
+  if (/\.doc$/i.test(n))  return 'doc';
+  const b = new Uint8Array(arrayBuffer, 0, 2);
+  return (b[0] === 0x50 && b[1] === 0x4B) ? 'docx' : 'doc';
+}
+
 async function extractWordTables(arrayBuffer, fileName, nCols) {
-  const isDocx = /\.docx$/i.test(fileName || '') ||
-    (new Uint8Array(arrayBuffer, 0, 2)[0] === 0x50 && new Uint8Array(arrayBuffer, 0, 2)[1] === 0x4B);
-  return isDocx ? extractDocxTables(arrayBuffer) : extractDocTables(arrayBuffer, nCols);
+  const kind = gridKind(arrayBuffer, fileName);
+  if (kind === 'xlsx') {
+    if (typeof readXlsxSheets !== 'function')
+      throw new Error('Cannot read .xlsx here — the workbook reader is missing');
+    const sheets = await readXlsxSheets(arrayBuffer);
+    // Every worksheet is a candidate table; blank ones are dropped so the
+    // roster-picking logic downstream is not distracted by them.
+    return sheets.map(s => s.rows.filter(r => r.some(c => String(c || '').trim())))
+                 .filter(t => t.length);
+  }
+  return kind === 'docx' ? extractDocxTables(arrayBuffer)
+                         : extractDocTables(arrayBuffer, nCols);
 }
 
 // ── Date-cell parsing ───────────────────────────────────────────────────────
@@ -2389,13 +2434,21 @@ function inferDocColumnCount(text) {
 }
 
 async function detectWordTable(arrayBuffer, fileName) {
-  const isDocx = /\.docx$/i.test(fileName || '') ||
-    (new Uint8Array(arrayBuffer, 0, 2)[0] === 0x50 && new Uint8Array(arrayBuffer, 0, 2)[1] === 0x4B);
+  const kind = gridKind(arrayBuffer, fileName);
+  const isDocx = kind !== 'doc';
 
   let rows;
-  if (isDocx) {
-    const tables = await extractDocxTables(arrayBuffer);
-    if (!tables.length) throw new Error('No tables found in this document');
+  if (kind === 'doc') {
+    // Legacy .doc marks end-of-cell and end-of-row with the same byte, so the
+    // column count has to be inferred before the rows can be cut.
+    const text = extractDocText(arrayBuffer);
+    const n = inferDocColumnCount(text);
+    if (!n) throw new Error('Could not find a table in this .doc — try saving it as .docx');
+    const tables = extractDocTables(arrayBuffer, n);
+    rows = tables.length ? tables[0] : [];
+  } else {
+    const tables = await extractWordTables(arrayBuffer, fileName, 0);
+    if (!tables.length) throw new Error('No tables found in this file');
     // The roster is the table with the most date-shaped first cells.
     let best = null, bestScore = -1;
     for (const t of tables) {
@@ -2403,12 +2456,6 @@ async function detectWordTable(arrayBuffer, fileName) {
       if (s > bestScore) { bestScore = s; best = t; }
     }
     rows = best;
-  } else {
-    const text = extractDocText(arrayBuffer);
-    const n = inferDocColumnCount(text);
-    if (!n) throw new Error('Could not find a table in this .doc — try saving it as .docx');
-    const tables = extractDocTables(arrayBuffer, n);
-    rows = tables.length ? tables[0] : [];
   }
 
   if (!rows || !rows.length) throw new Error('No table rows found');
@@ -4248,9 +4295,13 @@ $('parseBtn').addEventListener('click',async()=>{
       const buf=await readFile(file);
       const ext=file.name.split('.').pop().toLowerCase();
       let result;
-      if(ext==='docx'||ext==='doc'){
-        if(!activeProfile||activeProfile.roster_type!=='table')
-          throw new Error('This department profile is not set up for Word table rosters');
+      // A grid profile reads its roster as a table of rows and columns
+      // whatever file carries it, so a workbook goes to the table parser
+      // rather than to the EC shift reader.
+      const isGrid=!!activeProfile&&activeProfile.roster_type==='table';
+      if(ext==='docx'||ext==='doc'||(ext==='xlsx'&&isGrid)){
+        if(!isGrid)
+          throw new Error('This department profile is not set up for table rosters');
         result=await parseWordRosterTable(buf,activeProfile,file.name);
         state.tableData={days:result.days,doctors:result.doctors};
         state.tableWarnings=(state.tableWarnings||[]).concat(result.warnings||[]);
@@ -5155,6 +5206,11 @@ document.addEventListener('DOMContentLoaded', () => {
     'Workshop','Course','Conference'];
   const wizRosterType = () =>
     document.querySelector('input[name="wizRosterType"]:checked')?.value || 'shift';
+  // How the department works, which is a separate question from what file the
+  // roster arrives in. Only the grid roster asks it; the other two paths carry
+  // their pattern in the parser they use.
+  const wizPattern = () =>
+    document.querySelector('input[name="wizPattern"]:checked')?.value || 'calls';
   const COL_COLOURS = ['#2D6B45','#1A6B3A','#5b9bd5','#9b59b6','#c0392b','#e67e22'];
   const WIZ_STEPS   = 4;
 
@@ -5230,9 +5286,14 @@ document.addEventListener('DOMContentLoaded', () => {
     r.addEventListener('change', () => {
       $('wizDataYWrap').style.display = r.value === 'consultant' ? '' : 'none';
       const isTable = r.value === 'table';
+      if ($('wizPatternWrap')) $('wizPatternWrap').style.display = isTable ? '' : 'none';
       if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Word File' : '2 &nbsp;Upload PDF';
       if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
     });
+  });
+
+  document.querySelectorAll('input[name="wizPattern"]').forEach(r => {
+    r.addEventListener('change', () => { if (wizState.step === 3) wizInitTableCols(); });
   });
 
   function wizValidate(step) {
@@ -5250,6 +5311,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const m = wizReadColMap();
       if (m.dateCol < 0) { alert('Mark which column holds the date.'); return false; }
       if (!Object.keys(m.roleCols).length) { alert('Name at least one duty column.'); return false; }
+      if (wizPattern() === 'shifts') {
+        const missing = Object.entries(m.roleCols)
+          .filter(([, i]) => !(m.map[i] || {}).start || !(m.map[i] || {}).normEnd)
+          .map(([n]) => n);
+        if (missing.length) {
+          alert('Give a start and a normal finish for every shift column: ' + missing.join(', '));
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -5401,9 +5471,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const rows = wizState.tableRows || [];
     const samples = i => rows.slice(1, 5).map(r => r[i]).filter(Boolean).slice(0, 3).join(', ') || '\u2014';
+    const shifts = wizPattern() === 'shifts';
+    // A shift department gives each column its own times; a call department
+    // shares three band rows and only needs to know which columns are call.
+    if ($('wizShiftHours')) $('wizShiftHours').style.display = shifts ? '' : 'none';
+    if ($('wizCallHours'))  $('wizCallHours').style.display  = shifts ? 'none' : '';
+    const hint = $('wizColsHint');
+    if (hint) hint.textContent = shifts
+      ? 'Mark the date and weekday columns, then name each shift column \u2014 whatever staff call it. Each one gets its own times below.'
+      : 'Mark the date and weekday columns, then name each duty column. Untick \u201Con call\u201D for daytime work such as theatre sessions \u2014 those earn no overnight overtime and no day off afterwards.';
     wrap.innerHTML =
       '<table class="wiz-rules-table"><thead><tr><th>#</th><th>Sample values</th>' +
-      '<th>Meaning</th><th>Name on timesheet</th><th>On call?</th></tr></thead><tbody>' +
+      '<th>Meaning</th><th>Name on timesheet</th>' + (shifts ? '' : '<th>On call?</th>') +
+      '</tr></thead><tbody>' +
       wizState.colMap.map((c, i) => `
         <tr>
           <td style="font-family:var(--font-body);font-variant-numeric:tabular-nums;">${i}</td>
@@ -5411,14 +5491,15 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><select class="wiz-input wizColKind" data-i="${i}" style="min-width:120px;">
             <option value="date"${c.kind==='date'?' selected':''}>Date</option>
             <option value="day"${c.kind==='day'?' selected':''}>Weekday</option>
-            <option value="role"${c.kind==='role'?' selected':''}>Duty column</option>
+            <option value="role"${c.kind==='role'?' selected':''}>${shifts?'Shift column':'Duty column'}</option>
             <option value="ignore"${c.kind==='ignore'?' selected':''}>Ignore</option>
           </select></td>
           <td><input class="wiz-input wizColName" data-i="${i}" value="${(c.name||'').replace(/"/g,'&quot;')}"
               ${c.kind==='role'?'':'disabled'} style="min-width:140px;"></td>
-          <td style="text-align:center;"><input type="checkbox" class="wizColCall" data-i="${i}"
-              ${c.isCall?'checked':''} ${c.kind==='role'?'':'disabled'}></td>
+          ${shifts ? '' : `<td style="text-align:center;"><input type="checkbox" class="wizColCall" data-i="${i}"
+              ${c.isCall?'checked':''} ${c.kind==='role'?'':'disabled'}></td>`}
         </tr>`).join('') + '</tbody></table>';
+    if (shifts) wizRenderShiftTimes();
 
     wrap.querySelectorAll('.wizColKind').forEach(sel =>
       sel.addEventListener('change', () => {
@@ -5426,8 +5507,12 @@ document.addEventListener('DOMContentLoaded', () => {
         wizState.colMap[i].kind = sel.value;
         wizInitTableCols();
       }));
-    wrap.querySelectorAll('.wizColName').forEach(inp =>
-      inp.addEventListener('input', () => { wizState.colMap[+inp.dataset.i].name = inp.value; }));
+    wrap.querySelectorAll('.wizColName').forEach(inp => {
+      inp.addEventListener('input', () => { wizState.colMap[+inp.dataset.i].name = inp.value; });
+      // On blur, not on every keystroke: the shift-times table below names
+      // each column, and re-rendering mid-word would steal the caret.
+      inp.addEventListener('change', () => { if (wizPattern() === 'shifts') wizRenderShiftTimes(); });
+    });
     wrap.querySelectorAll('.wizColCall').forEach(cb =>
       cb.addEventListener('change', () => { wizState.colMap[+cb.dataset.i].isCall = cb.checked; }));
 
@@ -5436,6 +5521,34 @@ document.addEventListener('DOMContentLoaded', () => {
       leave.innerHTML = WIZ_LEAVE_DEFAULTS.map(t =>
         `<label class="wiz-radio-lbl"><input type="checkbox" class="wizLeaveType" value="${t}" checked> ${t}</label>`).join('');
     }
+  }
+
+  // One row per shift column: when it starts, when normal hours end, and
+  // when the overtime tail ends. Everything the timesheet needs.
+  function wizRenderShiftTimes() {
+    const host = $('wizShiftTimes');
+    if (!host) return;
+    const cols = (wizState.colMap || [])
+      .map((c, i) => ({ c, i })).filter(x => x.c.kind === 'role');
+    if (!cols.length) {
+      host.innerHTML = '<p class="wiz-hint">Mark at least one shift column above.</p>';
+      return;
+    }
+    host.innerHTML =
+      '<table class="wiz-rules-table"><thead><tr><th>Shift column</th>' +
+      '<th>Starts</th><th>Normal hours end</th><th>Overtime ends</th></tr></thead><tbody>' +
+      cols.map(({ c, i }) => `
+        <tr>
+          <td>${(c.name || 'Column ' + i).replace(/</g,'&lt;')}</td>
+          <td><input class="wiz-time wizShiftStart" data-i="${i}" value="${c.start||''}" placeholder="08:00"></td>
+          <td><input class="wiz-time wizShiftNormEnd" data-i="${i}" value="${c.normEnd||''}" placeholder="16:00"></td>
+          <td><input class="wiz-time wizShiftOtEnd" data-i="${i}" value="${c.otEnd||''}" placeholder="18:00"></td>
+        </tr>`).join('') + '</tbody></table>';
+    const bind = (cls, key) => host.querySelectorAll('.' + cls).forEach(inp =>
+      inp.addEventListener('input', () => { wizState.colMap[+inp.dataset.i][key] = inp.value.trim(); }));
+    bind('wizShiftStart', 'start');
+    bind('wizShiftNormEnd', 'normEnd');
+    bind('wizShiftOtEnd', 'otEnd');
   }
 
   function wizReadColMap() {
@@ -5457,6 +5570,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const t = id => ($(id) ? $(id).value.trim() : '') || null;
     const pair = (a, b) => (t(a) && t(b)) ? [t(a), t(b)] : null;
     const { columns, roleCols, dateCol, dayCol, map } = wizReadColMap();
+
+    // A shift department has no ordinary weekday to fall back on and no
+    // post-call day off: you work the shifts you are rostered onto, and each
+    // column carries its own times. getTableShifts already does exactly that
+    // when default_weekday is null and post_call_off is false.
+    if (wizPattern() === 'shifts') {
+      const shiftRules = {};
+      for (const [name, idx] of Object.entries(roleCols)) {
+        const c = map[idx] || {};
+        const norm = (c.start && c.normEnd) ? [c.start, c.normEnd] : null;
+        const ot   = (c.normEnd && c.otEnd) ? [c.normEnd, c.otEnd] : null;
+        const bands = { normal: norm, ot1: ot, ot2: null };
+        shiftRules[name] = {
+          is_call: false,
+          weekday: bands,
+          weekend_ph: bands,
+          label_weekday: `${name} - Weekday`,
+          label_weekend: `${name} - Weekend`,
+          label_ph:      `${name} - Public Holiday`,
+        };
+      }
+      return {
+        ec_short: ecShort,
+        roster_type: 'table',
+        work_pattern: 'shifts',
+        table: {
+          header_row: $('wizDocHeader') ? $('wizDocHeader').checked : true,
+          columns, date_col: dateCol, day_col: dayCol,
+          role_columns: roleCols, ignore_tokens: [],
+        },
+        default_weekday: null,
+        post_call_off: false,
+        duty_noun: 'shifts',
+        leave_types: [...document.querySelectorAll('.wizLeaveType')]
+          .filter(cb => cb.checked).map(cb => cb.value),
+        role_rules: shiftRules,
+      };
+    }
 
     const dayRule  = { normal: pair('wt_day_nf','wt_day_nt'), ot1: pair('wt_day_o1f','wt_day_o1t'), ot2: pair('wt_day_o2f','wt_day_o2t') };
     const callWd   = { normal: pair('wt_wd_nf','wt_wd_nt'),   ot1: pair('wt_wd_o1f','wt_wd_o1t'),   ot2: pair('wt_wd_o2f','wt_wd_o2t') };
@@ -5492,6 +5643,7 @@ document.addEventListener('DOMContentLoaded', () => {
         columns, date_col: dateCol, day_col: dayCol,
         role_columns: roleCols, ignore_tokens: [],
       },
+      work_pattern: 'calls',
       default_weekday: { ...dayRule, label: DAY_LABEL },
       post_call_off: $('wizPostCallOff') ? $('wizPostCallOff').checked : true,
       leave_types: leaveTypes,

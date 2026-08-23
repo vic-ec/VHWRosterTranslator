@@ -64,7 +64,7 @@ The interface is built on the Modernist design system: flat and architectural, h
 |---|---|---|---|
 | `shift` | PDF / Excel | `parser.js` | `getDoctorShifts` (hardcoded shift bands) |
 | `consultant` | PDF | `parser-consultant.js` | `getConsultantShifts` (profile `time_rules`) |
-| `table` | Word `.docx` / `.doc` | `parser-word.js` | `getTableShifts` (profile `role_rules`) |
+| `table` | Excel `.xlsx`, Word `.docx` / `.doc` | `parser-word.js` | `getTableShifts` (profile `role_rules`) |
 
 `consultant` and `table` both emit normal + OT1 + OT2 bands, so they share the
 wider preview layout via `isExtendedRosterMode()`. A Word table carries its
@@ -73,6 +73,21 @@ they are — see `profiles/README.md`.
 
 ## Notes
 
+- **A `table` roster is a grid, whatever file carries it.** `gridKind()` picks
+  the reader by extension first (an `.xlsx` and a `.docx` are both zips, so the
+  PK magic cannot tell them apart), and `extractWordTables` returns rows for
+  all three of `.xlsx`, `.docx` and `.doc`. Both the wizard's sample reader
+  (`detectWordTable`) and the runtime parser (`parseWordRosterTable`) go
+  through it, and `ui.js` routes an uploaded `.xlsx` to the table parser when
+  the active profile is `table` rather than to `parseRosterExcel`. A grid
+  profile therefore needs no coordinate calibration — only PDF does.
+- **Shifts on the grid path.** `getTableShifts` already supports a shift
+  department with no extra code: set `default_weekday: null` and
+  `post_call_off: false`, and give every duty column its own hours. The wizard
+  captures this as `work_pattern: 'shifts'`. Note this is *not* the legacy
+  `roster_type: 'shift'`, which is the coordinate-parsed Victoria Hospital EC
+  export with shift bands hardcoded in `holidays.js` / `config.js`; that path
+  is unchanged and still fits only a roster with VHW EC's layout and times.
 - All PDF parsing is coordinate-based against PDF.js text positions, since roster layouts vary — logic in `parser.js`/`parser-consultant.js` (and their inlined counterparts) is layout-sensitive. Word parsing is not: `parser-word.js` reads real cell boundaries and needs no calibration.
 - **The app no longer bundles SheetJS.** `js/xlsx.full.min.js` had been a GitHub error page rather than a library, so `window.XLSX` was never defined and Excel upload always failed. It is replaced by `js/parser-xlsx.js`, a small reader over JSZip — an `.xlsx` is a zip of XML, so no extra dependency is needed. SheetJS was not restored because the newest version obtainable from npm is 0.18.5 (March 2022), which carries two unfixed high-severity parsing advisories (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9); the patched builds are only on `cdn.sheetjs.com`. Consequence: legacy binary `.xls` is no longer accepted — the upload zone takes `.pdf,.xlsx,.docx,.doc`, and an `.xls` gets a message telling the user to Save As `.xlsx`.
 - `parseRosterExcel` is **async** (it awaits `readXlsxSheets`); call sites must `await` it.

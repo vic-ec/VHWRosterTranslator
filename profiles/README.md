@@ -1,18 +1,38 @@
 # EC profile examples
 
 Profiles live in the Supabase `ec_profiles` table. A `table` profile can be
-built in the app — "Not listed? Set up your EC" → **Word Table Roster** — which
-reads a sample roster, guesses what each column means, and asks for the hours.
+built in the app — "Not listed? Set up your hospital department profile" —
+which reads a sample roster (`.xlsx`, `.docx` or `.doc`), guesses what each
+column means, and asks for the hours.
 These files are reference copies of the same shape, for editing by hand.
 
 | File | roster_type | Source format |
 |---|---|---|
-| `vhw-anaesthetics.example.json` | `table` | Word `.docx` / `.doc` |
+| `vhw-anaesthetics.example.json` | `table` | Excel `.xlsx`, Word `.docx` / `.doc` |
 
 ## `roster_type: "table"`
 
-For rosters that are a Word table. The grid is explicit in the file, so the
-profile only declares what the columns *mean*:
+For rosters that are a grid — an Excel sheet or a Word table. The grid is
+explicit in the file, so the profile only declares what the columns *mean*.
+Which format carries it changes nothing but how the rows are recovered.
+
+### `work_pattern`
+
+Two kinds of department share this shape.
+
+- **`"calls"`** (the default) — everyone works the ordinary weekday, and the
+  roster records only who is on call. `default_weekday` supplies the implied
+  week and `post_call_off` gives the day after a call off.
+- **`"shifts"`** — nobody works an ordinary weekday; staff work only the
+  shifts they are rostered onto. Such a profile sets `default_weekday: null`
+  and `post_call_off: false`, and each duty column carries its own hours in
+  `role_rules`. That is all `getTableShifts` needs: with no default weekday to
+  fall back on and no post-call rule, only rostered days produce hours.
+
+`work_pattern` is recorded for readability; the behaviour follows from
+`default_weekday` and `post_call_off`.
+
+The column declarations:
 
 - `table.columns` — header labels, in order. Its **length is significant**:
   legacy `.doc` marks end-of-cell and end-of-row with the same byte, so the
@@ -67,11 +87,12 @@ Optional keys any profile can set:
 | `duty_noun` | What section 2 calls a duty — "Preview & edit *calls*" | `shifts` |
 | `z1_component` | Component line on the Z1(a) leave form | the profile's own `ec_short` / `ec_name`; `Emergency Medicine — Victoria Hospital` for a `shift` profile or one with no name at all |
 | `supervisors` | Names for the supervisor dropdown. Empty or absent gives a free-text box (except the original EC `shift` profile, which keeps its built-in list) | — |
+| `leave_types` | Activity types offered alongside the roster's own duty labels | the standard leave list |
+| `work_pattern` | `calls` or `shifts` — see above | `calls` |
 
 Set `z1_component` explicitly — the fallback to the profile's own name exists so
 that a profile cached in the browser before this key was added still names the
 right department, not so departments can leave it out.
-| `leave_types` | Activity types offered alongside the roster's own duty labels | the standard leave list |
 
 Leave is classified **positively**: an activity counts as leave only if it is a
 known leave type or appears in `leave_types`. Anything else is duty. Deciding

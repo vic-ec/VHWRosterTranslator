@@ -208,6 +208,11 @@ document.addEventListener('DOMContentLoaded', () => {
     'Workshop','Course','Conference'];
   const wizRosterType = () =>
     document.querySelector('input[name="wizRosterType"]:checked')?.value || 'shift';
+  // How the department works, which is a separate question from what file the
+  // roster arrives in. Only the grid roster asks it; the other two paths carry
+  // their pattern in the parser they use.
+  const wizPattern = () =>
+    document.querySelector('input[name="wizPattern"]:checked')?.value || 'calls';
   const COL_COLOURS = ['#2D6B45','#1A6B3A','#5b9bd5','#9b59b6','#c0392b','#e67e22'];
   const WIZ_STEPS   = 4;
 
@@ -283,9 +288,14 @@ document.addEventListener('DOMContentLoaded', () => {
     r.addEventListener('change', () => {
       $('wizDataYWrap').style.display = r.value === 'consultant' ? '' : 'none';
       const isTable = r.value === 'table';
+      if ($('wizPatternWrap')) $('wizPatternWrap').style.display = isTable ? '' : 'none';
       if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Word File' : '2 &nbsp;Upload PDF';
       if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
     });
+  });
+
+  document.querySelectorAll('input[name="wizPattern"]').forEach(r => {
+    r.addEventListener('change', () => { if (wizState.step === 3) wizInitTableCols(); });
   });
 
   function wizValidate(step) {
@@ -303,6 +313,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const m = wizReadColMap();
       if (m.dateCol < 0) { alert('Mark which column holds the date.'); return false; }
       if (!Object.keys(m.roleCols).length) { alert('Name at least one duty column.'); return false; }
+      if (wizPattern() === 'shifts') {
+        const missing = Object.entries(m.roleCols)
+          .filter(([, i]) => !(m.map[i] || {}).start || !(m.map[i] || {}).normEnd)
+          .map(([n]) => n);
+        if (missing.length) {
+          alert('Give a start and a normal finish for every shift column: ' + missing.join(', '));
+          return false;
+        }
+      }
     }
     return true;
   }
@@ -454,9 +473,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const rows = wizState.tableRows || [];
     const samples = i => rows.slice(1, 5).map(r => r[i]).filter(Boolean).slice(0, 3).join(', ') || '\u2014';
+    const shifts = wizPattern() === 'shifts';
+    // A shift department gives each column its own times; a call department
+    // shares three band rows and only needs to know which columns are call.
+    if ($('wizShiftHours')) $('wizShiftHours').style.display = shifts ? '' : 'none';
+    if ($('wizCallHours'))  $('wizCallHours').style.display  = shifts ? 'none' : '';
+    const hint = $('wizColsHint');
+    if (hint) hint.textContent = shifts
+      ? 'Mark the date and weekday columns, then name each shift column \u2014 whatever staff call it. Each one gets its own times below.'
+      : 'Mark the date and weekday columns, then name each duty column. Untick \u201Con call\u201D for daytime work such as theatre sessions \u2014 those earn no overnight overtime and no day off afterwards.';
     wrap.innerHTML =
       '<table class="wiz-rules-table"><thead><tr><th>#</th><th>Sample values</th>' +
-      '<th>Meaning</th><th>Name on timesheet</th><th>On call?</th></tr></thead><tbody>' +
+      '<th>Meaning</th><th>Name on timesheet</th>' + (shifts ? '' : '<th>On call?</th>') +
+      '</tr></thead><tbody>' +
       wizState.colMap.map((c, i) => `
         <tr>
           <td style="font-family:var(--font-body);font-variant-numeric:tabular-nums;">${i}</td>
@@ -464,14 +493,15 @@ document.addEventListener('DOMContentLoaded', () => {
           <td><select class="wiz-input wizColKind" data-i="${i}" style="min-width:120px;">
             <option value="date"${c.kind==='date'?' selected':''}>Date</option>
             <option value="day"${c.kind==='day'?' selected':''}>Weekday</option>
-            <option value="role"${c.kind==='role'?' selected':''}>Duty column</option>
+            <option value="role"${c.kind==='role'?' selected':''}>${shifts?'Shift column':'Duty column'}</option>
             <option value="ignore"${c.kind==='ignore'?' selected':''}>Ignore</option>
           </select></td>
           <td><input class="wiz-input wizColName" data-i="${i}" value="${(c.name||'').replace(/"/g,'&quot;')}"
               ${c.kind==='role'?'':'disabled'} style="min-width:140px;"></td>
-          <td style="text-align:center;"><input type="checkbox" class="wizColCall" data-i="${i}"
-              ${c.isCall?'checked':''} ${c.kind==='role'?'':'disabled'}></td>
+          ${shifts ? '' : `<td style="text-align:center;"><input type="checkbox" class="wizColCall" data-i="${i}"
+              ${c.isCall?'checked':''} ${c.kind==='role'?'':'disabled'}></td>`}
         </tr>`).join('') + '</tbody></table>';
+    if (shifts) wizRenderShiftTimes();
 
     wrap.querySelectorAll('.wizColKind').forEach(sel =>
       sel.addEventListener('change', () => {
@@ -479,8 +509,12 @@ document.addEventListener('DOMContentLoaded', () => {
         wizState.colMap[i].kind = sel.value;
         wizInitTableCols();
       }));
-    wrap.querySelectorAll('.wizColName').forEach(inp =>
-      inp.addEventListener('input', () => { wizState.colMap[+inp.dataset.i].name = inp.value; }));
+    wrap.querySelectorAll('.wizColName').forEach(inp => {
+      inp.addEventListener('input', () => { wizState.colMap[+inp.dataset.i].name = inp.value; });
+      // On blur, not on every keystroke: the shift-times table below names
+      // each column, and re-rendering mid-word would steal the caret.
+      inp.addEventListener('change', () => { if (wizPattern() === 'shifts') wizRenderShiftTimes(); });
+    });
     wrap.querySelectorAll('.wizColCall').forEach(cb =>
       cb.addEventListener('change', () => { wizState.colMap[+cb.dataset.i].isCall = cb.checked; }));
 
@@ -489,6 +523,34 @@ document.addEventListener('DOMContentLoaded', () => {
       leave.innerHTML = WIZ_LEAVE_DEFAULTS.map(t =>
         `<label class="wiz-radio-lbl"><input type="checkbox" class="wizLeaveType" value="${t}" checked> ${t}</label>`).join('');
     }
+  }
+
+  // One row per shift column: when it starts, when normal hours end, and
+  // when the overtime tail ends. Everything the timesheet needs.
+  function wizRenderShiftTimes() {
+    const host = $('wizShiftTimes');
+    if (!host) return;
+    const cols = (wizState.colMap || [])
+      .map((c, i) => ({ c, i })).filter(x => x.c.kind === 'role');
+    if (!cols.length) {
+      host.innerHTML = '<p class="wiz-hint">Mark at least one shift column above.</p>';
+      return;
+    }
+    host.innerHTML =
+      '<table class="wiz-rules-table"><thead><tr><th>Shift column</th>' +
+      '<th>Starts</th><th>Normal hours end</th><th>Overtime ends</th></tr></thead><tbody>' +
+      cols.map(({ c, i }) => `
+        <tr>
+          <td>${(c.name || 'Column ' + i).replace(/</g,'&lt;')}</td>
+          <td><input class="wiz-time wizShiftStart" data-i="${i}" value="${c.start||''}" placeholder="08:00"></td>
+          <td><input class="wiz-time wizShiftNormEnd" data-i="${i}" value="${c.normEnd||''}" placeholder="16:00"></td>
+          <td><input class="wiz-time wizShiftOtEnd" data-i="${i}" value="${c.otEnd||''}" placeholder="18:00"></td>
+        </tr>`).join('') + '</tbody></table>';
+    const bind = (cls, key) => host.querySelectorAll('.' + cls).forEach(inp =>
+      inp.addEventListener('input', () => { wizState.colMap[+inp.dataset.i][key] = inp.value.trim(); }));
+    bind('wizShiftStart', 'start');
+    bind('wizShiftNormEnd', 'normEnd');
+    bind('wizShiftOtEnd', 'otEnd');
   }
 
   function wizReadColMap() {
@@ -510,6 +572,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const t = id => ($(id) ? $(id).value.trim() : '') || null;
     const pair = (a, b) => (t(a) && t(b)) ? [t(a), t(b)] : null;
     const { columns, roleCols, dateCol, dayCol, map } = wizReadColMap();
+
+    // A shift department has no ordinary weekday to fall back on and no
+    // post-call day off: you work the shifts you are rostered onto, and each
+    // column carries its own times. getTableShifts already does exactly that
+    // when default_weekday is null and post_call_off is false.
+    if (wizPattern() === 'shifts') {
+      const shiftRules = {};
+      for (const [name, idx] of Object.entries(roleCols)) {
+        const c = map[idx] || {};
+        const norm = (c.start && c.normEnd) ? [c.start, c.normEnd] : null;
+        const ot   = (c.normEnd && c.otEnd) ? [c.normEnd, c.otEnd] : null;
+        const bands = { normal: norm, ot1: ot, ot2: null };
+        shiftRules[name] = {
+          is_call: false,
+          weekday: bands,
+          weekend_ph: bands,
+          label_weekday: `${name} - Weekday`,
+          label_weekend: `${name} - Weekend`,
+          label_ph:      `${name} - Public Holiday`,
+        };
+      }
+      return {
+        ec_short: ecShort,
+        roster_type: 'table',
+        work_pattern: 'shifts',
+        table: {
+          header_row: $('wizDocHeader') ? $('wizDocHeader').checked : true,
+          columns, date_col: dateCol, day_col: dayCol,
+          role_columns: roleCols, ignore_tokens: [],
+        },
+        default_weekday: null,
+        post_call_off: false,
+        duty_noun: 'shifts',
+        leave_types: [...document.querySelectorAll('.wizLeaveType')]
+          .filter(cb => cb.checked).map(cb => cb.value),
+        role_rules: shiftRules,
+      };
+    }
 
     const dayRule  = { normal: pair('wt_day_nf','wt_day_nt'), ot1: pair('wt_day_o1f','wt_day_o1t'), ot2: pair('wt_day_o2f','wt_day_o2t') };
     const callWd   = { normal: pair('wt_wd_nf','wt_wd_nt'),   ot1: pair('wt_wd_o1f','wt_wd_o1t'),   ot2: pair('wt_wd_o2f','wt_wd_o2t') };
@@ -545,6 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
         columns, date_col: dateCol, day_col: dayCol,
         role_columns: roleCols, ignore_tokens: [],
       },
+      work_pattern: 'calls',
       default_weekday: { ...dayRule, label: DAY_LABEL },
       post_call_off: $('wizPostCallOff') ? $('wizPostCallOff').checked : true,
       leave_types: leaveTypes,

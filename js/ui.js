@@ -369,9 +369,13 @@ $('parseBtn').addEventListener('click',async()=>{
       const buf=await readFile(file);
       const ext=file.name.split('.').pop().toLowerCase();
       let result;
-      if(ext==='docx'||ext==='doc'){
-        if(!activeProfile||activeProfile.roster_type!=='table')
-          throw new Error('This EC profile is not set up for Word table rosters');
+      // A grid profile reads its roster as a table of rows and columns
+      // whatever file carries it, so a workbook goes to the table parser
+      // rather than to the EC shift reader.
+      const isGrid=!!activeProfile&&activeProfile.roster_type==='table';
+      if(ext==='docx'||ext==='doc'||(ext==='xlsx'&&isGrid)){
+        if(!isGrid)
+          throw new Error('This department profile is not set up for table rosters');
         result=await parseWordRosterTable(buf,activeProfile,file.name);
         state.tableData={days:result.days,doctors:result.doctors};
         state.tableWarnings=(state.tableWarnings||[]).concat(result.warnings||[]);

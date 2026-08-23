@@ -276,10 +276,32 @@ async function extractDocxTables(arrayBuffer) {
   return out;
 }
 
+// A roster table is a grid of rows and cells; which file carries it only
+// decides how the grid is recovered. .xlsx and .docx are both zips, so the
+// extension is checked before the PK magic — otherwise a workbook would be
+// read as a Word document.
+function gridKind(arrayBuffer, fileName) {
+  const n = String(fileName || '');
+  if (/\.xlsx$/i.test(n)) return 'xlsx';
+  if (/\.docx$/i.test(n)) return 'docx';
+  if (/\.doc$/i.test(n))  return 'doc';
+  const b = new Uint8Array(arrayBuffer, 0, 2);
+  return (b[0] === 0x50 && b[1] === 0x4B) ? 'docx' : 'doc';
+}
+
 async function extractWordTables(arrayBuffer, fileName, nCols) {
-  const isDocx = /\.docx$/i.test(fileName || '') ||
-    (new Uint8Array(arrayBuffer, 0, 2)[0] === 0x50 && new Uint8Array(arrayBuffer, 0, 2)[1] === 0x4B);
-  return isDocx ? extractDocxTables(arrayBuffer) : extractDocTables(arrayBuffer, nCols);
+  const kind = gridKind(arrayBuffer, fileName);
+  if (kind === 'xlsx') {
+    if (typeof readXlsxSheets !== 'function')
+      throw new Error('Cannot read .xlsx here — the workbook reader is missing');
+    const sheets = await readXlsxSheets(arrayBuffer);
+    // Every worksheet is a candidate table; blank ones are dropped so the
+    // roster-picking logic downstream is not distracted by them.
+    return sheets.map(s => s.rows.filter(r => r.some(c => String(c || '').trim())))
+                 .filter(t => t.length);
+  }
+  return kind === 'docx' ? extractDocxTables(arrayBuffer)
+                         : extractDocTables(arrayBuffer, nCols);
 }
 
 // ── Date-cell parsing ───────────────────────────────────────────────────────
@@ -573,13 +595,21 @@ function inferDocColumnCount(text) {
 }
 
 async function detectWordTable(arrayBuffer, fileName) {
-  const isDocx = /\.docx$/i.test(fileName || '') ||
-    (new Uint8Array(arrayBuffer, 0, 2)[0] === 0x50 && new Uint8Array(arrayBuffer, 0, 2)[1] === 0x4B);
+  const kind = gridKind(arrayBuffer, fileName);
+  const isDocx = kind !== 'doc';
 
   let rows;
-  if (isDocx) {
-    const tables = await extractDocxTables(arrayBuffer);
-    if (!tables.length) throw new Error('No tables found in this document');
+  if (kind === 'doc') {
+    // Legacy .doc marks end-of-cell and end-of-row with the same byte, so the
+    // column count has to be inferred before the rows can be cut.
+    const text = extractDocText(arrayBuffer);
+    const n = inferDocColumnCount(text);
+    if (!n) throw new Error('Could not find a table in this .doc — try saving it as .docx');
+    const tables = extractDocTables(arrayBuffer, n);
+    rows = tables.length ? tables[0] : [];
+  } else {
+    const tables = await extractWordTables(arrayBuffer, fileName, 0);
+    if (!tables.length) throw new Error('No tables found in this file');
     // The roster is the table with the most date-shaped first cells.
     let best = null, bestScore = -1;
     for (const t of tables) {
@@ -587,12 +617,6 @@ async function detectWordTable(arrayBuffer, fileName) {
       if (s > bestScore) { bestScore = s; best = t; }
     }
     rows = best;
-  } else {
-    const text = extractDocText(arrayBuffer);
-    const n = inferDocColumnCount(text);
-    if (!n) throw new Error('Could not find a table in this .doc — try saving it as .docx');
-    const tables = extractDocTables(arrayBuffer, n);
-    rows = tables.length ? tables[0] : [];
   }
 
   if (!rows || !rows.length) throw new Error('No table rows found');
