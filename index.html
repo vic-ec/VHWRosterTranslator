@@ -194,20 +194,20 @@ header {
 #resetFormBtn.btn { font-size: 12px; white-space: nowrap; }
 
 /* ── masthead ───────────────────────────────────────────────── */
-.masthead { padding: 56px 32px 28px; border-bottom: 2px solid var(--color-divider); }
-.masthead-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 48px; align-items: end; }
+.masthead { padding: 56px 32px 40px; border-bottom: 2px solid var(--color-neutral-500); }
+.masthead-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: end; }
 .kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent-700); margin-bottom: 16px; }
 .masthead h1 { font-size: 64px; line-height: 0.98; letter-spacing: -0.035em; margin: 0 0 20px; max-width: 12ch; }
 .masthead-lede { font-size: 17px; line-height: 1.5; max-width: 46ch; color: var(--color-neutral-800); margin: 0 0 40px; }
-.process { border-top: 2px solid var(--color-text); padding: 18px 0 4px; margin: 44px 0 0; }
+.process { border-top: 2px solid var(--color-neutral-500); padding: 16px 0 2px; margin: 0; }
 .process-label { font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 12px; }
 .steplink {
   display: block; text-decoration: none; color: var(--color-text);
-  padding: 4px 24px 10px; border-left: 1px solid var(--color-divider);
+  padding: 2px 12px 6px; border-left: 1px solid var(--color-neutral-400);
 }
 .steplink:hover { color: var(--color-accent); }
-.steplink .num { font-family: var(--font-heading); font-weight: 800; font-size: 12px; color: var(--color-accent); }
-.steplink .label { font-family: var(--font-heading); font-weight: 800; font-size: 17px; line-height: 1.2; letter-spacing: -0.015em; }
+.steplink .num { font-family: var(--font-heading); font-weight: 800; font-size: 11px; color: var(--color-accent); }
+.steplink .label { font-family: var(--font-heading); font-weight: 800; font-size: 13px; line-height: 1.25; letter-spacing: -0.01em; }
 
 /* EC picker (masthead, before an EC is chosen) */
 .ec-select-wrap { margin: 0 0 40px; max-width: 46ch; }
@@ -387,13 +387,13 @@ main { padding: 40px 32px 0; }
 #printHelpDetails > summary:hover { color: var(--color-accent); }
 /* ── Masthead: profile panel beside the hero, process a full-width row ─── */
 .masthead-grid { align-items: start; }
-.profile-panel { border: 2px solid var(--color-text); padding: 20px 22px 22px; }
+.profile-panel { border: 2px solid var(--color-neutral-500); padding: 20px 22px 22px; }
 .profile-panel .ec-select-wrap { margin: 0; max-width: none; }
 .profile-panel .ec-select-head { border-bottom-color: var(--color-neutral-400); }
 
 .process .steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .steplink:first-child { border-left: 0; padding-left: 0; }
-.steplink .num { display: block; margin-bottom: 6px; }
+.steplink .num { display: block; margin-bottom: 4px; }
 .steplink .label { display: block; }
 .steplink:hover .label { color: var(--color-accent); }
 
@@ -402,7 +402,7 @@ main { padding: 40px 32px 0; }
 .profile-panel .ec-badge-name { font-size: 20px; }
 
 /* ── Rail: profile picker sits above the process list ─────────────── */
-.rail { display: flex; flex-direction: column; gap: 28px; } /* legacy, unused */
+.rail { display: flex; flex-direction: column; gap: 26px; }
 .ec-badge-actions { display: flex; gap: 8px; margin-top: 10px; }
 .profile-panel .ec-badge { display: block; }
 .profile-panel .ec-badge-label { display: block; font-size: 11px; letter-spacing: .08em;
@@ -532,6 +532,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
     </div>
 
+    <div class="rail">
     <aside class="profile-panel">
       <div class="ec-select-wrap">
         <div id="ecLoadingRow" class="ec-loading">
@@ -562,9 +563,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
         </div>
       </div>
     </aside>
-  </div>
 
-  <div class="wrap">
     <nav class="process">
       <div class="process-label">Process</div>
       <div class="steps">
@@ -574,6 +573,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       <a class="steplink" href="#sec-4"><span class="num">04</span><span class="label">Download</span></a>
       </div>
     </nav>
+    </div>
   </div>
 </section>
 
