@@ -282,6 +282,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('input[name="wizRosterType"]').forEach(r => {
     r.addEventListener('change', () => {
       $('wizDataYWrap').style.display = r.value === 'consultant' ? '' : 'none';
+      const isTable = r.value === 'table';
+      if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Word File' : '2 &nbsp;Upload PDF';
+      if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
     });
   });
 
