@@ -51,7 +51,7 @@ function applyProfile(profile) {
   const ecShort = profile.ec_short || profile.ec_name;
   // The EC name lives in the header chip (#ecSelectedName) — the brand
   // line stays constant, and the offline badge is cleared here.
-  $('headerTitle').textContent = 'EC Roster Translator';
+  $('headerTitle').textContent = 'Hospital Roster Translator';
   const modeEl = $('ecMode');
   if (modeEl) { modeEl.textContent = ''; modeEl.style.display = 'none'; }
   // Store in localStorage for offline use
@@ -174,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('ecChangeBtn').addEventListener('click', async () => {
     $('ecSelectedRow').style.display = 'none';
     $('ecLoadingRow').style.display  = '';
-    $('headerTitle').textContent = 'EC Roster Translator';
+    $('headerTitle').textContent = 'Hospital Roster Translator';
     let profiles = null;
     try {
       profiles = await fetchProfiles();
@@ -705,7 +705,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (res.ok || res.status === 201) {
         msg.style.color = 'var(--success)';
-        msg.textContent = '✓ Your EC is active on this device now. It has also been sent for approval so other users can pick it from the list.';
+        msg.textContent = '✓ Your department profile is active on this device now. It has also been sent for approval so other staff can pick it from the list.';
         $('wizSubmitBtn').style.display = 'none';
         $('wizNextBtn').style.display = 'none';
       } else {
@@ -715,7 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } catch(err) {
       // Sharing failed, but the profile is already live locally.
       msg.style.color = 'var(--warn)';
-      msg.textContent = '✓ Your EC is active on this device. Could not send it for approval (' +
+      msg.textContent = '✓ Your department profile is active on this device. Could not send it for approval (' +
         err.message + ') — it will stay on this device only.';
       $('wizSubmitBtn').style.display = 'none';
       $('wizNextBtn').style.display = 'none';
