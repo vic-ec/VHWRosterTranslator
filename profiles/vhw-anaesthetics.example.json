@@ -38,7 +38,7 @@
   },
   "post_call_off": true,
   "duty_noun": "calls",
-  "z1_component": "Anaesthetics — Victoria Hospital",
+  "z1_component": "Anaesthetics",
   "supervisors": [],
   "role_rules": {
     "MO": {

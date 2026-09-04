@@ -957,16 +957,24 @@ $('detailSigDate').addEventListener('input',e=>{
   el.addEventListener('input',()=>{saveDetailsToState();checkDetailsComplete();});
 });
 
-// Component line on the Z1(a). A department profile names itself; only the
-// original EC profile — or a profile too old to carry either key — falls back
-// to the Emergency Medicine wording the form was first written for.
+// The Z1(a)'s Component is filed as the department alone — the hospital is
+// already established by the rest of the form. Profiles are named for people
+// picking them off a list ("VHW Anaesthetics"), so the hospital is stripped
+// off either end, with or without a separator.
+const Z1_HOSPITAL='\\b(?:victoria\\s+hospital(?:\\s+wynberg)?|vhw|vh)\\b';
+function stripHospitalName(name){
+  return String(name||'')
+    .replace(new RegExp('^\\s*'+Z1_HOSPITAL+'\\s*[\\u2013\\u2014\\-:,]?\\s*','i'),'')
+    .replace(new RegExp('\\s*[\\u2013\\u2014\\-:,]?\\s*'+Z1_HOSPITAL+'\\s*$','i'),'')
+    .trim();
+}
 function z1ComponentFor(){
-  const DEFAULT='Emergency Medicine \u2014 Victoria Hospital';
+  const DEFAULT='Emergency Medicine';
   if(!activeProfile) return DEFAULT;
-  if(activeProfile.z1_component) return activeProfile.z1_component;
-  if(activeProfile.roster_type==='shift') return DEFAULT;
-  const name=activeProfile.ec_short||activeProfile.ec_name;
-  return name?name:DEFAULT;
+  // The full name first: ec_short is an abbreviation for badges, not a
+  // department name the payroll office would recognise.
+  const raw=activeProfile.z1_component||activeProfile.ec_name||activeProfile.ec_short||'';
+  return stripHospitalName(raw)||DEFAULT;
 }
 function getFormDetails(){
   saveDetailsToState();

@@ -424,7 +424,7 @@ async function generateZ1ADocx(d) {
   const casualEmployee = d.casualEmployee || 'no';
   const addressDuringLeave = d.addressDuringLeave || '';
   const supervisorName = d.supervisorName || '';
-  const component = d.component || 'Emergency Medicine \u2014 Victoria Hospital';
+  const component = d.component || 'Emergency Medicine';
   const leaveData = (function() {
     const LEAVE_MAP_Z1 = {
       'Leave - Annual':'Annual Leave','Leave - Sick':'Normal Sick Leave',
