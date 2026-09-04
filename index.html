@@ -364,9 +364,12 @@ main { padding: 40px 32px 0; }
 .preview-table .we-label { color: var(--color-neutral-600); }
 .preview-table td:nth-child(2) { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-neutral-600); }
 /* Weekends and public holidays are both "not an ordinary working day", so
-   they share the accent tint rather than weekends taking a grey wash. */
+   both take the accent tint rather than weekends taking a grey wash — but a
+   public holiday sits one step deeper, so the two stay tellable apart. The
+   date, day and holiday name on those rows are accent-700 bold (7.3:1 on
+   this tint), so the deeper fill costs no legibility. */
 .we-row td { background: var(--color-accent-100); }
-.ph-wd-row td { background: var(--color-accent-100); }
+.ph-wd-row td { background: var(--color-accent-200); }
 .ph-row { opacity: 1 !important; }
 .empty-row td { color: var(--color-neutral-600); }
 .type-select {
