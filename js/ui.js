@@ -53,13 +53,22 @@ function supervisorOptionsFor(){
   if(activeProfile&&activeProfile.roster_type==='shift') return LEGACY_EC_SUPERVISORS;
   return null;
 }
+// The free-text box sits under the dropdown when "Other" is picked, and needs
+// a gap there. When the profile has no list it is the whole control, and that
+// same gap drops it out of line with Designation and Date of signature.
+function showSupervisorBox(show, underSelect){
+  const o=$('detailSupervisorOther');
+  if(!o) return;
+  o.style.display=show?'':'none';
+  o.style.marginTop=(show&&underSelect)?'6px':'0';
+}
 function applySupervisorMode(){
   const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
   if(!sel||!other) return;
   const list=supervisorOptionsFor();
   if(!list){
     sel.style.display='none';
-    other.style.display='';
+    showSupervisorBox(true, false);
     return;
   }
   sel.style.display='';
@@ -69,7 +78,7 @@ function applySupervisorMode(){
   }
   const oth=document.createElement('option');
   oth.value='other'; oth.textContent='Other\u2026'; sel.appendChild(oth);
-  if(sel.value!=='other') other.style.display='none';
+  if(sel.value!=='other') showSupervisorBox(false, true);
 }
 // Put a saved name back into whichever control this profile uses. Everything
 // that restores the form goes through here: a profile without a supervisor
@@ -81,10 +90,10 @@ function setSupervisorValue(saved){
   applySupervisorMode();
   const list=supervisorOptionsFor();
   saved=saved||'';
-  if(!list){ sel.value=''; other.value=saved; other.style.display=''; return; }
-  if(saved&&list.includes(saved)){ sel.value=saved; other.value=''; other.style.display='none'; }
-  else if(saved){ sel.value='other'; other.value=saved; other.style.display=''; }
-  else { sel.value=''; other.value=''; other.style.display='none'; }
+  if(!list){ sel.value=''; other.value=saved; showSupervisorBox(true, false); return; }
+  if(saved&&list.includes(saved)){ sel.value=saved; other.value=''; showSupervisorBox(false, true); }
+  else if(saved){ sel.value='other'; other.value=saved; showSupervisorBox(true, true); }
+  else { sel.value=''; other.value=''; showSupervisorBox(false, true); }
 }
 
 function updateLeaveFields(){
@@ -921,7 +930,7 @@ $('detailDesignationOther').addEventListener('input',()=>{ saveDetailsToState();
 // Fix 3: supervisor dropdown + other listeners
 $('detailSupervisorSel').addEventListener('change',()=>{
   const isOther=$('detailSupervisorSel').value==='other';
-  $('detailSupervisorOther').style.display=isOther?'':'none';
+  showSupervisorBox(isOther, true);
   if(!isOther) $('detailSupervisorOther').value='';
   saveDetailsToState();checkDetailsComplete();
 });
