@@ -54,6 +54,31 @@ const CONSULTANT_ACTIVITY_TYPES=[
   'Leave - Paternity','Workshop','Course','Conference'
 ];
 
+// Leave and other non-duty activities. Classification is POSITIVE: anything
+// not named here (or in the profile's own leave_types) is duty. Deciding by
+// exclusion used to misread a table roster's role-prefixed labels — such as
+// "COSMO/SN On Call - Weekday" — as leave, which put call days on the leave
+// form and wrote the label into the timesheet's normal-hours column.
+const LEAVE_ACTIVITY_TYPES = ['Leave - Annual','Leave - Sick','Leave - Family Responsibility',
+  'Leave - Study','Leave - Special','Leave - Prenatal','Leave - Maternity','Leave - Paternity',
+  'Workshop','Course','Conference'];
+// Only actual leave reaches the Z1(a). A workshop or course is official duty
+// and is declared on Annexure C instead.
+const Z1_LEAVE_TYPES = LEAVE_ACTIVITY_TYPES.filter(t => t.startsWith('Leave - '));
+
+function isLeaveActivity(label) {
+  if (!label) return false;
+  if (LEAVE_ACTIVITY_TYPES.includes(label)) return true;
+  const lt = (typeof activeProfile !== 'undefined' && activeProfile && activeProfile.leave_types) || null;
+  return !!lt && lt.includes(label);
+}
+function isZ1LeaveActivity(label) { return !!label && Z1_LEAVE_TYPES.includes(label); }
+
+// Supervisor names are department-specific. A profile may declare its own;
+// the original EC roster keeps the built-in list, and anything else gets a
+// free-text box rather than someone else's consultants.
+const LEGACY_EC_SUPERVISORS = ['Philip Cloete','Sebastian De Haan','Paul Xafis'];
+
 // Consultant shift type → auto-fill times (6 fields: nf,nt,ot1f,ot1t,ot2f,ot2t)
 const CONSULTANT_SHIFT_TIMES = {
   'Normal Hours - Weekday':         {nf:'07H30',nt:'15H30',ot1f:'15H30',ot1t:'16H30',ot2f:'',    ot2t:''},
@@ -76,6 +101,7 @@ const SHIFT_TIMES = {
 // === APP STATE ===
 const state={
   pendingFiles:[],parsedFiles:[],rosterData:null,selectedDoctor:null,
+  tableData:null,tableWarnings:[],
   editedShifts:{},originalShifts:{},dirtyDays:new Set(),
   previewMonth:null,previewYear:null,
   availableMonths:new Set(),

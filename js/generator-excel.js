@@ -175,10 +175,14 @@ async function generateExcel(monthIdx, year, details) {
     const dk = `${year}-${String(monthIdx+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const phName = phMap ? phMap.get(dk) : null;
     const isSpecial = isWE || !!phName;
-    const isShift = es.typeLabel && (es.typeLabel.startsWith('WD Shift') || es.typeLabel.startsWith('WE Shift'));
-    const isConsultantType = es.typeLabel && (
-      es.typeLabel.startsWith('On Call -') || es.typeLabel === 'Normal Hours - Weekday'
-    );
+    // Classify by what the row HAS, not by how its label reads. Table rosters
+    // prefix the role ("COSMO/SN On Call - Weekday"), which no label test for
+    // "On Call -" would ever match.
+    const isLeaveRow = isLeaveActivity(es.typeLabel);
+    const isShift = !isLeaveRow && es.typeLabel &&
+      (es.typeLabel.startsWith('WD Shift') || es.typeLabel.startsWith('WE Shift'));
+    const isConsultantType = !isLeaveRow && !isShift &&
+      !!(es.nf || es.nt || es.ot1f || es.ot1t || es.ot2f || es.ot2t);
 
     if(isConsultantType) {
       // Consultant mode: 6 time columns
@@ -249,9 +253,13 @@ function dateKeyLocal(d) {
 // isWE = Saturday or Sunday; isPH = public holiday (can be any day)
 function typeOptsFor(isWE, isPH, selectedType) {
   const isSpecial = isWE || isPH;
-  const isConsultantMode = activeProfile && activeProfile.roster_type === 'consultant' && state.consultantData;
+  const isConsultantMode = isExtendedRosterMode();
   let filtered;
-  if (isConsultantMode) {
+  if (isTableRosterMode()) {
+    const all = tableActivityTypes();
+    filtered = all.filter(t => isSpecial ? !/- Weekday$/.test(t) : !/- (Weekend|Public Holiday)$/.test(t));
+    if (!filtered.length) filtered = all;
+  } else if (isConsultantMode) {
     // Normalise selectedType: Consultant Day - HHhMM → Normal Hours - Weekday
     if (selectedType && selectedType.startsWith('Consultant Day')) selectedType = 'Normal Hours - Weekday';
     filtered = CONSULTANT_ACTIVITY_TYPES.filter(t => {
@@ -261,7 +269,7 @@ function typeOptsFor(isWE, isPH, selectedType) {
       if (t === 'On Call - Public Holiday') return isPH;
       return true;
     });
-  } else {
+  } else if (!isTableRosterMode()) {
     filtered = ACTIVITY_TYPES.filter(t => {
       if(t.startsWith('WD Shift')) return !isSpecial;
       if(t.startsWith('WE Shift')) return isSpecial;

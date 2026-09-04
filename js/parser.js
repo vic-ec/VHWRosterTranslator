@@ -6,7 +6,7 @@
 //   nearestCol(x, anchors)
 //   extractNamesWithAnchors(words, anchors, pageH)
 //   parseRosterPDF(arrayBuffer, existingParsed)  → {days, doctors, month, year}
-//   parseRosterExcel(arrayBuffer)                → {days, doctors, month, year}
+//   parseRosterExcel(arrayBuffer)  async           → {days, doctors, month, year}
 //   getDoctorShifts(rosterData, doctorName)      → Map<day, shiftObj>
 //
 // Depends on: config.js, holidays.js
@@ -328,17 +328,18 @@ async function parseRosterPDF(arrayBuffer) {
   return { days, doctors };
 }
 
-// ── Excel parser (unchanged) ────────────────────────────────────────────────
-function parseRosterExcel(arrayBuffer) {
-  const XLSX = window.XLSX;
-  const wb = XLSX.read(new Uint8Array(arrayBuffer), { type:'array' });
+// ── Excel parser (.xlsx via parser-xlsx.js / JSZip) ─────────────────────────
+async function parseRosterExcel(arrayBuffer) {
+  // Reads the workbook with JSZip (see parser-xlsx.js) rather than SheetJS —
+  // an .xlsx is a zip of XML, so no extra library is needed. Legacy binary
+  // .xls is a different format and is not supported.
+  const sheets = await readXlsxSheets(arrayBuffer);
   const doctors = new Set(), days = [];
   const MONTHS = {January:0,February:1,March:2,April:3,May:4,June:5,July:6,August:7,September:8,October:9,November:10,December:11};
   const norm = s => s.replace(/\[|\]/g,'').replace(/\(T\)/gi,'').replace(/\(Psy\)/gi,'').trim();
 
-  for (const sn of wb.SheetNames) {
-    const ws = wb.Sheets[sn];
-    const lines = XLSX.utils.sheet_to_json(ws, { header:1, raw:false })
+  for (const sheet of sheets) {
+    const lines = sheet.rows
       .flat().filter(Boolean).map(String).map(s => s.trim()).filter(Boolean);
     let cur = null, st = 'weekday';
     const seenDays = new Set();

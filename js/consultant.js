@@ -35,10 +35,11 @@ function renderConsultantList() {
   }
   list.style.display = 'block';
   list.innerHTML = files.map(f => `
-    <div class="roster-item" style="border-color:#5b9bd5;background:#e8f2fc;color:#2a5a8a;">
-      <span class="ri-name">&#128196; ${f.name}</span>
-      <span class="ri-days" style="color:#5b9bd5;opacity:0.75;">queued</span>
-      <button class="ri-remove" data-name="${f.name}" style="color:#5b9bd5;">&times;</button>
+    <div class="roster-item">
+      <span class="tag tag-neutral">PDF</span>
+      <span class="ri-name">${f.name}</span>
+      <span class="ri-days">queued</span>
+      <button class="ri-remove" data-name="${f.name}">&times;</button>
     </div>`).join('');
   list.querySelectorAll('.ri-remove').forEach(btn =>
     btn.addEventListener('click', () => removeConsultantFile(btn.dataset.name))

@@ -424,6 +424,7 @@ async function generateZ1ADocx(d) {
   const casualEmployee = d.casualEmployee || 'no';
   const addressDuringLeave = d.addressDuringLeave || '';
   const supervisorName = d.supervisorName || '';
+  const component = d.component || 'Emergency Medicine \u2014 Victoria Hospital';
   const leaveData = (function() {
     const LEAVE_MAP_Z1 = {
       'Leave - Annual':'Annual Leave','Leave - Sick':'Normal Sick Leave',
@@ -437,7 +438,8 @@ async function generateZ1ADocx(d) {
     const groups = {};
     for (const day of days) {
       const es = d.editedShifts[day];
-      if (!es.typeLabel || es.typeLabel.startsWith('WD') || es.typeLabel.startsWith('WE') || es.typeLabel.startsWith('On Call') || es.typeLabel === 'Normal Hours - Weekday') continue;
+      // Positive test: only recognised leave types belong on a leave form.
+      if (!isZ1LeaveActivity(es.typeLabel)) continue;
       const lbl = LEAVE_MAP_Z1[es.typeLabel] || es.typeLabel;
       if (!groups[lbl]) groups[lbl] = { type: es.typeLabel, startDay: day, endDay: day, count: 0 };
       groups[lbl].endDay = day;
@@ -683,7 +685,7 @@ const doc = new Document({ sections:[{ properties:{
       ]}),
       new TableRow({ children:[
         cell([p([t('')],S0)], 5422, {gridSpan:14,borders:{top:NONE_B,bottom:{style:BorderStyle.SINGLE,size:4,color:'000000'},left:SNG,right:NONE_B}}),
-        cell([p([t('Emergency Medicine \u2014 Victoria Hospital',{size:FSS})])], 5090, {gridSpan:13,borders:allSng}),
+        cell([p([t(component,{size:FSS})])], 5090, {gridSpan:13,borders:allSng}),
       ]}),
 
       sectionRow('SECTION A: For Periods covering a full day'),

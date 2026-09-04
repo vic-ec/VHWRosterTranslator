@@ -39,16 +39,54 @@ function getMonthYear(){
 }
 function hasLeaveInShifts(){
   if(!state.editedShifts) return false;
-  return Object.values(state.editedShifts).some(es=>{
-    const lbl=es.typeLabel||'';
-    if(!lbl) return false;
-    // Shift types — never leave
-    if(lbl.startsWith('WD Shift')||lbl.startsWith('WE Shift')) return false;
-    // Consultant on-call/normal types — never leave
-    if(lbl.startsWith('On Call')||lbl==='Normal Hours - Weekday') return false;
-    return true;
-  });
+  return Object.values(state.editedShifts).some(es=>isLeaveActivity(es.typeLabel));
 }
+// The Z1(a) is a leave application, so only actual leave unlocks it.
+function hasZ1LeaveInShifts(){
+  if(!state.editedShifts) return false;
+  return Object.values(state.editedShifts).some(es=>isZ1LeaveActivity(es.typeLabel));
+}
+// Names for the supervisor dropdown, or null to use a plain text box.
+function supervisorOptionsFor(){
+  if(activeProfile&&Array.isArray(activeProfile.supervisors)&&activeProfile.supervisors.length)
+    return activeProfile.supervisors;
+  if(activeProfile&&activeProfile.roster_type==='shift') return LEGACY_EC_SUPERVISORS;
+  return null;
+}
+function applySupervisorMode(){
+  const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
+  if(!sel||!other) return;
+  const list=supervisorOptionsFor();
+  if(!list){
+    sel.style.display='none';
+    other.style.display='';
+    return;
+  }
+  sel.style.display='';
+  while(sel.options.length>1) sel.remove(1);
+  for(const n of list){
+    const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o);
+  }
+  const oth=document.createElement('option');
+  oth.value='other'; oth.textContent='Other\u2026'; sel.appendChild(oth);
+  if(sel.value!=='other') other.style.display='none';
+}
+// Put a saved name back into whichever control this profile uses. Everything
+// that restores the form goes through here: a profile without a supervisor
+// list has no dropdown to hide the text box behind, and the old restore code
+// hid both, leaving the field with nothing on screen.
+function setSupervisorValue(saved){
+  const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
+  if(!sel||!other) return;
+  applySupervisorMode();
+  const list=supervisorOptionsFor();
+  saved=saved||'';
+  if(!list){ sel.value=''; other.value=saved; other.style.display=''; return; }
+  if(saved&&list.includes(saved)){ sel.value=saved; other.value=''; other.style.display='none'; }
+  else if(saved){ sel.value='other'; other.value=saved; other.style.display=''; }
+  else { sel.value=''; other.value=''; other.style.display='none'; }
+}
+
 function updateLeaveFields(){
   const sec=$('leaveFieldsSection');
   if(sec) sec.style.display=hasLeaveInShifts()?'':'none';
@@ -61,15 +99,26 @@ function checkDetailsComplete() {
   const desSel=$('detailDesignationSel').value;
   const desOther=$('detailDesignationOther')?.value.trim();
   const designation=desSel==='other'?(desOther||''):desSel;
+  // Read the supervisor the same way saveDetailsToState does: the free-text
+  // box when this profile has no list, or when "Other" is picked.
+  const supSel=$('detailSupervisorSel').value;
+  const supervisor=(!supervisorOptionsFor()||supSel==='other')
+    ? ($('detailSupervisorOther')?.value.trim()||'') : supSel;
   const date=$('detailSigDate').value.trim();
   const dateValid=date.length===10&&/^\d{2}\/\d{2}\/\d{4}$/.test(date);
   const leaveVisible=$('leaveFieldsSection')?.style.display!=='none';
   const address=$('detailAddress')?.value.trim()||'';
   const leaveOk=!leaveVisible||(address.length>0);
-  const show=!!(first&&surname&&persal&&designation&&dateValid&&leaveOk);
-  $('proceedDownloadBtn').style.display=show?'':'none';
-  $('annexureCBtn').style.display=show?'':'none';
-  $('z1aBtn').style.display=(show&&hasLeaveInShifts())?'':'none';
+  const show=!!(first&&surname&&persal&&designation&&supervisor&&dateValid&&leaveOk);
+  // The duty roster and Annexure C never depend on leave; the Z1(a) is
+  // hidden outright unless some leave was captured.
+  const z1=hasZ1LeaveInShifts();
+  $('proceedDownloadBtn').disabled=!show;
+  $('annexureCBtn').disabled=!show;
+  $('z1aBtn').style.display=z1?'':'none';
+  $('z1aBtn').disabled=!(show&&z1);
+  const lockNote=$('downloadsLocked');
+  if(lockNote) lockNote.style.display=show?'none':'';
 }
 function checkReady(){
   const {month,year}=getMonthYear();
@@ -94,6 +143,16 @@ function normaliseTime(val) {
   return String(h).padStart(2,'0')+'H'+String(min).padStart(2,'0');
 }
 
+// EC staff work shifts; other departments work ordinary hours and do calls.
+// The profile decides what the preview section calls them.
+function dutyNoun(){ return (activeProfile&&activeProfile.duty_noun)||'shifts'; }
+function applyDutyNoun(){
+  // The section heading is now duty-neutral ("Preview & edit"), so the
+  // profile's word is only needed where the copy actually describes them.
+  const empty=$('step2Empty');
+  if(empty) empty.textContent='Extract a roster to see detected staff and their '+dutyNoun()+'.';
+}
+
 function rebuildMonthDropdown() {
   const sel=$('monthSelect');
   const current=sel.value;
@@ -109,6 +168,33 @@ function rebuildMonthDropdown() {
   if(state.availableMonths.has(parseInt(current))) sel.value=current;
   else if(sorted.length===1) sel.value=sorted[0];
   checkReady();
+}
+
+// Overtime bands run back to back: OT1 starts where normal hours end, and OT2
+// starts where OT1 ends. Editing the end of one band therefore moves the start
+// of the next to match — but only where that next band is actually in use, so
+// an empty overtime column is never filled in by accident.
+function syncFollowingBand(d,field,value){
+  const es=state.editedShifts[d];
+  if(!es||!value) return [];
+  const follows=isExtendedRosterMode()
+    ? {nt:{target:'ot1f',pair:['ot1f','ot1t']}, ot1t:{target:'ot2f',pair:['ot2f','ot2t']}}
+    : {nt:{target:'of',pair:['of','ot']}};
+  const rule=follows[field];
+  if(!rule) return [];
+  const inUse=rule.pair.some(f=>!!es[f]);
+  if(!inUse||es[rule.target]===value) return [];
+  es[rule.target]=value;
+  return [rule.target];
+}
+// Show a programmatic band change in the row the user is looking at.
+function applyBandSync(d,fields,value){
+  if(!fields.length) return;
+  const row=document.querySelector('[data-day="'+d+'"]');
+  if(!row) return;
+  row.querySelectorAll('.time-edit').forEach(inp=>{
+    if(fields.includes(inp.dataset.field)){ inp.value=value; inp.style.borderColor=''; inp.title=''; }
+  });
 }
 
 function markDirty(day) {
@@ -129,7 +215,9 @@ function saveDetailsToState() {
   state.savedDetails.persal=$('detailPersal').value.trim();
   // Fix 3: supervisor — use dropdown value, or 'other' text input
   const supSel=$('detailSupervisorSel').value;
-  state.savedDetails.supervisor=supSel==='other'?$('detailSupervisorOther').value.trim():supSel;
+  // With no dropdown for this profile the text box is the only source.
+  state.savedDetails.supervisor=(!supervisorOptionsFor()||supSel==='other')
+    ? $('detailSupervisorOther').value.trim() : supSel;
   state.savedDetails.sigDate=$('detailSigDate').value.trim();
   const desSel=$('detailDesignationSel').value;
   state.savedDetails.designation=desSel==='other'?$('detailDesignationOther').value.trim():desSel;
@@ -141,23 +229,14 @@ function saveDetailsToState() {
 function restoreDetailsToForm(isNewDoctor) {
   if(isNewDoctor) {
     $('detailFirstName').value=''; $('detailSurname').value=state.selectedDoctor||'';
-    $('detailPersal').value=''; $('detailSupervisorSel').value=''; $('detailSupervisorOther').value=''; $('detailSupervisorOther').style.display='none'; $('detailSigDate').value=''; $('detailDesignationSel').value=''; $('detailDesignationOther').value=''; $('detailDesignationOther').style.display='none';
+    $('detailPersal').value=''; setSupervisorValue(''); $('detailSigDate').value=''; $('detailDesignationSel').value=''; $('detailDesignationOther').value=''; $('detailDesignationOther').style.display='none';
     state.savedDetails={firstName:'',surname:state.selectedDoctor||'',persal:'',supervisor:'',sigDate:''};
   } else {
     $('detailFirstName').value=state.savedDetails.firstName||'';
     $('detailSurname').value=state.savedDetails.surname||state.selectedDoctor||'';
     $('detailPersal').value=state.savedDetails.persal||'';
-    // Fix 3: restore supervisor dropdown + other
-    const saved=state.savedDetails.supervisor||'';
-    const knownSups=['Philip Cloete','Sebastian De Haan','Paul Xafis'];
-    if(knownSups.includes(saved)){
-      $('detailSupervisorSel').value=saved; $('detailSupervisorOther').style.display='none';
-    } else if(saved){
-      $('detailSupervisorSel').value='other'; $('detailSupervisorOther').style.display='';
-      $('detailSupervisorOther').value=saved;
-    } else {
-      $('detailSupervisorSel').value=''; $('detailSupervisorOther').style.display='none';
-    }
+    // The known names are the ones this profile offers, not a fixed EC list.
+    setSupervisorValue(state.savedDetails.supervisor||'');
     $('detailSigDate').value=state.savedDetails.sigDate||'';
     const _sd=state.savedDetails.sigDate||'';
     const _sdm=_sd.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -203,8 +282,9 @@ function renderFileList(){
   rosterList.style.display='';
   rosterList.innerHTML=all.map(f=>`
     <div class="roster-item">
+      <span class="tag tag-accent">${(f.name.split('.').pop()||'').toUpperCase()}</span>
       <span class="ri-name">${f.name}</span>
-      ${f.parsed?`<span class="ri-days">${f.days} days</span>`:`<span class="ri-days" style="color:var(--text-faint)">queued</span>`}
+      ${f.parsed?`<span class="ri-days">${f.days} days</span>`:`<span class="ri-days">queued</span>`}
       <button class="ri-remove" data-name="${f.name}">&times;</button>
     </div>`).join('');
   rosterList.querySelectorAll('.ri-remove').forEach(btn=>btn.addEventListener('click',()=>removeFile(btn.dataset.name)));
@@ -230,7 +310,9 @@ $('clearBtn').addEventListener('click',()=>{
   renderFileList();$('parseBtn').disabled=true;$('clearBtn').style.display='none';
   rosterList.style.display='none';setStatus('');
   $('doctorGrid').innerHTML='<div class="empty">No roster parsed yet</div>';
-  $('previewArea').innerHTML='<div class="empty">Select a doctor and click Preview</div>';
+  const staffCountEl=$('staffCount'); if(staffCountEl) staffCountEl.textContent='0';
+  $('previewArea').innerHTML='<div class="empty">Select a name and click Preview schedule</div>';
+  if(typeof updatePreviewTotals==='function') updatePreviewTotals();
   $('employeeName').value='';
   $('detailsSection').style.display='none';
   const sel=$('monthSelect');while(sel.options.length>1) sel.remove(1);
@@ -252,15 +334,28 @@ function fullReset(){
   sels.forEach(id=>{const el=$(id);if(el)el.selectedIndex=0;});
   const others=['detailDesignationOther','detailSupervisorOther'];
   others.forEach(id=>{const el=$(id);if(el){el.value='';el.style.display='none';}});
+  applySupervisorMode();
   const addr=$('detailAddress');if(addr)addr.value='';
   $('detailsSection').style.display='none';
   $('leaveFieldsSection').style.display='none';
-  ['proceedDownloadBtn','annexureCBtn','z1aBtn'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
+  ['proceedDownloadBtn','annexureCBtn','z1aBtn'].forEach(id=>{const el=$(id);if(el)el.disabled=true;});
+  $('z1aBtn').style.display='none';
+  const lockNote=$('downloadsLocked'); if(lockNote) lockNote.style.display='';
   // Reset year to current
   const yr=$('yearInput');if(yr)yr.value=new Date().getFullYear();
+  // Start over means start over. The saved department profile is the only
+  // thing the app keeps between visits, so it goes too and the next visit
+  // begins at the picker. The catalogue cache stays — it is the public list
+  // of departments, holds nothing about the user, and is what lets the
+  // picker still work offline.
+  try { localStorage.removeItem(LS_PROFILE_KEY); } catch(e) {}
+  activeProfile=null;
+  const modeEl=$('ecMode'); if(modeEl){modeEl.textContent='';modeEl.style.display='none';}
+  const offNote=$('ecOfflineNote'); if(offNote) offNote.style.display='none';
+  if(typeof window.reopenEcPicker==='function') window.reopenEcPicker();
 }
 $('resetFormBtn')?.addEventListener('click',()=>{
-  if(confirm('Clear all data and start over?')) fullReset();
+  if(confirm('Clear all data and start over? Your saved department profile is cleared too, so you will be asked to pick it again.')) fullReset();
 });
 
 $('parseBtn').addEventListener('click',async()=>{
@@ -279,8 +374,20 @@ $('parseBtn').addEventListener('click',async()=>{
       const buf=await readFile(file);
       const ext=file.name.split('.').pop().toLowerCase();
       let result;
-      if(ext==='pdf') result=await parseRosterPDF(buf);
-      else if(ext==='xlsx'||ext==='xls') result=parseRosterExcel(buf);
+      // A grid profile reads its roster as a table of rows and columns
+      // whatever file carries it, so a workbook goes to the table parser
+      // rather than to the EC shift reader.
+      const isGrid=!!activeProfile&&activeProfile.roster_type==='table';
+      if(ext==='docx'||ext==='doc'||(ext==='xlsx'&&isGrid)){
+        if(!isGrid)
+          throw new Error('This department profile is not set up for table rosters');
+        result=await parseWordRosterTable(buf,activeProfile,file.name);
+        state.tableData={days:result.days,doctors:result.doctors};
+        state.tableWarnings=(state.tableWarnings||[]).concat(result.warnings||[]);
+      }
+      else if(ext==='pdf') result=await parseRosterPDF(buf);
+      else if(ext==='xls') throw new Error('Legacy .xls is not supported \u2014 open it in Excel and Save As .xlsx');
+      else if(ext==='xlsx') result=await parseRosterExcel(buf);
       else throw new Error('Unsupported format');
       const monthCounts={};
       for(const d of result.days) monthCounts[d.month]=(monthCounts[d.month]||0)+1;
@@ -329,10 +436,23 @@ function clearDoctorSelection(){
   $('clearDoctorBtn').style.display='none';
   checkReady();
 }
+function countDoctorDays(name){
+  const nl=String(name||'').toLowerCase();
+  let n=0;
+  for(const day of (state.rosterData?.days||[])){
+    const all=[...(day.allNames||[]),...(day.shifts?.flat()||[])];
+    if(all.some(x=>String(x).toLowerCase()===nl)) n++;
+  }
+  return n;
+}
 function buildDoctorGrid(doctors){
   const sorted=[...doctors].sort();
+  const countEl=$('staffCount'); if(countEl) countEl.textContent=sorted.length;
   if(!sorted.length){$('doctorGrid').innerHTML='<div class="empty">No names detected.</div>';return;}
-  $('doctorGrid').innerHTML=sorted.map(d=>`<div class="doctor-chip" data-name="${d}">${d}</div>`).join('');
+  $('doctorGrid').innerHTML=sorted.map(d=>{
+    const c=countDoctorDays(d);
+    return `<button type="button" class="doctor-chip" data-name="${d}"><span class="dc-name">${d}</span><span class="dc-count">${c} ${c===1?'shift':'shifts'}</span></button>`;
+  }).join('');
   $('doctorGrid').querySelectorAll('.doctor-chip').forEach(chip=>{
     chip.addEventListener('click',()=>{
       $('doctorGrid').querySelectorAll('.doctor-chip').forEach(c=>c.classList.remove('selected'));
@@ -371,13 +491,79 @@ $('previewBtn').addEventListener('click',()=>{
     buildPreview(state.selectedDoctor,month,year);
   } catch(err) {
     console.error('buildPreview error:', err);
-    $('previewArea').innerHTML='<div style="color:red;padding:16px;font-family:monospace;font-size:12px;">Preview error: '+err.message+'<br><pre>'+err.stack+'</pre></div>';
+    $('previewArea').innerHTML='<div style="color:red;padding:16px;font-family:var(--font-body);font-size:12px;">Preview error: '+err.message+'<br><pre>'+err.stack+'</pre></div>';
   }
   // Fix 2: reveal step 3 now
   unlock(step3);
   $('detailsSection').style.display='';
   restoreDetailsToForm(false);
 });
+
+// Consultant and Word-table rosters both produce normal + OT1 + OT2 bands,
+// so they share the wider preview layout and their own activity-type list.
+function isTableRosterMode(){
+  return !!(activeProfile && activeProfile.roster_type==='table' && state.tableData);
+}
+function isExtendedRosterMode(){
+  return !!(activeProfile && ((activeProfile.roster_type==='consultant' && state.consultantData)
+                           || (activeProfile.roster_type==='table' && state.tableData)));
+}
+// Activity types for a table roster come from the profile's own role labels.
+function tableActivityTypes(){
+  const rules=(activeProfile&&activeProfile.role_rules)||{};
+  const out=[];
+  // The implied ordinary working day comes first — it is the most common row.
+  const dflt=activeProfile&&activeProfile.default_weekday;
+  if(dflt) out.push(dflt.label||'Normal Hours - Weekday');
+  for(const [role,r] of Object.entries(rules)){
+    for(const k of ['label_weekday','label_weekend','label_ph']){
+      const v=r[k]||(role+' - '+k.replace('label_',''));
+      if(!out.includes(v)) out.push(v);
+    }
+  }
+  // Leave and other non-roster activities come from the profile when it says
+  // so — the EC WD/WE shift types never apply to a table roster.
+  const leave=(activeProfile&&activeProfile.leave_types)
+    || ACTIVITY_TYPES.filter(t=>/^Leave|^Workshop|^Course|^Conference/.test(t));
+  for(const t of leave) if(!out.includes(t)) out.push(t);
+  return out;
+}
+
+// Default activity type for a newly added row, in the active profile's own
+// vocabulary — a table roster's types come from its role labels, not the
+// consultant list.
+function defaultTypeLabel(isSpecial){
+  if(isTableRosterMode()){
+    const t=tableActivityTypes();
+    return t.find(x=>isSpecial?/- (Weekend|Public Holiday)$/.test(x):/- Weekday$/.test(x))||t[0]||'';
+  }
+  if(isExtendedRosterMode()) return isSpecial?'On Call - Weekend':'Normal Hours - Weekday';
+  return isSpecial?'WE Shift - 08H00':'WD Shift - 08H00';
+}
+
+function hoursBetween(from,to){
+  const p=t=>{const m=/^(\d{1,2})[H:](\d{2})$/i.exec(String(t||'').trim());return m?parseInt(m[1],10)*60+parseInt(m[2],10):null;};
+  const s=p(from),e=p(to);
+  if(s===null||e===null) return 0;
+  let d=e-s; if(d<0) d+=1440;
+  return d/60;
+}
+function updatePreviewTotals(){
+  const nEl=$('totalNormal'),oEl=$('totalOt');
+  if(!nEl||!oEl) return;
+  let normal=0,ot=0;
+  for(const es of Object.values(state.editedShifts||{})){
+    normal+=hoursBetween(es.nf,es.nt);
+    // of/ot is a mirror of the OT2 band (or of OT1 where there is no OT2) on
+    // consultant and table rosters, so adding all three would count a night
+    // of call twice. Shift rosters only ever populate of/ot.
+    const banded=hoursBetween(es.ot1f,es.ot1t)+hoursBetween(es.ot2f,es.ot2t);
+    ot+=banded>0?banded:hoursBetween(es.of,es.ot);
+  }
+  const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'')+' h';
+  nEl.textContent=fmt(normal);
+  oEl.textContent=fmt(ot);
+}
 
 function buildPreview(doctorName,targetMonth,targetYear){
   const holidays=getSAPublicHolidays(targetYear);
@@ -386,7 +572,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
 
   // Consultant-type profile: use consultant parser output only
   // Skip getDoctorShifts entirely — consultant days in rosterData use different column semantics
-  const isConsultantMode = activeProfile && activeProfile.roster_type === 'consultant' && state.consultantData;
+  const isConsultantMode = isExtendedRosterMode();
 
   if (!isConsultantMode) {
     // Standard shift roster path
@@ -411,7 +597,8 @@ function buildPreview(doctorName,targetMonth,targetYear){
   state.originalShifts=JSON.parse(JSON.stringify(state.editedShifts));
 
   // Overlay consultant shifts (fills editedShifts from consultant parser output)
-  const consultantAdded = overlayConsultantShifts(doctorName, targetMonth, targetYear);
+  const consultantAdded = overlayConsultantShifts(doctorName, targetMonth, targetYear)
+                        + overlayTableShifts(doctorName, targetMonth, targetYear);
   if (consultantAdded > 0) {
     for (const [d, s] of Object.entries(state.editedShifts)) {
       if (!state.originalShifts[d]) state.originalShifts[d] = { ...s };
@@ -423,7 +610,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
   const phFootnotes=[];
   state.phLetterMap={};
   const letters='abcdefghijklmnopqrstuvwxyz';
-  const isConsultantMode2 = activeProfile && activeProfile.roster_type === 'consultant' && state.consultantData;
+  const isConsultantMode2 = isExtendedRosterMode();
   const cColspan=isConsultantMode2?7:5;
   for(let d=1;d<=daysInMonth;d++){
     const dateObj2=new Date(targetYear,targetMonth,d);
@@ -435,10 +622,11 @@ function buildPreview(doctorName,targetMonth,targetYear){
       phFootnotes.push({letter,name:ph2});
     }
   }
-  const activeTypes = isConsultantMode2 ? CONSULTANT_ACTIVITY_TYPES : ACTIVITY_TYPES;
+  const activeTypes = isTableRosterMode() ? tableActivityTypes()
+    : isConsultantMode2 ? CONSULTANT_ACTIVITY_TYPES : ACTIVITY_TYPES;
   const typeOpts=activeTypes.map(t=>`<option value="${t}">${t}</option>`).join('');
   let html=`
-  <div style="margin-bottom:8px;font-family:var(--sans);font-size:12px;color:var(--text-muted);">
+  <div class="preview-note">
     Edit time fields or change activity type — changes save automatically. Click <strong>+</strong> to add an activity.
   </div>
   <div class="preview-wrapper"><table class="preview-table">
@@ -459,7 +647,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
       : (isSpecial ? 'WE Shift - 08H00' : 'WD Shift - 08H00');
     const selectedType=es?.typeLabel||defaultType;
     // PH styling: date cell shows "21*" in dark red, day cell also dark red
-    const phStyle=phName?'color:#8B1A1A;font-weight:600;':'';
+    const phStyle=phName?'color:var(--color-accent-700);font-weight:800;':'';
     const phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
     const dateCell=phName
       ?`<td style="${phStyle}">${d}<sup style="font-size:9px;vertical-align:super">${phLetter}</sup></td>`
@@ -477,10 +665,10 @@ function buildPreview(doctorName,targetMonth,targetYear){
           <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isWE,!!phName,selectedType)}</select></td>
           <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es.nf||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
           <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es.nt||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
           <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button></td>
         </tr>`;
       } else {
@@ -498,7 +686,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
       html+=`<tr data-day="${d}" class="ph-row${isWE?' we-row':' ph-wd-row'}">
         ${dateCell}
         ${dayCell}
-        <td colspan="${cColspan}" style="font-style:italic;color:#7A3B1E">${phName}</td>
+        <td colspan="${cColspan}" style="font-style:italic;color:var(--color-accent-700)">${phName}</td>
         <td class="action-cell"><button class="row-add" title="Add shift" data-day="${d}" data-is-we="1" data-is-special="1">+</button></td>
       </tr>`;
     } else {
@@ -511,11 +699,11 @@ function buildPreview(doctorName,targetMonth,targetYear){
     }
   }
   html+=`</tbody></table></div>
-  <div style="margin-top:10px;font-family:var(--sans);font-size:12px;color:var(--text-muted);">
+  <div class="preview-foot">
     ${sc} activit${sc!==1?'ies':'y'} found &middot; <strong>${doctorName}</strong> &middot; ${MONTH_NAMES[targetMonth]} ${targetYear}
   </div>`;
   if(phFootnotes.length>0){
-    html+=`<div style="margin-top:8px;font-family:var(--sans);font-size:12px;color:#8B1A1A;line-height:1.8;">`+
+    html+=`<div class="ph-footnotes">`+
       phFootnotes.map(f=>`<span style="margin-right:16px;"><sup style="font-size:9px;">${f.letter}</sup> ${f.name}</span>`).join('')+
     `</div>`;
   }
@@ -525,9 +713,9 @@ function buildPreview(doctorName,targetMonth,targetYear){
 
 function makeRowInner(d,isWE,phName,dayName,es){
   const isSpecial=isWE||!!phName;
-  const isConsMode=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
-  const selectedType=es?.typeLabel||(isConsMode?(isSpecial?'On Call - Weekend':'Normal Hours - Weekday'):(isSpecial?'WE Shift - 08H00':'WD Shift - 08H00'));
-  const phStyle=phName?'color:#8B1A1A;font-weight:600;':'';
+  const isConsMode=isExtendedRosterMode();
+  const selectedType=es?.typeLabel||defaultTypeLabel(isSpecial);
+  const phStyle=phName?'color:var(--color-accent-700);font-weight:800;':'';
   const phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
   const dateCell=phName
     ?`<td style="${phStyle}">${d}<sup style="font-size:9px;vertical-align:super">${phLetter}</sup></td>`
@@ -540,10 +728,10 @@ function makeRowInner(d,isWE,phName,dayName,es){
     <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isWE,!!phName,selectedType)}</select></td>
     <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es?.nf||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
     <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es?.nt||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es?.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es?.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#2a5a8a;"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es?.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es?.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric" style="color:#6b4fa0;"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es?.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es?.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es?.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es?.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
     <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${state.originalShifts[d]?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
   }
   return `
@@ -558,6 +746,7 @@ function makeRowInner(d,isWE,phName,dayName,es){
 }
 
 function attachEditHandlers(){
+  updatePreviewTotals();
   document.querySelectorAll('.type-select').forEach(sel=>{
     if(sel.dataset.bound) return; // Fix 4: skip if already has listener
     sel.dataset.bound='1';
@@ -618,7 +807,7 @@ function attachEditHandlers(){
       let v=fresh.value.replace(/[^0-9H:]/gi,'').toUpperCase();
       if(/^\d{3,4}$/.test(v)) v=v.slice(0,2)+'H'+v.slice(2);
       if(v!==fresh.value) fresh.value=v;
-      fresh.style.borderColor=v.length>0&&!normaliseTime(v)?'var(--warn)':'';
+      fresh.style.borderColor=v.length>0&&!normaliseTime(v)?'var(--color-danger)':'';
     });
     fresh.addEventListener('blur',()=>{
       const d=parseInt(fresh.dataset.day),field=fresh.dataset.field;
@@ -626,11 +815,15 @@ function attachEditHandlers(){
       if(normalised){
         fresh.value=normalised;fresh.style.borderColor='';fresh.title='';
         if(!state.editedShifts[d]) state.editedShifts[d]={nf:'',nt:'',of:null,ot:null,label:'Custom',typeLabel:'WD Shift - 08H00',isWE:false};
-        if(state.editedShifts[d][field]!==normalised){state.editedShifts[d][field]=normalised;markDirty(d);}
+        if(state.editedShifts[d][field]!==normalised){
+          state.editedShifts[d][field]=normalised;
+          applyBandSync(d,syncFollowingBand(d,field,normalised),normalised);
+          markDirty(d);
+        }
       } else if(val===''){
         fresh.style.borderColor='';
         if(state.editedShifts[d]&&state.editedShifts[d][field]!==null){state.editedShifts[d][field]=null;markDirty(d);}
-      } else {fresh.style.borderColor='var(--warn)';fresh.title='Format: HHH00 (e.g. 08H00)';}
+      } else {fresh.style.borderColor='var(--color-danger)';fresh.title='Format: HHH00 (e.g. 08H00)';}
     });
   });
 
@@ -646,16 +839,16 @@ function attachEditHandlers(){
       const phName=getSAPublicHolidays(state.previewYear).get(dateKeyLocal(dateObj));
       if(phName){
         row.className='ph-row'+(isWE?' we-row':' ph-wd-row');row.style.opacity='';
-        const _phStyle='color:#8B1A1A;font-weight:600;';
+        const _phStyle='color:var(--color-accent-700);font-weight:800;';
         const _phLetter=(state.phLetterMap&&state.phLetterMap[d])||'';
-        const _isConsCP=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
+        const _isConsCP=isExtendedRosterMode();
         const _colspanPH=_isConsCP?7:5;
         row.innerHTML=`<td style="${_phStyle}">${d}<sup>${_phLetter}</sup></td><td style="${_phStyle}">${dayName}</td>
-          <td colspan="${_colspanPH}" style="font-style:italic;color:#7A3B1E">${phName}</td>
+          <td colspan="${_colspanPH}" style="font-style:italic;color:var(--color-accent-700)">${phName}</td>
           <td class="action-cell"><button class="row-add" title="Add shift" data-day="${d}" data-is-we="1" data-is-special="1">+</button></td>`;
       } else {
         row.className='empty-row'+(isWE?' we-row':'');row.style.opacity='';
-        const _isConsC=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
+        const _isConsC=isExtendedRosterMode();
         const _colspan=_isConsC?7:5;
         row.innerHTML=`<td>${d}</td><td class="${isWE?'we-label':''}">${dayName}</td>
           <td colspan="${_colspan}"></td>
@@ -692,10 +885,8 @@ function attachEditHandlers(){
       try {
         const d=parseInt(btn.dataset.day),isWE=btn.dataset.isWe==='1';
         const isSpecialNew=btn.dataset.isSpecial==='1';
-        const isConsMode=activeProfile&&activeProfile.roster_type==='consultant'&&state.consultantData;
-        const defaultLabel=isConsMode
-          ?(isSpecialNew?'On Call - Weekend':'Normal Hours - Weekday')
-          :(isSpecialNew?'WE Shift - 08H00':'WD Shift - 08H00');
+        const isConsMode=isExtendedRosterMode();
+        const defaultLabel=defaultTypeLabel(isSpecialNew);
         const defaultTimes=isConsMode?(CONSULTANT_SHIFT_TIMES[defaultLabel]||{}):(SHIFT_TIMES[defaultLabel]||{});
         const def=isConsMode
           ?{nf:defaultTimes.nf||'',nt:defaultTimes.nt||'',ot1f:defaultTimes.ot1f||'',ot1t:defaultTimes.ot1t||'',ot2f:defaultTimes.ot2f||'',ot2t:defaultTimes.ot2t||'',label:'Custom',typeLabel:defaultLabel,isWE:isWE}
@@ -732,9 +923,9 @@ $('detailSupervisorSel').addEventListener('change',()=>{
   const isOther=$('detailSupervisorSel').value==='other';
   $('detailSupervisorOther').style.display=isOther?'':'none';
   if(!isOther) $('detailSupervisorOther').value='';
-  saveDetailsToState();
+  saveDetailsToState();checkDetailsComplete();
 });
-$('detailSupervisorOther').addEventListener('input',()=>{ saveDetailsToState(); });
+$('detailSupervisorOther').addEventListener('input',()=>{ saveDetailsToState();checkDetailsComplete(); });
 $('detailSigDatePicker').addEventListener('change',e=>{
   const d=e.target.value;
   if(d){const [y,m,day]=d.split('-');$('detailSigDate').value=`${day}/${m}/${y}`;}
@@ -757,6 +948,17 @@ $('detailSigDate').addEventListener('input',e=>{
   el.addEventListener('input',()=>{saveDetailsToState();checkDetailsComplete();});
 });
 
+// Component line on the Z1(a). A department profile names itself; only the
+// original EC profile — or a profile too old to carry either key — falls back
+// to the Emergency Medicine wording the form was first written for.
+function z1ComponentFor(){
+  const DEFAULT='Emergency Medicine \u2014 Victoria Hospital';
+  if(!activeProfile) return DEFAULT;
+  if(activeProfile.z1_component) return activeProfile.z1_component;
+  if(activeProfile.roster_type==='shift') return DEFAULT;
+  const name=activeProfile.ec_short||activeProfile.ec_name;
+  return name?name:DEFAULT;
+}
 function getFormDetails(){
   saveDetailsToState();
   const {month,year}=getMonthYear();
@@ -766,6 +968,7 @@ function getFormDetails(){
     designation:state.savedDetails.designation,
     signatureDate:state.savedDetails.sigDate,
     addressDuringLeave:state.savedDetails.address||'',
+    component:z1ComponentFor(),
     shiftWorker:state.savedDetails.shiftWorker||'yes',
     casualEmployee:state.savedDetails.casualEmployee||'no',
     editedShifts:state.editedShifts,
@@ -777,7 +980,8 @@ $('proceedDownloadBtn').addEventListener('click',async()=>{
   const {month,year}=getMonthYear();
   if(!state.selectedDoctor||month===null||!year) return;
   const btn=$('proceedDownloadBtn');btn.disabled=true;
-  btn.innerHTML='<span class="spinner"></span> Generating\u2026';
+  const note=btn.querySelector('.dlnote'),prevNote=note?note.textContent:'';
+  if(note) note.innerHTML='<span class="spinner"></span> Generating\u2026';
   try{
     saveDetailsToState();
     const details=getFormDetails();
@@ -789,13 +993,17 @@ $('proceedDownloadBtn').addEventListener('click',async()=>{
     a.href=url;a.download=`Duty_Roster_${safe}_${MONTH_NAMES[month]}_${year}.xlsx`;
     document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
   }catch(err){alert('Error: '+err.message);console.error(err);}
-  btn.disabled=false;btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>Download Duty Roster';
+  btn.disabled=false;
+  if(note) note.textContent=prevNote;
+  checkDetailsComplete();
 });
 
 $('annexureCBtn').addEventListener('click',async()=>{
   const d=getFormDetails();
   const btn=$('annexureCBtn');
-  btn.disabled=true; btn.textContent='Generating…';
+  btn.disabled=true;
+  const note=btn.querySelector('.dlnote'),prevNote=note?note.textContent:'';
+  if(note) note.innerHTML='<span class="spinner"></span> Generating…';
   try{
     const blob=await generateAnnexureCDocx(d);
     const url=URL.createObjectURL(blob);
@@ -804,13 +1012,17 @@ $('annexureCBtn').addEventListener('click',async()=>{
     a.href=url; a.download=`Annexure_C_${safe}_${MONTH_NAMES[d.month]}_${d.year}.docx`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   }catch(err){alert('Error generating Annexure C: '+err.message);console.error(err);}
-  btn.disabled=false; btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>Download Annexure C (Overtime) Form';
+  btn.disabled=false;
+  if(note) note.textContent=prevNote;
+  checkDetailsComplete();
 });
 
 $('z1aBtn').addEventListener('click',async()=>{
   const d=getFormDetails();
   const btn=$('z1aBtn');
-  btn.disabled=true; btn.textContent='Generating…';
+  btn.disabled=true;
+  const note=btn.querySelector('.dlnote'),prevNote=note?note.textContent:'';
+  if(note) note.innerHTML='<span class="spinner"></span> Generating…';
   try{
     const blob=await generateZ1ADocx(d);
     const url=URL.createObjectURL(blob);
@@ -819,7 +1031,9 @@ $('z1aBtn').addEventListener('click',async()=>{
     a.href=url; a.download=`Z1a_Leave_${safe}_${MONTH_NAMES[d.month]}_${d.year}.docx`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   }catch(err){alert('Error generating Z1(a): '+err.message);console.error(err);}
-  btn.disabled=false; btn.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>Download Z1(a) Leave Form';
+  btn.disabled=false;
+  if(note) note.textContent=prevNote;
+  checkDetailsComplete();
 });
 
 function readFile(file){
@@ -833,3 +1047,87 @@ function readFile(file){
 $('yearInput').value=new Date().getFullYear();
 
 // ═══════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════
+// Section gating hints + "Set up a new EC" entry point.
+// Steps 01–03 are revealed by the app as the user progresses
+// (display toggled on #step1 / #step2 / #detailsSection); each one
+// shows a short placeholder in its section until then.
+// ═══════════════════════════════════════════════════════════════
+(function(){
+  const GATES=[['step1','step1Empty'],['step2','step2Empty'],['detailsSection','sec3Empty']];
+  function syncGates(){
+    for(const [id,hintId] of GATES){
+      const el=document.getElementById(id),hint=document.getElementById(hintId);
+      if(!el||!hint) continue;
+      hint.style.display=getComputedStyle(el).display==='none'?'':'none';
+    }
+  }
+  function init(){
+    syncGates();
+    const mo=new MutationObserver(syncGates);
+    GATES.forEach(([id])=>{const el=document.getElementById(id);if(el)mo.observe(el,{attributes:true,attributeFilter:['style','class']});});
+    const link=document.getElementById('openWizardLink');
+    if(link) link.addEventListener('click',e=>{
+      e.preventDefault();
+      if(typeof window.openWizard==='function') window.openWizard();
+    });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
+  else init();
+})();
+
+// Locking the page hides the scrollbar. Where its slot is not already
+// reserved by scrollbar-gutter, the layout widens by that much and every
+// centred thing jumps right, so put back exactly the width locking took.
+function lockPageScroll(){
+  const before=document.documentElement.clientWidth;
+  document.body.style.overflow='hidden';
+  const grew=document.documentElement.clientWidth-before;
+  if(grew>0) document.body.style.paddingRight=grew+'px';
+}
+function unlockPageScroll(){
+  document.body.style.overflow='';
+  document.body.style.paddingRight='';
+}
+
+// ── Privacy panel ──────────────────────────────────────────────────────────
+// Opening it marks .shell inert, so the page behind is genuinely muted to
+// clicks, tabbing and assistive tech rather than just painted over.
+(function(){
+  // #privacyOverlay is body-level markup that comes after this script, so the
+  // wiring waits for the document rather than running at parse time.
+  function wire(){
+  const btn=document.getElementById('privacyBtn');
+  const ov=document.getElementById('privacyOverlay');
+  if(!btn||!ov) return;
+  const closeBtn=document.getElementById('privacyCloseBtn');
+  const shell=document.querySelector('.shell');
+  let lastFocus=null;
+  function open(){
+    lastFocus=document.activeElement;
+    ov.classList.add('open');
+    btn.setAttribute('aria-expanded','true');
+    lockPageScroll();
+    if(shell) shell.inert=true;
+    closeBtn.focus();
+  }
+  function close(){
+    ov.classList.remove('open');
+    btn.setAttribute('aria-expanded','false');
+    unlockPageScroll();
+    if(shell) shell.inert=false;
+    if(lastFocus&&lastFocus.focus) lastFocus.focus();
+  }
+  btn.addEventListener('click',open);
+  closeBtn.addEventListener('click',close);
+  // Clicking the backdrop, but not the panel, closes it.
+  ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&ov.classList.contains('open')) close();
+  });
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
+  else wire();
+})();
+
