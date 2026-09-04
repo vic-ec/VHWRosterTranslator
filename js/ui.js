@@ -99,12 +99,17 @@ function checkDetailsComplete() {
   const desSel=$('detailDesignationSel').value;
   const desOther=$('detailDesignationOther')?.value.trim();
   const designation=desSel==='other'?(desOther||''):desSel;
+  // Read the supervisor the same way saveDetailsToState does: the free-text
+  // box when this profile has no list, or when "Other" is picked.
+  const supSel=$('detailSupervisorSel').value;
+  const supervisor=(!supervisorOptionsFor()||supSel==='other')
+    ? ($('detailSupervisorOther')?.value.trim()||'') : supSel;
   const date=$('detailSigDate').value.trim();
   const dateValid=date.length===10&&/^\d{2}\/\d{2}\/\d{4}$/.test(date);
   const leaveVisible=$('leaveFieldsSection')?.style.display!=='none';
   const address=$('detailAddress')?.value.trim()||'';
   const leaveOk=!leaveVisible||(address.length>0);
-  const show=!!(first&&surname&&persal&&designation&&dateValid&&leaveOk);
+  const show=!!(first&&surname&&persal&&designation&&supervisor&&dateValid&&leaveOk);
   // The duty roster and Annexure C never depend on leave; the Z1(a) is
   // hidden outright unless some leave was captured.
   const z1=hasZ1LeaveInShifts();
@@ -918,9 +923,9 @@ $('detailSupervisorSel').addEventListener('change',()=>{
   const isOther=$('detailSupervisorSel').value==='other';
   $('detailSupervisorOther').style.display=isOther?'':'none';
   if(!isOther) $('detailSupervisorOther').value='';
-  saveDetailsToState();
+  saveDetailsToState();checkDetailsComplete();
 });
-$('detailSupervisorOther').addEventListener('input',()=>{ saveDetailsToState(); });
+$('detailSupervisorOther').addEventListener('input',()=>{ saveDetailsToState();checkDetailsComplete(); });
 $('detailSigDatePicker').addEventListener('change',e=>{
   const d=e.target.value;
   if(d){const [y,m,day]=d.split('-');$('detailSigDate').value=`${day}/${m}/${y}`;}
