@@ -261,6 +261,12 @@ header {
   background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
   align-items: center; justify-content: center; padding: 24px 16px; }
 .modal-overlay.open { display: flex; }
+/* A sheet sits on the bottom edge and spans the width — the breakdown belongs
+   with the totals bar it came from, not floating in the middle of the page. */
+.modal-overlay.is-sheet { align-items: flex-end; justify-content: center;
+  padding: 0; }
+.modal-overlay.is-sheet .modal-panel { max-width: 640px; border-bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0px); }
 .modal-panel { background: var(--color-bg); border: 1px solid var(--color-divider);
   box-shadow: var(--shadow-lg); max-width: 540px; width: 100%; }
 .modal-head { display: flex; align-items: flex-start; justify-content: space-between;
@@ -322,8 +328,10 @@ main { padding: 40px 32px 0; }
 .roster-item .ri-remove:hover { color: var(--color-accent); }
 
 .actions-row { display: flex; align-items: center; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
-.actions-row .btn-primary { padding: 11px 20px; font-size: 14px; }
-.actions-row .btn-secondary { padding: 11px 16px; font-size: 14px; }
+/* These two set their own padding, which is what kept Extract data and Clear
+   all taller than every other button. Height comes from --control-h now. */
+.actions-row .btn-primary { min-height: var(--control-h); padding: 0 20px; font-size: 14px; }
+.actions-row .btn-secondary { min-height: var(--control-h); padding: 0 16px; font-size: 14px; }
 #parseStatus { font-size: 12px; color: var(--color-neutral-600); margin-left: auto; text-align: right; }
 
 /* ── 02 preview ─────────────────────────────────────────────── */
@@ -333,6 +341,13 @@ main { padding: 40px 32px 0; }
 .staff-head .clear-doctor-btn { display: none; margin-left: auto; font-family: var(--font-body); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; background: none; border: 0; padding: 0; cursor: pointer; color: var(--color-neutral-600); }
 .staff-head .clear-doctor-btn:hover { color: var(--color-accent); }
 .doctor-grid { max-height: calc(100vh - 220px); overflow: auto; }
+/* Once a name is chosen the other rows are noise — especially on a phone,
+   where a long department pushed the schedule right off the screen. Show all
+   brings them back. */
+.doctor-grid.is-collapsed { overflow: visible; }
+.doctor-grid.is-collapsed .doctor-chip:not(.selected) { display: none; }
+.staff-head #staffExpandBtn { margin-left: auto; }
+.staff-head #staffExpandBtn + .clear-doctor-btn { margin-left: 12px; }
 .doctor-chip {
   width: 100%; text-align: left; cursor: pointer; font: inherit;
   display: flex; align-items: center; gap: 10px; padding: 10px 14px;
@@ -441,13 +456,13 @@ main { padding: 40px 32px 0; }
 .dl {
   cursor: pointer; text-align: left; font: inherit; border: 0;
   background: var(--color-accent); color: var(--color-bg);
-  padding: 22px 20px 20px; display: block; width: 100%;
+  padding: 11px 20px 11px; display: block; width: 100%;
   transition: background 120ms linear;
 }
 .dl:hover:not(:disabled) { background: var(--color-accent-600); }
 .dl:disabled { cursor: not-allowed; opacity: 0.45; }
 .dl .dlkicker { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; display: block; opacity: 0.8; }
-.dl .dltitle { font-family: var(--font-heading); font-weight: 800; font-size: 21px; line-height: 1.1; display: block; margin: 8px 0 6px; }
+.dl .dltitle { font-family: var(--font-heading); font-weight: 800; font-size: 19px; line-height: 1.1; display: block; margin: 5px 0 4px; }
 .dl .dlnote { font-size: 12px; display: block; color: var(--color-accent-100); }
 .downloads-locked { font-size: 12px; color: var(--color-neutral-600); margin-top: 12px; }
 
@@ -608,8 +623,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 /* The bar carries where you are (step) and what you are working on
    (month + department). Sticky, because on a phone it is the only thing
    telling you which of four screens you are looking at. */
-.wizbar { position: sticky; top: 0; z-index: 30; background: var(--color-bg);
-  border-bottom: 2px solid var(--color-divider); }
+.wizbar { position: sticky; top: var(--header-h, 0px); z-index: 19;
+  background: var(--color-bg); border-bottom: 2px solid var(--color-divider); }
 .wizbar-inner { padding: 10px 20px 12px; }
 @media (min-width: 861px) { .wizbar-inner { padding: 14px 32px 16px; } }
 
@@ -642,16 +657,17 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
 .wizctx { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
   margin-top: 10px; font-size: 14px; }
-.wizctx .period { font-family: var(--font-heading); font-weight: 800; font-size: 16px; }
+.wizctx .period { color: var(--color-text); }
 .wizctx .dept { color: var(--color-neutral-700); }
 .wizctx .sep { color: var(--color-neutral-500); }
 /* One control instead of two links: the row was wrapping to three lines on a
    phone, and neither link is used often enough to earn that. */
-.wizctx-edit { appearance: none; margin-left: auto; display: inline-flex; align-items: center; gap: 6px;
-  background: none; border: 1px solid var(--color-divider); border-radius: 0;
-  padding: 0 10px; height: var(--control-h); font: inherit; font-size: 13px;
+.wizctx-edit { appearance: none; margin-left: auto; display: inline-flex;
+  align-items: center; justify-content: center; background: none;
+  border: 1px solid var(--color-divider); border-radius: 0; padding: 0;
+  width: var(--control-h); height: var(--control-h); font: inherit;
   color: var(--color-accent-700); cursor: pointer; }
-.wizctx-edit svg { width: 13px; height: 13px; flex: none; }
+.wizctx-edit svg { width: 17px; height: 17px; flex: none; }
 .wizctx-edit:hover { background: var(--color-accent-100); border-color: var(--color-accent); }
 .wizctx-edit:active, .wizctx-edit[aria-expanded="true"] { background: var(--color-accent-200); }
 
@@ -660,13 +676,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
    the context row a whole line of its own. */
 @media (max-width: 860px) {
   .wizbar-inner { position: relative; }
-  .wizstep-mobile { padding-right: 76px; }
-  .wizctx-edit { position: absolute; top: 6px; right: 20px; margin-left: 0;
-    gap: 5px; padding: 0 9px; }
-  /* At 16px the period alone ran to 170px and pushed the department onto a
-     second line; at 14px the whole context fits on one. */
-  .wizctx { margin-top: 6px; }
-  .wizctx .period { font-size: 14px; }
+  .wizctx-edit { position: absolute; top: 8px; right: 20px; margin-left: 0;
+    width: 30px; height: 30px; }
+  .wizstep-mobile { padding-right: 44px; }
+  .wizctx { margin-top: 4px; }
 }
 
 /* Step footer: Back / Continue, with the blocking reason spelled out. */
@@ -678,7 +691,12 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   display: flex; align-items: flex-start; gap: 8px; }
 .wiznav-why[hidden] { display: none; }
 @media (max-width: 600px) {
+  /* Full width and stacked, so the one you reach for goes on top. */
   .wiznav .btn { flex: 1 1 100%; }
+  .wiznav [data-wiz="next"] { order: 1; }
+  .wiznav [data-wiz="back"] { order: 2; }
+  .wiznav .grow { display: none; }
+  .wiznav .wiznav-why { order: 3; }
   .wiznav .grow { display: none; }
 }
 
@@ -715,7 +733,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
      figures and the toggle sharing one. Four stacked rows ate a third of the
      screen and pushed the day being edited off it. */
   .totals-bar { position: sticky; bottom: 0; z-index: 12; gap: 2px 16px;
-    padding: 8px 16px; align-items: baseline;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+    align-items: baseline;
     border-top: 2px solid var(--color-divider); box-shadow: 0 -6px 12px rgba(0,0,0,.06); }
   .totals-bar .totals-label { flex: 1 1 100%; margin-right: 0; }
   .totals-bar > div { display: flex; align-items: baseline; gap: 6px; }
@@ -729,12 +748,16 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   text-decoration: underline; text-underline-offset: 3px; min-height: 40px; }
 .totals-detail { flex: 1 1 100%; font-size: 13px; color: var(--color-neutral-700);
   line-height: 1.6; padding-top: 6px; }
-.totals-detail[hidden] { display: none; }
-.totals-detail .td-row { display: flex; justify-content: space-between; gap: 16px;
-  padding: 4px 0; border-bottom: 1px solid var(--color-divider); }
+/* One row per figure, label left and value right, so the column of numbers
+   reads down the right-hand edge. */
+.totals-detail .td-row { display: flex; align-items: baseline;
+  justify-content: space-between; gap: 16px; padding: 11px 0;
+  border-bottom: 1px solid var(--color-divider); }
 .totals-detail .td-row:last-child { border-bottom: 0; }
-.totals-detail .td-row span:last-child { font-variant-numeric: tabular-nums;
-  color: var(--color-text); }
+.totals-detail .td-k { font-size: 14px; color: var(--color-neutral-800); }
+.totals-detail .td-v { font-family: var(--font-heading); font-weight: 800;
+  font-size: 17px; font-variant-numeric: tabular-nums; color: var(--color-text);
+  white-space: nowrap; }
 
 /* ═══════════════════════════════════════════════════════════════
    Phone: the schedule becomes a day list, not a squeezed grid
@@ -794,16 +817,16 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .shift-row .time-edit { width: 100%; }
 
   /* Remove sits under the times and says what it does. */
-  .shift-row .action-cell { grid-column: 2 / -1; display: flex; gap: 10px;
+  .shift-row .action-cell { grid-column: 2; display: flex; gap: 10px;
     justify-content: flex-start; padding-top: 2px; }
   .shift-row .action-cell::before { content: none; display: none; }
   .shift-row .action-cell .row-clear::after { content: "Remove"; }
   .shift-row .action-cell .row-undo::after { content: "Undo"; }
   .shift-row .action-cell .row-clear,
-  .shift-row .action-cell .row-undo { width: auto; height: var(--control-h);
-    gap: 8px; padding: 0 14px; font-family: var(--font-body); font-weight: 500;
-    font-size: 14px; border: 1px solid var(--color-divider);
-    color: var(--color-neutral-700); }
+  .shift-row .action-cell .row-undo { flex: 1 1 0; width: auto; min-width: 0;
+    height: var(--control-h); gap: 8px; padding: 0 10px;
+    font-family: var(--font-body); font-weight: 500; font-size: 14px;
+    border: 1px solid var(--color-divider); color: var(--color-neutral-700); }
 
   /* A day with no duty on it — or only a public holiday — stays one line. */
   .preview-table tr.empty-row, .preview-table tr.ph-row {
@@ -819,7 +842,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .empty-row td::before, .ph-row td::before { content: none; display: none; }
 
   .preview-table td .input, .preview-table td .type-select,
-  .preview-table td .time-edit { height: var(--control-h); min-height: 0; font-size: 16px; }
+  .preview-table td .time-edit { height: var(--control-h); min-height: 0; font-size: 14px; }
   .preview-table .row-clear, .preview-table .row-add, .preview-table .row-undo {
     min-width: var(--control-h); height: var(--control-h); font-size: 17px; }
   /* Public holiday and weekend rows keep their tint as a full-width band. */
@@ -838,7 +861,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .sec-head h2 { font-size: 26px; }
   /* Everything that reads as a row or a control is the same height. A textarea
      is the exception — it is sized by its rows and must stay able to grow. */
-  .btn { min-height: var(--control-h); }
+  .btn.btn { min-height: var(--control-h); padding-block: 0; }
   .field > label { font-size: 14px; }
   .input, .field select, .field input[type=text] { height: var(--control-h);
     min-height: 0; font-size: 16px; }
@@ -890,9 +913,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       <span class="sep" aria-hidden="true">&middot;</span>
       <span class="dept" id="wizDept">VHW Emergency Medicine</span>
       <button type="button" class="wizctx-edit" id="wizEditBtn" aria-haspopup="dialog"
-        aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
-        d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>Edit</button>
+        aria-expanded="false" aria-label="Edit period or department" title="Edit"><svg
+        viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3"
+        width="18" height="18" rx="2"/><path d="M11 16.5H8.5V14l6-6 2.5 2.5z"/></svg></button>
     </div>
   </div>
 </div>
@@ -1029,6 +1053,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
         <div class="staff-col">
           <div class="staff-head">
             <span>Detected staff</span><span aria-hidden="true">&middot;</span><span id="staffCount">0</span>
+            <button class="clear-doctor-btn" id="staffExpandBtn" type="button" aria-expanded="false"
+              aria-controls="doctorGrid" style="display:none;">Show all</button>
             <button class="clear-doctor-btn" id="clearDoctorBtn" type="button">Clear selection</button>
           </div>
           <div class="doctor-grid" id="doctorGrid"><div class="empty">No roster parsed yet</div></div>
@@ -1068,8 +1094,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
             <div><span class="t-key">Normal</span><span class="t-val" id="totalNormal">0 h</span></div>
             <div><span class="t-key">Overtime</span><span class="t-val accent" id="totalOt">0 h</span></div>
             <button type="button" class="totals-toggle" id="totalsToggle"
-              aria-expanded="false" aria-controls="totalsDetail">Breakdown</button>
-            <div class="totals-detail" id="totalsDetail" hidden></div>
+              aria-haspopup="dialog" aria-expanded="false">Breakdown</button>
           </div>
         </div>
       </div>
@@ -1095,8 +1120,6 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <section class="sec" id="sec-3">
       <div class="sec-head"><span class="sec-num">03</span><h2>Your details</h2></div>
       <p class="sec-intro">Capture your details to populate the forms. All items marked with an asterisk (*) are required before downloads unlock.</p>
-      <p class="sec-intro" style="color:var(--color-neutral-700);">Your personal details are used only to generate documents on this device and are not saved after this session.</p>
-
       <div class="sec-empty" id="sec3Empty" style="display:none;">Preview a schedule to fill in your details.</div>
 
       <div id="detailsSection" style="display:none;">
@@ -4758,6 +4781,7 @@ function clearDoctorSelection(){
   $('employeeName').value='';
   $('doctorGrid').querySelectorAll('.doctor-chip').forEach(c=>c.classList.remove('selected'));
   $('clearDoctorBtn').style.display='none';
+  syncStaffCollapse();
   checkReady();
 }
 function countDoctorDays(name){
@@ -4769,6 +4793,31 @@ function countDoctorDays(name){
   }
   return n;
 }
+// The list collapses to the selected name and expands again on request. It is
+// presentation only: every chip stays in the DOM and stays clickable once shown.
+function syncStaffCollapse(){
+  const grid=$('doctorGrid'), btn=$('staffExpandBtn');
+  if(!grid||!btn) return;
+  const hasSelection=!!grid.querySelector('.doctor-chip.selected');
+  const others=grid.querySelectorAll('.doctor-chip:not(.selected)').length;
+  if(!hasSelection||!others){
+    grid.classList.remove('is-collapsed');
+    btn.style.display='none';
+    btn.setAttribute('aria-expanded','true');
+    return;
+  }
+  btn.style.display='inline-block';
+  const expanded=btn.getAttribute('aria-expanded')==='true';
+  grid.classList.toggle('is-collapsed',!expanded);
+  btn.textContent=expanded?'Show fewer':'Show all';
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('#staffExpandBtn');
+  if(!b) return;
+  b.setAttribute('aria-expanded',b.getAttribute('aria-expanded')==='true'?'false':'true');
+  syncStaffCollapse();
+});
+
 function buildDoctorGrid(doctors){
   const sorted=[...doctors].sort();
   const countEl=$('staffCount'); if(countEl) countEl.textContent=sorted.length;
@@ -4784,10 +4833,13 @@ function buildDoctorGrid(doctors){
       const isNew=state.selectedDoctor!==chip.dataset.name;
       state.selectedDoctor=chip.dataset.name; $('employeeName').value=chip.dataset.name;
       $('clearDoctorBtn').style.display='inline-block';
+      const xb=$('staffExpandBtn'); if(xb) xb.setAttribute('aria-expanded','false');
+      syncStaffCollapse();
       if($('detailsSection').style.display!=='none') restoreDetailsToForm(isNew);
       checkReady();
     });
   });
+  syncStaffCollapse();
 }
 function autoDetectMonth(){
   if(!state.rosterData?.days.length) return;
@@ -4903,30 +4955,30 @@ function updateTotalsDetail(){
   if(!box) return;
   const {month,year}=getMonthYear();
   const hol=(month!==null&&year)?getSAPublicHolidays(year):new Map();
-  const ext=isExtendedRosterMode();
-  let dutyDays=0,leaveDays=0,normal=0,ot1=0,ot2=0,flatOt=0,specialHrs=0;
+  let dutyDays=0,leaveDays=0,normal=0,overtime=0,weekendHrs=0,phHrs=0;
   for(const [k,es] of Object.entries(state.editedShifts||{})){
     if(!es) continue;
     if(typeof isLeaveActivity==='function'&&isLeaveActivity(es.typeLabel)){leaveDays++;continue;}
     const n=hoursBetween(es.nf,es.nt);
     const a=hoursBetween(es.ot1f,es.ot1t), b=hoursBetween(es.ot2f,es.ot2t);
-    const f=(a+b)>0?0:hoursBetween(es.of,es.ot);
-    if(n+a+b+f<=0) continue;
-    dutyDays++; normal+=n; ot1+=a; ot2+=b; flatOt+=f;
+    // of/ot mirrors the banded overtime, so it only counts where there is none.
+    const ot=(a+b)>0?(a+b):hoursBetween(es.of,es.ot);
+    if(n+ot<=0) continue;
+    dutyDays++; normal+=n; overtime+=ot;
     if(month!==null&&year){
       const d=new Date(year,month,parseInt(k,10));
-      const isWE=d.getDay()===0||d.getDay()===6;
-      if(isWE||hol.has(dateKeyLocal(d))) specialHrs+=n+a+b+f;
+      // A public holiday that lands on a weekend counts once, as a holiday.
+      if(hol.has(dateKeyLocal(d))) phHrs+=n+ot;
+      else if(d.getDay()===0||d.getDay()===6) weekendHrs+=n+ot;
     }
   }
   const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'')+' h';
-  const rows=[['Days with duty',String(dutyDays)],['Normal hours',fmt(normal)]];
-  if(ext){ rows.push(['OT1 hours',fmt(ot1)],['OT2 hours',fmt(ot2)]); }
-  if(flatOt>0||!ext) rows.push(['Overtime hours',fmt(flatOt)]);
-  rows.push(['Weekend and public holiday hours',fmt(specialHrs)],
-            ['Days recorded as leave',String(leaveDays)]);
+  const days=n=>n===1?'1 day':n+' days';
+  const rows=[['Days on duty',days(dutyDays)],['Days on leave',days(leaveDays)],
+              ['Normal hours',fmt(normal)],['Overtime hours',fmt(overtime)],
+              ['Weekend hours',fmt(weekendHrs)],['Public holiday hours',fmt(phHrs)]];
   box.innerHTML=rows.map(([k,v])=>
-    `<div class="td-row"><span>${k}</span><span>${v}</span></div>`).join('');
+    `<div class="td-row"><span class="td-k">${k}</span><span class="td-v">${v}</span></div>`).join('');
 }
 
 function buildPreview(doctorName,targetMonth,targetYear){
@@ -6570,9 +6622,10 @@ function wizRenderSteps(){
       ${done ? 'data-done="1"' : ''} ${can ? 'data-clickable="1"' : 'disabled'}>
       <span class="n">Step ${s.n}</span><span class="t">${s.title}</span></button>`;
   }).join('');
+  // Only the counter: the section heading right below it already names the
+  // step, and printing it twice was what made the bar feel crowded.
   const m = $('wizStepMobile');
-  const cur = WIZ_STEPS_DEF[wizStep - 1];
-  if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span><span class="t">${cur.title}</span>`;
+  if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span>`;
 }
 
 function wizRenderContext(){
@@ -6668,7 +6721,7 @@ function buildAttentionItems(){
     panel.className = 'attention is-ok';
     if (icon) icon.textContent = '✓';
     if (title) title.textContent = 'No extraction issues detected';
-    if (note) note.textContent = `Please still review every day in ${monthName} — nothing here has been checked for accuracy.`;
+    if (note) { note.textContent = ''; note.hidden = true; }
     if (list) list.innerHTML = '';
     return;
   }
@@ -6676,8 +6729,8 @@ function buildAttentionItems(){
   if (icon) icon.textContent = '⚠';
   if (title) title.textContent =
     `${items.length} ${items.length === 1 ? 'entry' : 'entries'} may need attention`;
-  if (note) note.textContent =
-    `These are possible problems, not errors. Reviewing them does not replace checking the whole of ${monthName}.`;
+  if (note) { note.hidden = false; note.textContent =
+    `These are possible problems, not errors. Reviewing them does not replace checking the whole of ${monthName}.`; }
   if (list) list.innerHTML = items.slice(0, 12).map(it => {
     const label = it.day ? `Review ${it.day} ${monthName}` : 'Review the schedule';
     return `<li><button type="button" data-attn-day="${it.day || ''}">${label}</button>
@@ -6710,16 +6763,6 @@ document.addEventListener('click', e => {
 document.addEventListener('click', e => {
   const t = e.target.closest && e.target.closest('button');
   if (!t) return;
-  if (t.id === 'totalsToggle') {
-    const box = $('totalsDetail');
-    if (!box) return;
-    const open = box.hidden;
-    if (open) updateTotalsDetail();
-    box.hidden = !open;
-    t.setAttribute('aria-expanded', open ? 'true' : 'false');
-    t.textContent = open ? 'Hide breakdown' : 'Breakdown';
-    return;
-  }
   // The period lives on step 2 and the department in the picker overlay, so
   // the context row sends the user to the control rather than duplicating it.
   if (t.id === 'wizChangePeriod') {
@@ -6762,13 +6805,35 @@ function unlockPageScroll(){
   document.body.style.paddingRight='';
 }
 
+// ── Sticky offset ──────────────────────────────────────────────────────────
+// The header is sticky and so is the wizard bar; the bar has to know how tall
+// the header actually is, and that changes as the header wraps.
+(function(){
+  function measure(){
+    const h=document.querySelector('header');
+    if(!h) return;
+    document.documentElement.style.setProperty('--header-h', h.offsetHeight+'px');
+  }
+  function wire(){
+    measure();
+    if(typeof ResizeObserver==='function'){
+      const h=document.querySelector('header');
+      if(h) new ResizeObserver(measure).observe(h);
+    }
+    window.addEventListener('resize',measure);
+    if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measure);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
+  else wire();
+})();
+
 // ── Modal panels ───────────────────────────────────────────────────────────
 // Opening one marks .shell inert, so the page behind is genuinely muted to
 // clicks, tabbing and assistive tech rather than just painted over.
 (function(){
   // Both overlays are body-level markup that comes after this script, so the
   // wiring waits for the document rather than running at parse time.
-  function dialog(btnId, overlayId, closeId){
+  function dialog(btnId, overlayId, closeId, onOpen){
     const btn=document.getElementById(btnId);
     const ov=document.getElementById(overlayId);
     const closeBtn=document.getElementById(closeId);
@@ -6776,6 +6841,7 @@ function unlockPageScroll(){
     const shell=document.querySelector('.shell');
     let lastFocus=null;
     function open(){
+      if(typeof onOpen==='function') onOpen();
       lastFocus=document.activeElement;
       ov.classList.add('open');
       btn.setAttribute('aria-expanded','true');
@@ -6806,6 +6872,7 @@ function unlockPageScroll(){
   function wire(){
     dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
     dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn');
+    dialog('totalsToggle','totalsOverlay','totalsCloseBtn',updateTotalsDetail);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();
@@ -6818,6 +6885,18 @@ function unlockPageScroll(){
 
 <!-- Privacy panel. Body level, outside .shell, so opening it can mark the
      whole page inert rather than merely covering it. -->
+<div id="totalsOverlay" class="modal-overlay is-sheet" role="dialog" aria-modal="true" aria-labelledby="totalsTitle">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h3 id="totalsTitle">Hours breakdown</h3>
+      <button type="button" id="totalsCloseBtn" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="totals-detail" id="totalsDetail"></div>
+    </div>
+  </div>
+</div>
+
 <div id="wizEditOverlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="wizEditTitle">
   <div class="modal-panel">
     <div class="modal-head">

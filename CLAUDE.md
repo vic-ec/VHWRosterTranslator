@@ -70,7 +70,12 @@ the parts worth knowing before editing:
 - **Anything that changes what the user is looking at calls `wizRefresh()`.**
   Extraction and preview already do.
 - **`--control-h` is the one height** for every row and control in a list or
-  form on a phone. Do not reintroduce a per-component `min-height`.
+  form on a phone. Do not reintroduce a per-component `min-height` — a
+  component that sets its own `padding` (as `.actions-row` did) outranks a
+  plain `.btn` rule and silently opts out of it.
+- **`--header-h` is measured, not guessed.** The wizard bar sticks below the
+  header at `top: var(--header-h)`; JS sets it from the header's real height
+  and a `ResizeObserver` keeps it current as the header wraps.
 - **Start over is only reachable from the Edit panel** (`#wizEditOverlay`)
   once the wizard is running — the masthead button it shares a handler with is
   hidden from the moment a department is chosen.

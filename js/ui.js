@@ -456,6 +456,7 @@ function clearDoctorSelection(){
   $('employeeName').value='';
   $('doctorGrid').querySelectorAll('.doctor-chip').forEach(c=>c.classList.remove('selected'));
   $('clearDoctorBtn').style.display='none';
+  syncStaffCollapse();
   checkReady();
 }
 function countDoctorDays(name){
@@ -467,6 +468,31 @@ function countDoctorDays(name){
   }
   return n;
 }
+// The list collapses to the selected name and expands again on request. It is
+// presentation only: every chip stays in the DOM and stays clickable once shown.
+function syncStaffCollapse(){
+  const grid=$('doctorGrid'), btn=$('staffExpandBtn');
+  if(!grid||!btn) return;
+  const hasSelection=!!grid.querySelector('.doctor-chip.selected');
+  const others=grid.querySelectorAll('.doctor-chip:not(.selected)').length;
+  if(!hasSelection||!others){
+    grid.classList.remove('is-collapsed');
+    btn.style.display='none';
+    btn.setAttribute('aria-expanded','true');
+    return;
+  }
+  btn.style.display='inline-block';
+  const expanded=btn.getAttribute('aria-expanded')==='true';
+  grid.classList.toggle('is-collapsed',!expanded);
+  btn.textContent=expanded?'Show fewer':'Show all';
+}
+document.addEventListener('click',e=>{
+  const b=e.target.closest&&e.target.closest('#staffExpandBtn');
+  if(!b) return;
+  b.setAttribute('aria-expanded',b.getAttribute('aria-expanded')==='true'?'false':'true');
+  syncStaffCollapse();
+});
+
 function buildDoctorGrid(doctors){
   const sorted=[...doctors].sort();
   const countEl=$('staffCount'); if(countEl) countEl.textContent=sorted.length;
@@ -482,10 +508,13 @@ function buildDoctorGrid(doctors){
       const isNew=state.selectedDoctor!==chip.dataset.name;
       state.selectedDoctor=chip.dataset.name; $('employeeName').value=chip.dataset.name;
       $('clearDoctorBtn').style.display='inline-block';
+      const xb=$('staffExpandBtn'); if(xb) xb.setAttribute('aria-expanded','false');
+      syncStaffCollapse();
       if($('detailsSection').style.display!=='none') restoreDetailsToForm(isNew);
       checkReady();
     });
   });
+  syncStaffCollapse();
 }
 function autoDetectMonth(){
   if(!state.rosterData?.days.length) return;
@@ -601,30 +630,30 @@ function updateTotalsDetail(){
   if(!box) return;
   const {month,year}=getMonthYear();
   const hol=(month!==null&&year)?getSAPublicHolidays(year):new Map();
-  const ext=isExtendedRosterMode();
-  let dutyDays=0,leaveDays=0,normal=0,ot1=0,ot2=0,flatOt=0,specialHrs=0;
+  let dutyDays=0,leaveDays=0,normal=0,overtime=0,weekendHrs=0,phHrs=0;
   for(const [k,es] of Object.entries(state.editedShifts||{})){
     if(!es) continue;
     if(typeof isLeaveActivity==='function'&&isLeaveActivity(es.typeLabel)){leaveDays++;continue;}
     const n=hoursBetween(es.nf,es.nt);
     const a=hoursBetween(es.ot1f,es.ot1t), b=hoursBetween(es.ot2f,es.ot2t);
-    const f=(a+b)>0?0:hoursBetween(es.of,es.ot);
-    if(n+a+b+f<=0) continue;
-    dutyDays++; normal+=n; ot1+=a; ot2+=b; flatOt+=f;
+    // of/ot mirrors the banded overtime, so it only counts where there is none.
+    const ot=(a+b)>0?(a+b):hoursBetween(es.of,es.ot);
+    if(n+ot<=0) continue;
+    dutyDays++; normal+=n; overtime+=ot;
     if(month!==null&&year){
       const d=new Date(year,month,parseInt(k,10));
-      const isWE=d.getDay()===0||d.getDay()===6;
-      if(isWE||hol.has(dateKeyLocal(d))) specialHrs+=n+a+b+f;
+      // A public holiday that lands on a weekend counts once, as a holiday.
+      if(hol.has(dateKeyLocal(d))) phHrs+=n+ot;
+      else if(d.getDay()===0||d.getDay()===6) weekendHrs+=n+ot;
     }
   }
   const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'')+' h';
-  const rows=[['Days with duty',String(dutyDays)],['Normal hours',fmt(normal)]];
-  if(ext){ rows.push(['OT1 hours',fmt(ot1)],['OT2 hours',fmt(ot2)]); }
-  if(flatOt>0||!ext) rows.push(['Overtime hours',fmt(flatOt)]);
-  rows.push(['Weekend and public holiday hours',fmt(specialHrs)],
-            ['Days recorded as leave',String(leaveDays)]);
+  const days=n=>n===1?'1 day':n+' days';
+  const rows=[['Days on duty',days(dutyDays)],['Days on leave',days(leaveDays)],
+              ['Normal hours',fmt(normal)],['Overtime hours',fmt(overtime)],
+              ['Weekend hours',fmt(weekendHrs)],['Public holiday hours',fmt(phHrs)]];
   box.innerHTML=rows.map(([k,v])=>
-    `<div class="td-row"><span>${k}</span><span>${v}</span></div>`).join('');
+    `<div class="td-row"><span class="td-k">${k}</span><span class="td-v">${v}</span></div>`).join('');
 }
 
 function buildPreview(doctorName,targetMonth,targetYear){
@@ -1203,9 +1232,10 @@ function wizRenderSteps(){
       ${done ? 'data-done="1"' : ''} ${can ? 'data-clickable="1"' : 'disabled'}>
       <span class="n">Step ${s.n}</span><span class="t">${s.title}</span></button>`;
   }).join('');
+  // Only the counter: the section heading right below it already names the
+  // step, and printing it twice was what made the bar feel crowded.
   const m = $('wizStepMobile');
-  const cur = WIZ_STEPS_DEF[wizStep - 1];
-  if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span><span class="t">${cur.title}</span>`;
+  if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span>`;
 }
 
 function wizRenderContext(){
@@ -1301,7 +1331,7 @@ function buildAttentionItems(){
     panel.className = 'attention is-ok';
     if (icon) icon.textContent = '✓';
     if (title) title.textContent = 'No extraction issues detected';
-    if (note) note.textContent = `Please still review every day in ${monthName} — nothing here has been checked for accuracy.`;
+    if (note) { note.textContent = ''; note.hidden = true; }
     if (list) list.innerHTML = '';
     return;
   }
@@ -1309,8 +1339,8 @@ function buildAttentionItems(){
   if (icon) icon.textContent = '⚠';
   if (title) title.textContent =
     `${items.length} ${items.length === 1 ? 'entry' : 'entries'} may need attention`;
-  if (note) note.textContent =
-    `These are possible problems, not errors. Reviewing them does not replace checking the whole of ${monthName}.`;
+  if (note) { note.hidden = false; note.textContent =
+    `These are possible problems, not errors. Reviewing them does not replace checking the whole of ${monthName}.`; }
   if (list) list.innerHTML = items.slice(0, 12).map(it => {
     const label = it.day ? `Review ${it.day} ${monthName}` : 'Review the schedule';
     return `<li><button type="button" data-attn-day="${it.day || ''}">${label}</button>
@@ -1343,16 +1373,6 @@ document.addEventListener('click', e => {
 document.addEventListener('click', e => {
   const t = e.target.closest && e.target.closest('button');
   if (!t) return;
-  if (t.id === 'totalsToggle') {
-    const box = $('totalsDetail');
-    if (!box) return;
-    const open = box.hidden;
-    if (open) updateTotalsDetail();
-    box.hidden = !open;
-    t.setAttribute('aria-expanded', open ? 'true' : 'false');
-    t.textContent = open ? 'Hide breakdown' : 'Breakdown';
-    return;
-  }
   // The period lives on step 2 and the department in the picker overlay, so
   // the context row sends the user to the control rather than duplicating it.
   if (t.id === 'wizChangePeriod') {
@@ -1395,13 +1415,35 @@ function unlockPageScroll(){
   document.body.style.paddingRight='';
 }
 
+// ── Sticky offset ──────────────────────────────────────────────────────────
+// The header is sticky and so is the wizard bar; the bar has to know how tall
+// the header actually is, and that changes as the header wraps.
+(function(){
+  function measure(){
+    const h=document.querySelector('header');
+    if(!h) return;
+    document.documentElement.style.setProperty('--header-h', h.offsetHeight+'px');
+  }
+  function wire(){
+    measure();
+    if(typeof ResizeObserver==='function'){
+      const h=document.querySelector('header');
+      if(h) new ResizeObserver(measure).observe(h);
+    }
+    window.addEventListener('resize',measure);
+    if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measure);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
+  else wire();
+})();
+
 // ── Modal panels ───────────────────────────────────────────────────────────
 // Opening one marks .shell inert, so the page behind is genuinely muted to
 // clicks, tabbing and assistive tech rather than just painted over.
 (function(){
   // Both overlays are body-level markup that comes after this script, so the
   // wiring waits for the document rather than running at parse time.
-  function dialog(btnId, overlayId, closeId){
+  function dialog(btnId, overlayId, closeId, onOpen){
     const btn=document.getElementById(btnId);
     const ov=document.getElementById(overlayId);
     const closeBtn=document.getElementById(closeId);
@@ -1409,6 +1451,7 @@ function unlockPageScroll(){
     const shell=document.querySelector('.shell');
     let lastFocus=null;
     function open(){
+      if(typeof onOpen==='function') onOpen();
       lastFocus=document.activeElement;
       ov.classList.add('open');
       btn.setAttribute('aria-expanded','true');
@@ -1439,6 +1482,7 @@ function unlockPageScroll(){
   function wire(){
     dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
     dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn');
+    dialog('totalsToggle','totalsOverlay','totalsCloseBtn',updateTotalsDetail);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();

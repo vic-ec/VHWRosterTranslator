@@ -30,9 +30,18 @@ file under `js/` and the matching block inside `index.html`'s inline `<script>`
 
 **Markup** (`index.html`)
 - `.wizbar` — sticky bar under the header: the step list (`#wizSteps`, a
-  `<nav aria-label="Progress">`), a single-line mobile equivalent
-  (`#wizStepMobile`, `aria-live="polite"`), the context row (`#wizPeriod`,
-  `#wizDept`) and one `#wizEditBtn` that opens the Edit panel.
+  `<nav aria-label="Progress">`), a mobile counter (`#wizStepMobile`,
+  `aria-live="polite"`) that prints only "Step n of 4" because the section
+  heading below already names the step, the context row (`#wizPeriod`,
+  `#wizDept`) and an icon-only `#wizEditBtn`. It sticks at
+  `top: var(--header-h)`, a value JS measures from the header and keeps
+  current with a `ResizeObserver` — the header wraps to two and three lines on
+  narrow screens, and at `top: 0` the bar covered it on the first scroll.
+- `#totalsOverlay` — the hours breakdown, a bottom sheet
+  (`.modal-overlay.is-sheet`) rather than a panel inside the totals bar. One
+  row per figure, value right: days on duty, days on leave, normal, overtime,
+  weekend, public holiday. A public holiday falling on a weekend counts once,
+  as a holiday.
 - `#wizEditOverlay` — the Edit panel: Change period, Change department and
   Start over. Spelling all three out in the bar cost two lines on a phone.
   Start over lives here because the wizard hides the masthead that used to
@@ -58,6 +67,11 @@ select, a time box, a step button, the Edit button. It is above the 24px WCAG
 2.5.8 minimum target size and replaces a spread of 38-52px that made the
 schedule scroll far further than it needed to. A textarea is the exception —
 it is sized by its rows and has to be able to grow.
+
+**The staff list collapses.** Once a name is chosen the other rows are hidden
+(`.doctor-grid.is-collapsed`) and a Show all / Show fewer button appears in the
+head. Presentation only — every chip stays in the DOM and stays clickable once
+shown.
 
 **Phone layout.** At ≤860px the schedule stops being a table and becomes one
 card per day: date and weekday as a heading, then the activity, then one line
