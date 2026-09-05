@@ -69,6 +69,11 @@ the parts worth knowing before editing:
   looking at the whole month.
 - **Anything that changes what the user is looking at calls `wizRefresh()`.**
   Extraction and preview already do.
+- **`--control-h` is the one height** for every row and control in a list or
+  form on a phone. Do not reintroduce a per-component `min-height`.
+- **Start over is only reachable from the Edit panel** (`#wizEditOverlay`)
+  once the wizard is running — the masthead button it shares a handler with is
+  hidden from the moment a department is chosen.
 - **The phone schedule (≤860px) is a card per day**, and its cells are
   selected by the field they hold (`td:has([data-field=nf])`), not by column
   number — so the standard and extended column sets share one set of rules.

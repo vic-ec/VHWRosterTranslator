@@ -31,8 +31,12 @@ file under `js/` and the matching block inside `index.html`'s inline `<script>`
 **Markup** (`index.html`)
 - `.wizbar` — sticky bar under the header: the step list (`#wizSteps`, a
   `<nav aria-label="Progress">`), a single-line mobile equivalent
-  (`#wizStepMobile`, `aria-live="polite"`), and the context row
-  (`#wizPeriod`, `#wizDept`, `#wizChangePeriod`, `#wizChangeDept`).
+  (`#wizStepMobile`, `aria-live="polite"`), the context row (`#wizPeriod`,
+  `#wizDept`) and one `#wizEditBtn` that opens the Edit panel.
+- `#wizEditOverlay` — the Edit panel: Change period, Change department and
+  Start over. Spelling all three out in the bar cost two lines on a phone.
+  Start over lives here because the wizard hides the masthead that used to
+  hold it, so this is now the only way to reach it once a roster is loaded.
 - `.attention` (`#attentionPanel`) — above the schedule on step 2.
 - `.reviewack` (`#reviewAckWrap`) — the acknowledgement below the schedule.
 - `.wiznav` (`#wizNav1`…`#wizNav4`) — the per-step footers.
@@ -47,6 +51,13 @@ file under `js/` and the matching block inside `index.html`'s inline `<script>`
   `wizRenderNav()` — navigation and rendering.
 - `buildAttentionItems()` — the reading aid described below.
 - `updateTotalsDetail()` — re-splits the hours the summary bar already shows.
+
+**One control height.** `--control-h` (38px) is the height of every row and
+control that sits in a list or a form on a phone: a staff row, an activity
+select, a time box, a step button, the Edit button. It is above the 24px WCAG
+2.5.8 minimum target size and replaces a spread of 38-52px that made the
+schedule scroll far further than it needed to. A textarea is the exception —
+it is sized by its rows and has to be able to grow.
 
 **Phone layout.** At ≤860px the schedule stops being a table and becomes one
 card per day: date and weekday as a heading, then the activity, then one line

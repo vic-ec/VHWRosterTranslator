@@ -367,8 +367,15 @@ function fullReset(){
   const offNote=$('ecOfflineNote'); if(offNote) offNote.style.display='none';
   if(typeof window.reopenEcPicker==='function') window.reopenEcPicker();
 }
-$('resetFormBtn')?.addEventListener('click',()=>{
+function confirmFullReset(){
   if(confirm('Clear all data and start over? Your saved department profile is cleared too, so you will be asked to pick it again.')) fullReset();
+}
+// Two entry points, one action: the masthead button before a department is
+// chosen, and the Edit panel once the wizard has taken the masthead's place.
+$('resetFormBtn')?.addEventListener('click',confirmFullReset);
+document.addEventListener('click',e=>{
+  const t=e.target.closest&&e.target.closest('#wizStartOver');
+  if(t){ e.preventDefault(); confirmFullReset(); }
 });
 
 $('parseBtn').addEventListener('click',async()=>{
@@ -1388,41 +1395,50 @@ function unlockPageScroll(){
   document.body.style.paddingRight='';
 }
 
-// ── Privacy panel ──────────────────────────────────────────────────────────
-// Opening it marks .shell inert, so the page behind is genuinely muted to
+// ── Modal panels ───────────────────────────────────────────────────────────
+// Opening one marks .shell inert, so the page behind is genuinely muted to
 // clicks, tabbing and assistive tech rather than just painted over.
 (function(){
-  // #privacyOverlay is body-level markup that comes after this script, so the
+  // Both overlays are body-level markup that comes after this script, so the
   // wiring waits for the document rather than running at parse time.
+  function dialog(btnId, overlayId, closeId){
+    const btn=document.getElementById(btnId);
+    const ov=document.getElementById(overlayId);
+    const closeBtn=document.getElementById(closeId);
+    if(!btn||!ov||!closeBtn) return;
+    const shell=document.querySelector('.shell');
+    let lastFocus=null;
+    function open(){
+      lastFocus=document.activeElement;
+      ov.classList.add('open');
+      btn.setAttribute('aria-expanded','true');
+      lockPageScroll();
+      if(shell) shell.inert=true;
+      closeBtn.focus();
+    }
+    function close(){
+      ov.classList.remove('open');
+      btn.setAttribute('aria-expanded','false');
+      unlockPageScroll();
+      if(shell) shell.inert=false;
+      if(lastFocus&&lastFocus.focus) lastFocus.focus();
+    }
+    btn.addEventListener('click',open);
+    closeBtn.addEventListener('click',close);
+    // Clicking the backdrop, but not the panel, closes it.
+    ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
+    // Choosing an action inside the panel dismisses it; the action itself is
+    // handled by the delegated wizard listener, which needs the page live.
+    ov.addEventListener('click',e=>{
+      if(e.target.closest && e.target.closest('.modal-choice')) close();
+    });
+    document.addEventListener('keydown',e=>{
+      if(e.key==='Escape'&&ov.classList.contains('open')) close();
+    });
+  }
   function wire(){
-  const btn=document.getElementById('privacyBtn');
-  const ov=document.getElementById('privacyOverlay');
-  if(!btn||!ov) return;
-  const closeBtn=document.getElementById('privacyCloseBtn');
-  const shell=document.querySelector('.shell');
-  let lastFocus=null;
-  function open(){
-    lastFocus=document.activeElement;
-    ov.classList.add('open');
-    btn.setAttribute('aria-expanded','true');
-    lockPageScroll();
-    if(shell) shell.inert=true;
-    closeBtn.focus();
-  }
-  function close(){
-    ov.classList.remove('open');
-    btn.setAttribute('aria-expanded','false');
-    unlockPageScroll();
-    if(shell) shell.inert=false;
-    if(lastFocus&&lastFocus.focus) lastFocus.focus();
-  }
-  btn.addEventListener('click',open);
-  closeBtn.addEventListener('click',close);
-  // Clicking the backdrop, but not the panel, closes it.
-  ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
-  document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'&&ov.classList.contains('open')) close();
-  });
+    dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
+    dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn');
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();
