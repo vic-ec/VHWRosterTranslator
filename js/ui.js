@@ -207,6 +207,18 @@ function applyBandSync(d,fields,value){
   });
 }
 
+// Undo is offered only where the day now differs from what was parsed —
+// originalShifts holds a snapshot of every day, so its presence proves nothing.
+function isDayEdited(day){
+  const o=state.originalShifts&&state.originalShifts[day];
+  const e=state.editedShifts&&state.editedShifts[day];
+  if(!o||!e) return false;
+  for(const k of new Set([...Object.keys(o),...Object.keys(e)])){
+    if((o[k]||'')!==(e[k]||'')) return true;
+  }
+  return false;
+}
+
 function markDirty(day) {
   if(typeof wizInvalidateReview==='function') wizInvalidateReview();
   // Data already captured in state.editedShifts — auto-clean immediately
@@ -217,7 +229,7 @@ function markClean(day) {
   const row=document.querySelector(`tr[data-day="${day}"]`);
   if(!row) return;
   const ac=row.querySelector('.action-cell');
-  if(ac){ac.innerHTML=`<button class="row-clear" data-day="${day}" title="Remove">&times;</button>${state.originalShifts[day]?`<button class="row-undo" data-day="${day}" title="Undo changes">&#8635;</button>`:''}`; attachEditHandlers();}
+  if(ac){ac.innerHTML=`<button class="row-clear" data-day="${day}" title="Remove">&times;</button>${isDayEdited(day)?`<button class="row-undo" data-day="${day}" title="Undo changes">&#8635;</button>`:''}`; attachEditHandlers();}
 }
 
 function saveDetailsToState() {
@@ -367,9 +379,8 @@ function fullReset(){
   const offNote=$('ecOfflineNote'); if(offNote) offNote.style.display='none';
   if(typeof window.reopenEcPicker==='function') window.reopenEcPicker();
 }
-function confirmFullReset(){
-  if(confirm('Clear all data and start over? Your saved department profile is cleared too, so you will be asked to pick it again.')) fullReset();
-}
+// The confirmation panel has already been answered by the time this runs.
+function confirmFullReset(){ fullReset(); }
 // Two entry points, one action: the masthead button before a department is
 // chosen, and the Edit panel once the wizard has taken the masthead's place.
 $('resetFormBtn')?.addEventListener('click',confirmFullReset);
@@ -823,7 +834,7 @@ function makeRowInner(d,isWE,phName,dayName,es){
     <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es?.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
     <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es?.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
     <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es?.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${state.originalShifts[d]?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
+    <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${isDayEdited(d)?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
   }
   return `
     ${dateCell}
@@ -833,7 +844,7 @@ function makeRowInner(d,isWE,phName,dayName,es){
     <td><input class="time-edit" data-day="${d}" data-field="nt" value="${es?.nt||''}" maxlength="5" inputmode="numeric"></td>
     <td><input class="time-edit" data-day="${d}" data-field="of" value="${es?.of||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
     <td><input class="time-edit" data-day="${d}" data-field="ot" value="${es?.ot||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${state.originalShifts[d]?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
+    <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${isDayEdited(d)?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
 }
 
 function attachEditHandlers(){
@@ -1295,6 +1306,8 @@ function wizGo(step){
 
 function wizRefresh(){
   wizRenderSteps(); wizRenderContext(); wizRenderNav();
+  const hb = $('totalsToggle2');
+  if (hb) hb.disabled = !wizPreviewed();
   const ack = $('reviewAckWrap');
   if (ack) ack.hidden = !wizPreviewed();
   buildAttentionItems();
@@ -1424,27 +1437,90 @@ function unlockPageScroll(){
   document.body.style.paddingRight='';
 }
 
-// ── Sticky offset ──────────────────────────────────────────────────────────
-// The header is sticky and so is the wizard bar; the bar has to know how tall
-// the header actually is, and that changes as the header wraps.
-(function(){
-  function measure(){
-    const h=document.querySelector('header');
-    if(!h) return;
-    document.documentElement.style.setProperty('--header-h', h.offsetHeight+'px');
+// ── Confirmation ───────────────────────────────────────────────────────────
+// One panel in front of everything destructive. Nothing is cleared, removed or
+// reset until it comes back true; closing it any way at all — the x, No, the
+// backdrop, Escape — answers false.
+let confirmSettle = null;
+function askConfirm(text){
+  const ov = $('confirmOverlay');
+  if (!ov) return Promise.resolve(window.confirm(text));
+  const body = $('confirmText');
+  if (body) body.textContent = text;
+  const shell = document.querySelector('.shell');
+  // A confirmation raised from inside another panel closes that one first, so
+  // there is only ever one thing on screen to answer.
+  for (const open of document.querySelectorAll('.modal-overlay.open')) {
+    open.classList.remove('open');
+    for (const b of document.querySelectorAll('[aria-expanded="true"][aria-haspopup="dialog"]'))
+      b.setAttribute('aria-expanded','false');
   }
+  return new Promise(resolve => {
+    confirmSettle = answer => {
+      confirmSettle = null;
+      ov.classList.remove('open');
+      unlockPageScroll();
+      if (shell) shell.inert = false;
+      resolve(answer);
+    };
+    ov.classList.add('open');
+    lockPageScroll();
+    if (shell) shell.inert = true;
+    const yes = $('confirmYes');
+    if (yes) yes.focus();
+  });
+}
+(function(){
   function wire(){
-    measure();
-    if(typeof ResizeObserver==='function'){
-      const h=document.querySelector('header');
-      if(h) new ResizeObserver(measure).observe(h);
-    }
-    window.addEventListener('resize',measure);
-    if(document.fonts&&document.fonts.ready) document.fonts.ready.then(measure);
+    const ov = $('confirmOverlay');
+    if (!ov) return;
+    const settle = a => { if (confirmSettle) confirmSettle(a); };
+    $('confirmYes').addEventListener('click', () => settle(true));
+    $('confirmNo').addEventListener('click', () => settle(false));
+    $('confirmCloseBtn').addEventListener('click', () => settle(false));
+    ov.addEventListener('click', e => { if (e.target === ov) settle(false); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && ov.classList.contains('open')) settle(false);
+    });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();
 })();
+
+// Which controls have to be asked about, and what to ask. Matching on the
+// selector rather than tagging every button keeps the rows the preview table
+// rebuilds — a Remove button is replaced on every edit — inside the net.
+const CONFIRM_ACTIONS = [
+  ['#clearBtn',        'Are you sure you want to clear all data?'],
+  ['#clearDoctorBtn',  'Are you sure you want to clear the selection?'],
+  ['.ri-remove',       'Are you sure you want to remove this file?'],
+  ['.row-clear',       'Are you sure you want to remove this entry?'],
+  ['#resetFormBtn',    'Are you sure you want to clear all data and start over?'],
+  ['#wizStartOver',    'Are you sure you want to clear all data and start over?'],
+];
+// Capture, so the question is asked before the handlers that do the work. On
+// yes the same click is sent again, flagged, and passes straight through.
+document.addEventListener('click', e => {
+  // Only a real click from a person gets asked about. The app clicks these
+  // buttons itself — fullReset() presses Clear all to empty the queue — and so
+  // does the re-dispatch below; intercepting those asked a question nobody was
+  // there to answer and left the page inert behind it.
+  if (!e.isTrusted) return;
+  const el = e.target.closest && e.target.closest(
+    CONFIRM_ACTIONS.map(([sel]) => sel).join(','));
+  if (!el || el.dataset.confirmed === '1') return;
+  const hit = CONFIRM_ACTIONS.find(([sel]) => el.matches(sel));
+  if (!hit) return;
+  e.preventDefault();
+  e.stopPropagation();
+  e.stopImmediatePropagation();
+  askConfirm(hit[1]).then(ok => {
+    if (!ok) return;
+    el.dataset.confirmed = '1';
+    el.click();
+    delete el.dataset.confirmed;
+  });
+}, true);
 
 // ── Modal panels ───────────────────────────────────────────────────────────
 // Opening one marks .shell inert, so the page behind is genuinely muted to
@@ -1453,7 +1529,8 @@ function unlockPageScroll(){
   // Both overlays are body-level markup that comes after this script, so the
   // wiring waits for the document rather than running at parse time.
   function dialog(btnId, overlayId, closeId, onOpen){
-    const btn=document.getElementById(btnId);
+    const btns=[].concat(btnId).map(id=>document.getElementById(id)).filter(Boolean);
+    const btn=btns[0];
     const ov=document.getElementById(overlayId);
     const closeBtn=document.getElementById(closeId);
     if(!btn||!ov||!closeBtn) return;
@@ -1463,19 +1540,19 @@ function unlockPageScroll(){
       if(typeof onOpen==='function') onOpen();
       lastFocus=document.activeElement;
       ov.classList.add('open');
-      btn.setAttribute('aria-expanded','true');
+      for(const b of btns) b.setAttribute('aria-expanded','true');
       lockPageScroll();
       if(shell) shell.inert=true;
       closeBtn.focus();
     }
     function close(){
       ov.classList.remove('open');
-      btn.setAttribute('aria-expanded','false');
+      for(const b of btns) b.setAttribute('aria-expanded','false');
       unlockPageScroll();
       if(shell) shell.inert=false;
       if(lastFocus&&lastFocus.focus) lastFocus.focus();
     }
-    btn.addEventListener('click',open);
+    for(const b of btns) b.addEventListener('click',open);
     closeBtn.addEventListener('click',close);
     // Clicking the backdrop, but not the panel, closes it.
     ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
@@ -1491,7 +1568,7 @@ function unlockPageScroll(){
   function wire(){
     dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
     dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn');
-    dialog('totalsToggle','totalsOverlay','totalsCloseBtn',updateTotalsDetail);
+    dialog(['totalsToggle','totalsToggle2'],'totalsOverlay','totalsCloseBtn',updateTotalsDetail);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();

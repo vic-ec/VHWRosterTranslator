@@ -72,6 +72,12 @@ select, a time box, a step button, the Edit button. It is above the 24px WCAG
 schedule scroll far further than it needed to. A textarea is the exception —
 it is sized by its rows and has to be able to grow.
 
+**Confirmation.** `#confirmOverlay` sits in front of Clear all, Clear
+selection, removing a queued file, removing a day, and Start over. One panel,
+Yes/No, closable by the x, the backdrop or Escape — all of which answer no.
+`askConfirm()` closes any panel already open first, so there is never a
+question stacked on top of a question.
+
 **The staff list collapses.** Once a name is chosen the other rows are hidden
 (`.doctor-grid.is-collapsed`) and a Show all / Show fewer button appears in the
 head. Presentation only — every chip stays in the DOM and stays clickable once

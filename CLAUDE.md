@@ -77,9 +77,15 @@ the parts worth knowing before editing:
   the glyph at full size, not a button calling `showPicker()` on a hidden one
   — a browser will not open a picker for an input that is 0x0 and
   `pointer-events: none`.
-- **`--header-h` is measured, not guessed.** The wizard bar sticks below the
-  header at `top: var(--header-h)`; JS sets it from the header's real height
-  and a `ResizeObserver` keeps it current as the header wraps.
+- **`.topbar` is the one sticky element.** It wraps the header and the wizard
+  bar; neither is sticky on its own. Two stacked sticky boxes — the second
+  offset by a measured header height — came apart under an iOS over-scroll and
+  both slid away.
+- **Destructive controls go through `askConfirm()`.** A capture-phase listener
+  matches `CONFIRM_ACTIONS` and asks before the real handler runs, then
+  re-sends the click. It ignores untrusted events on purpose: the app presses
+  these buttons itself (`fullReset()` clicks Clear all), and asking there left
+  the page inert waiting on an answer nobody could give.
 - **Start over is only reachable from the Edit panel** (`#wizEditOverlay`)
   once the wizard is running — the masthead button it shares a handler with is
   hidden from the moment a department is chosen.
