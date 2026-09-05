@@ -47,8 +47,6 @@ async function fetchProfiles() {
 
 function applyProfile(profile) {
   activeProfile = profile;
-  // Update header
-  const ecShort = profile.ec_short || profile.ec_name;
   // The EC name lives in the header chip (#ecSelectedName) — the brand
   // line stays constant, and the offline badge is cleared here.
   $('headerTitle').textContent = 'Hospital Roster Translator';
@@ -70,12 +68,23 @@ function showEcSelected(name) {
   $('ecPickerRow').style.display   = 'none';
   $('ecSelectedRow').style.display = '';
   $('ecSelectedName').textContent  = name;
+  // A department is chosen, so the picker screen gives way to the wizard.
+  const _mh=document.querySelector('.masthead'), _wb=document.getElementById('wizBar');
+  if(_mh) _mh.hidden=true;
+  if(_wb) _wb.hidden=false;
+  if(typeof wizGo==='function') wizGo(typeof wizStep==='number'?wizStep:1);
 }
 
 function showEcPicker(profiles) {
   $('ecLoadingRow').style.display  = 'none';
   $('ecSelectedRow').style.display = 'none';
   $('ecPickerRow').style.display   = '';
+  const _mh=document.querySelector('.masthead'), _wb=document.getElementById('wizBar');
+  if(_mh) _mh.hidden=false;
+  if(_wb) _wb.hidden=true;
+  for(const _s of ['sec-1','sec-2','sec-3','sec-4']){
+    const _el=document.getElementById(_s); if(_el) _el.hidden=true;
+  }
   const sel = $('ecSelect');
   // Clear existing options except the placeholder
   while (sel.options.length > 1) sel.remove(1);

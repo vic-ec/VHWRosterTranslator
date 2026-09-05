@@ -128,6 +128,7 @@ function checkDetailsComplete() {
   $('z1aBtn').disabled=!(show&&z1);
   const lockNote=$('downloadsLocked');
   if(lockNote) lockNote.style.display=show?'none':'';
+  if(typeof wizRenderNav==='function') wizRenderNav();
 }
 function checkReady(){
   const {month,year}=getMonthYear();
@@ -156,7 +157,7 @@ function normaliseTime(val) {
 // The profile decides what the preview section calls them.
 function dutyNoun(){ return (activeProfile&&activeProfile.duty_noun)||'shifts'; }
 function applyDutyNoun(){
-  // The section heading is now duty-neutral ("Preview & edit"), so the
+  // The section heading is now duty-neutral ("Review schedule"), so the
   // profile's word is only needed where the copy actually describes them.
   const empty=$('step2Empty');
   if(empty) empty.textContent='Extract a roster to see detected staff and their '+dutyNoun()+'.';
@@ -207,6 +208,7 @@ function applyBandSync(d,fields,value){
 }
 
 function markDirty(day) {
+  if(typeof wizInvalidateReview==='function') wizInvalidateReview();
   // Data already captured in state.editedShifts — auto-clean immediately
   markClean(day);
 }
@@ -357,6 +359,8 @@ function fullReset(){
   // begins at the picker. The catalogue cache stays — it is the public list
   // of departments, holds nothing about the user, and is what lets the
   // picker still work offline.
+  wizReviewed=false;
+  const _ackR=$('reviewAck'); if(_ackR) _ackR.checked=false;
   try { localStorage.removeItem(LS_PROFILE_KEY); } catch(e) {}
   activeProfile=null;
   const modeEl=$('ecMode'); if(modeEl){modeEl.textContent='';modeEl.style.display='none';}
@@ -408,6 +412,8 @@ $('parseBtn').addEventListener('click',async()=>{
     }catch(err){console.error('Parse error',file.name,err);errors++;state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);}
   }
   if(state.parsedFiles.length) { mergeAndRefresh();renderFileList(); }
+  // Extraction is done — the wizard can now judge whether step 1 is complete.
+  if(typeof wizRefresh==='function') wizRefresh();
   // Parse consultant roster if one is queued
   if(state.consultantFile){
     try{
@@ -506,6 +512,11 @@ $('previewBtn').addEventListener('click',()=>{
   unlock(step3);
   $('detailsSection').style.display='';
   restoreDetailsToForm(false);
+  // A new preview is a different month or person, so a prior acknowledgement
+  // no longer describes what is on screen.
+  wizReviewed=false;
+  const _ack=$('reviewAck'); if(_ack) _ack.checked=false;
+  if(typeof wizRefresh==='function') wizRefresh();
 });
 
 // Consultant and Word-table rosters both produce normal + OT1 + OT2 bands,
@@ -572,6 +583,41 @@ function updatePreviewTotals(){
   const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'')+' h';
   nEl.textContent=fmt(normal);
   oEl.textContent=fmt(ot);
+  updateTotalsDetail();
+}
+
+// The panel behind the "Breakdown" toggle. It re-splits exactly the hours the
+// bar already shows — nothing is stored, and nothing here is a second source
+// of truth: change a time and this is rebuilt from state.editedShifts.
+function updateTotalsDetail(){
+  const box=$('totalsDetail');
+  if(!box) return;
+  const {month,year}=getMonthYear();
+  const hol=(month!==null&&year)?getSAPublicHolidays(year):new Map();
+  const ext=isExtendedRosterMode();
+  let dutyDays=0,leaveDays=0,normal=0,ot1=0,ot2=0,flatOt=0,specialHrs=0;
+  for(const [k,es] of Object.entries(state.editedShifts||{})){
+    if(!es) continue;
+    if(typeof isLeaveActivity==='function'&&isLeaveActivity(es.typeLabel)){leaveDays++;continue;}
+    const n=hoursBetween(es.nf,es.nt);
+    const a=hoursBetween(es.ot1f,es.ot1t), b=hoursBetween(es.ot2f,es.ot2t);
+    const f=(a+b)>0?0:hoursBetween(es.of,es.ot);
+    if(n+a+b+f<=0) continue;
+    dutyDays++; normal+=n; ot1+=a; ot2+=b; flatOt+=f;
+    if(month!==null&&year){
+      const d=new Date(year,month,parseInt(k,10));
+      const isWE=d.getDay()===0||d.getDay()===6;
+      if(isWE||hol.has(dateKeyLocal(d))) specialHrs+=n+a+b+f;
+    }
+  }
+  const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'')+' h';
+  const rows=[['Days with duty',String(dutyDays)],['Normal hours',fmt(normal)]];
+  if(ext){ rows.push(['OT1 hours',fmt(ot1)],['OT2 hours',fmt(ot2)]); }
+  if(flatOt>0||!ext) rows.push(['Overtime hours',fmt(flatOt)]);
+  rows.push(['Weekend and public holiday hours',fmt(specialHrs)],
+            ['Days recorded as leave',String(leaveDays)]);
+  box.innerHTML=rows.map(([k,v])=>
+    `<div class="td-row"><span>${k}</span><span>${v}</span></div>`).join('');
 }
 
 function buildPreview(doctorName,targetMonth,targetYear){
@@ -638,7 +684,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
   <div class="preview-note">
     Edit time fields or change activity type — changes save automatically. Click <strong>+</strong> to add an activity.
   </div>
-  <div class="preview-wrapper"><table class="preview-table">
+  <div class="preview-wrapper"><table class="preview-table ${isConsultantMode2?'pt-ext':'pt-std'}">
   ${isConsultantMode2
     ? '<thead><tr><th style="width:36px">Date</th><th style="width:70px">Day</th><th style="width:150px">Type</th><th style="width:60px">Norm From</th><th style="width:60px">Norm To</th><th style="width:60px">OT1 From</th><th style="width:60px">OT1 To</th><th style="width:60px">OT2 From</th><th style="width:60px">OT2 To</th><th style="width:46px;text-align:center">Act</th></tr></thead>'
     : '<thead><tr><th style="width:36px">Date</th><th style="width:70px">Day</th><th style="width:140px">Type</th><th style="width:70px">Normal From</th><th style="width:70px">Normal To</th><th style="width:70px">OT From</th><th style="width:70px">OT To</th><th style="width:76px;text-align:center">Actions</th></tr></thead>'
@@ -1093,6 +1139,240 @@ $('yearInput').value=new Date().getFullYear();
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
   else init();
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WIZARD SHELL
+// Four steps, one on screen at a time. All state is the existing in-memory
+// `state` object plus the two fields below — nothing is written to storage,
+// so closing the tab genuinely discards the roster, the edits and the details.
+// ═══════════════════════════════════════════════════════════════════════════
+const WIZ_STEPS_DEF = [
+  { n: 1, sec: 'sec-1', title: 'Upload roster files' },
+  { n: 2, sec: 'sec-2', title: 'Review schedule' },
+  { n: 3, sec: 'sec-3', title: 'Your details' },
+  { n: 4, sec: 'sec-4', title: 'Generate documents' },
+];
+// Session-only: deliberately not persisted, and reset by fullReset().
+let wizStep = 1;
+let wizReviewed = false;
+
+function wizExtracted(){
+  return !!(state.parsedFiles && state.parsedFiles.length) || !!state.tableData;
+}
+function wizPreviewed(){
+  const { month, year } = getMonthYear();
+  return !!state.selectedDoctor && month !== null && !!year &&
+         !!state.editedShifts && Object.keys(state.editedShifts).length > 0;
+}
+function wizDetailsDone(){
+  const b = $('proceedDownloadBtn');
+  return !!b && !b.disabled;
+}
+// Why the user cannot move on yet — shown, never merely implied.
+function wizBlockedReason(step){
+  if (step === 1) return wizExtracted() ? null
+    : 'Add a roster file and choose Extract data before continuing.';
+  if (step === 2) {
+    if (!wizPreviewed()) return 'Pick a name and a month, then choose Preview schedule.';
+    if (!wizReviewed)    return 'Confirm you have reviewed every day in the month.';
+    return null;
+  }
+  if (step === 3) return wizDetailsDone() ? null
+    : 'Complete every field marked with an asterisk.';
+  return null;
+}
+function wizCanEnter(step){
+  for (let s = 1; s < step; s++) if (wizBlockedReason(s)) return false;
+  return true;
+}
+
+function wizRenderSteps(){
+  const host = $('wizSteps');
+  if (host) host.innerHTML = WIZ_STEPS_DEF.map(s => {
+    const done = s.n < wizStep && !wizBlockedReason(s.n);
+    const can  = s.n !== wizStep && wizCanEnter(s.n);
+    return `<button type="button" class="wizstep" data-go="${s.n}"
+      ${s.n === wizStep ? 'aria-current="step"' : ''}
+      ${done ? 'data-done="1"' : ''} ${can ? 'data-clickable="1"' : 'disabled'}>
+      <span class="n">Step ${s.n}</span><span class="t">${s.title}</span></button>`;
+  }).join('');
+  const m = $('wizStepMobile');
+  const cur = WIZ_STEPS_DEF[wizStep - 1];
+  if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span><span class="t">${cur.title}</span>`;
+}
+
+function wizRenderContext(){
+  const { month, year } = getMonthYear();
+  const per = $('wizPeriod');
+  if (per) per.textContent = (month !== null && year)
+    ? `${MONTH_NAMES[month]} ${year}` : 'No month selected';
+  const dept = $('wizDept');
+  if (dept) dept.textContent = (activeProfile && activeProfile.ec_name)
+    ? activeProfile.ec_name : 'VHW Emergency Medicine';
+  for (const [id, n] of [['dlPeriod1', 1], ['dlPeriod2', 2], ['dlPeriod3', 3]]) {
+    const el = $(id);
+    if (el) el.textContent = (month !== null && year) ? `${MONTH_NAMES[month]} ${year}` : '';
+  }
+}
+
+function wizRenderNav(){
+  for (const s of WIZ_STEPS_DEF) {
+    const nav = $('wizNav' + s.n);
+    if (!nav) continue;
+    const why = nav.querySelector('.wiznav-why');
+    const fwd = nav.querySelector('[data-wiz="next"]');
+    const reason = wizBlockedReason(s.n);
+    if (fwd) fwd.disabled = !!reason;
+    if (why) {
+      why.hidden = !reason;
+      const t = why.querySelector('.txt');
+      if (t) t.textContent = reason || '';
+    }
+  }
+}
+
+function wizGo(step){
+  step = Math.max(1, Math.min(4, step));
+  if (step > wizStep && wizBlockedReason(wizStep)) return;
+  if (!wizCanEnter(step)) return;
+  wizStep = step;
+  for (const s of WIZ_STEPS_DEF) {
+    const el = document.getElementById(s.sec);
+    if (el) el.hidden = s.n !== step;
+  }
+  wizRefresh();
+  const bar = $('wizBar');
+  if (bar) window.scrollTo({ top: 0, behavior: 'smooth' });
+  const h = document.querySelector('#' + WIZ_STEPS_DEF[step - 1].sec + ' .sec-head h2');
+  if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+}
+
+function wizRefresh(){
+  wizRenderSteps(); wizRenderContext(); wizRenderNav();
+  const ack = $('reviewAckWrap');
+  if (ack) ack.hidden = !wizPreviewed();
+  buildAttentionItems();
+}
+
+// ── Attention items ────────────────────────────────────────────────────────
+// A reading aid only. It flags what looks odd; it never marks anything
+// reviewed, and continuing still requires the acknowledgement below it.
+function buildAttentionItems(){
+  const panel = $('attentionPanel');
+  if (!panel) return;
+  if (!wizPreviewed()) { panel.hidden = true; return; }
+  const items = [];
+  const { month, year } = getMonthYear();
+  const seen = new Set();
+  for (const w of (state.tableWarnings || [])) {
+    const txt = String(w && w.message ? w.message : w);
+    if (seen.has(txt)) continue;
+    seen.add(txt);
+    const m = txt.match(/\b(\d{1,2})\b/);
+    items.push({ day: m ? parseInt(m[1], 10) : null, what: txt });
+  }
+  for (const [k, es] of Object.entries(state.editedShifts || {})) {
+    const d = parseInt(k, 10);
+    if (!es || !es.typeLabel) continue;
+    if (typeof isLeaveActivity === 'function' && isLeaveActivity(es.typeLabel)) continue;
+    const pairs = [[es.nf, es.nt, 'normal hours'], [es.ot1f, es.ot1t, 'OT1'],
+                   [es.ot2f, es.ot2t, 'OT2'], [es.of, es.ot, 'overtime']];
+    for (const [a, b, lbl] of pairs) {
+      if ((a && !b) || (!a && b)) items.push({ day: d, what: `${lbl} has only one time` });
+    }
+    const total = hoursBetween(es.nf, es.nt) + hoursBetween(es.ot1f, es.ot1t) +
+                  hoursBetween(es.ot2f, es.ot2t) +
+                  (hoursBetween(es.ot1f, es.ot1t) ? 0 : hoursBetween(es.of, es.ot));
+    if (total > 24.01) items.push({ day: d, what: `${total.toFixed(1)} h in one day` });
+  }
+  items.sort((a, b) => (a.day || 99) - (b.day || 99));
+  const icon = $('attentionIcon'), title = $('attentionTitle'),
+        note = $('attentionNote'), list = $('attentionList');
+  panel.hidden = false;
+  const monthName = month !== null ? MONTH_NAMES[month] : 'this month';
+  if (!items.length) {
+    panel.className = 'attention is-ok';
+    if (icon) icon.textContent = '✓';
+    if (title) title.textContent = 'No extraction issues detected';
+    if (note) note.textContent = `Please still review every day in ${monthName} — nothing here has been checked for accuracy.`;
+    if (list) list.innerHTML = '';
+    return;
+  }
+  panel.className = 'attention is-warn';
+  if (icon) icon.textContent = '⚠';
+  if (title) title.textContent =
+    `${items.length} ${items.length === 1 ? 'entry' : 'entries'} may need attention`;
+  if (note) note.textContent =
+    `These are possible problems, not errors. Reviewing them does not replace checking the whole of ${monthName}.`;
+  if (list) list.innerHTML = items.slice(0, 12).map(it => {
+    const label = it.day ? `Review ${it.day} ${monthName}` : 'Review the schedule';
+    return `<li><button type="button" data-attn-day="${it.day || ''}">${label}</button>
+      <span class="what">— ${String(it.what).replace(/</g, '&lt;')}</span></li>`;
+  }).join('');
+}
+
+document.addEventListener('click', e => {
+  const go = e.target.closest && e.target.closest('[data-go]');
+  if (go) { e.preventDefault(); wizGo(parseInt(go.dataset.go, 10)); return; }
+  const nav = e.target.closest && e.target.closest('[data-wiz]');
+  if (nav) {
+    e.preventDefault();
+    wizGo(nav.dataset.wiz === 'next' ? wizStep + 1 : wizStep - 1);
+    return;
+  }
+  const attn = e.target.closest && e.target.closest('[data-attn-day]');
+  if (attn) {
+    e.preventDefault();
+    const d = attn.dataset.attnDay;
+    const row = d && document.querySelector(`.preview-table tr[data-day="${d}"]`);
+    if (row) {
+      row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      row.style.outline = '2px solid var(--color-accent)';
+      setTimeout(() => { row.style.outline = ''; }, 2000);
+    }
+  }
+});
+
+document.addEventListener('click', e => {
+  const t = e.target.closest && e.target.closest('button');
+  if (!t) return;
+  if (t.id === 'totalsToggle') {
+    const box = $('totalsDetail');
+    if (!box) return;
+    const open = box.hidden;
+    if (open) updateTotalsDetail();
+    box.hidden = !open;
+    t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    t.textContent = open ? 'Hide breakdown' : 'Breakdown';
+    return;
+  }
+  // The period lives on step 2 and the department in the picker overlay, so
+  // the context row sends the user to the control rather than duplicating it.
+  if (t.id === 'wizChangePeriod') {
+    wizGo(2);
+    const m = $('monthSelect');
+    if (m) { m.focus(); m.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+    return;
+  }
+  if (t.id === 'wizChangeDept') {
+    if (typeof window.reopenEcPicker === 'function') window.reopenEcPicker();
+    return;
+  }
+});
+
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'reviewAck') { wizReviewed = e.target.checked; wizRefresh(); }
+});
+
+// Editing anything in the schedule invalidates the acknowledgement: the user
+// confirmed the month as it was, not as it now is.
+function wizInvalidateReview(){
+  if (!wizReviewed) return;
+  wizReviewed = false;
+  const cb = $('reviewAck');
+  if (cb) cb.checked = false;
+  wizRefresh();
+}
 
 // Locking the page hides the scrollbar. Where its slot is not already
 // reserved by scrollbar-gutter, the layout widens by that much and every

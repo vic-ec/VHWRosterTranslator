@@ -46,7 +46,33 @@ The interface is built on the Modernist design system: flat and architectural, h
 - **Take every colour, font and spacing value from the tokens** — never hard-code a hex, a font name or a radius. Ramp steps (`--color-neutral-100…900`, `--color-accent-100…900`) exist for tints, hovers and pressed states.
 - A block of legacy aliases (`--bg`, `--surface`, `--border`, `--text-muted`, `--accent-mid`, `--warn`, `--success`, `--sans`, `--mono`, `--radius`) maps the old variable names — still emitted by some template strings in the app script — onto Modernist tokens. Don't add new uses; prefer the `--color-*` tokens.
 - Rules that must hold: no rounded corners, no centred hero copy, hovers and pressed states come from the accent ramp, and keyboard focus is the 2px accent `:focus-visible` ring.
-- Page structure: sticky header (brand + EC chip + Start over) → masthead (hero + process list, and the EC picker before one is chosen) → numbered sections `#sec-1`…`#sec-4` → footer. The progressive-disclosure gates (`#step1`, `#step2`, `#detailsSection`) are still toggled by the app script; a small `MutationObserver` at the end of `ui.js` mirrors those toggles onto the placeholder blocks (`#step1Empty`, `#step2Empty`, `#sec3Empty`).
+- Page structure: sticky header (brand + EC chip + Your data is safe) → `.wizbar` (step list + period/department context) → masthead, shown only before an EC is chosen → numbered sections `#sec-1`…`#sec-4` → footer. The old progressive-disclosure gates (`#step1`, `#step2`, `#detailsSection`) are still toggled by the app script; a small `MutationObserver` at the end of `ui.js` mirrors those toggles onto the placeholder blocks (`#step1Empty`, `#step2Empty`, `#sec3Empty`).
+
+## The four-step wizard
+
+`#sec-1`…`#sec-4` are one wizard, one step on screen at a time — the others
+carry the `hidden` attribute. The shell is the `WIZARD SHELL` block at the end
+of `ui.js` (and its inline twin). See `docs/wizard.md` for the whole picture;
+the parts worth knowing before editing:
+
+- **`wizBlockedReason(step)` is the single source of truth** for whether the
+  step's Continue button is disabled *and* for the sentence saying why. Add a
+  new precondition there, not in two places.
+- **Only two variables belong to the wizard**, `wizStep` and `wizReviewed`,
+  both session-only. Nothing about position, roster or details is persisted;
+  `localStorage` still holds only `ec_roster_profile` and
+  `ec_roster_profiles_list`. Do not add a third.
+- **The review acknowledgement (`#reviewAck`) may never be ticked in code**,
+  and any schedule edit must clear it — `markDirty()` calls
+  `wizInvalidateReview()` for exactly this. The attention panel is a reading
+  aid: it flags what looks odd, marks nothing reviewed, and never replaces
+  looking at the whole month.
+- **Anything that changes what the user is looking at calls `wizRefresh()`.**
+  Extraction and preview already do.
+- **The phone schedule (≤860px) is a card per day**, and its cells are
+  selected by the field they hold (`td:has([data-field=nf])`), not by column
+  number — so the standard and extended column sets share one set of rules.
+  Adding a column needs no new CSS; adding a *band* does.
 
 ## Output documents
 
