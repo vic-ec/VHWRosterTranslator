@@ -300,6 +300,10 @@ main { padding: 40px 32px 0; }
 .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
 .sec-num { font-family: var(--font-heading); font-weight: 800; font-size: 12px; color: var(--color-accent); }
 .sec-head h2 { font-size: 30px; letter-spacing: -0.025em; margin: 0; }
+/* wizGo() moves focus here when the step changes, for screen readers. The
+   heading is not in the tab order, so the ring only ever showed up
+   unprompted. */
+.sec-head h2[tabindex="-1"]:focus { outline: none; }
 .sec-intro { font-size: 14px; color: var(--color-neutral-700); max-width: 62ch; margin: 0 0 24px; }
 
 /* ── 01 upload ──────────────────────────────────────────────── */
@@ -447,8 +451,18 @@ main { padding: 40px 32px 0; }
 .leave-block-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-neutral-700); margin-bottom: 12px; }
 .date-picker-wrap { display: flex; gap: 8px; align-items: stretch; }
 .date-picker-wrap input[type=text] { flex: 1; }
-#detailSigDateBtn { border: 1px solid var(--color-divider); background: var(--color-surface); color: var(--color-text); cursor: pointer; padding: 0 10px; display: flex; align-items: center; justify-content: center; }
-#detailSigDateBtn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+/* The icon is a label over a real date input rather than a button that asks
+   the browser to open a picker — an input that is 0x0 and pointer-events:none
+   is not one a browser will open a picker for. */
+.date-picker-btn { position: relative; border: 1px solid var(--color-divider);
+  background: var(--color-surface); color: var(--color-text); cursor: pointer;
+  padding: 0 10px; display: flex; align-items: center; justify-content: center;
+  flex: none; }
+.date-picker-btn:hover { border-color: var(--color-accent); color: var(--color-accent); }
+.date-picker-btn:focus-within { border-color: var(--color-accent); }
+.date-picker-btn input[type=date] { position: absolute; inset: 0; width: 100%;
+  height: 100%; margin: 0; padding: 0; border: 0; background: transparent;
+  color: transparent; opacity: 0; cursor: pointer; }
 
 /* ── 04 download ────────────────────────────────────────────── */
 .downloads-row { display: flex; flex-wrap: wrap; gap: 2px; }
@@ -676,10 +690,12 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
    the context row a whole line of its own. */
 @media (max-width: 860px) {
   .wizbar-inner { position: relative; }
-  .wizctx-edit { position: absolute; top: 8px; right: 20px; margin-left: 0;
-    width: 30px; height: 30px; }
+  /* Positioned against the context row itself, so it centres on the period
+     and department however those wrap. */
+  .wizctx { position: relative; margin-top: 4px; padding-right: 44px; }
+  .wizctx-edit { position: absolute; right: 0; top: 50%;
+    transform: translateY(-50%); margin-left: 0; width: 30px; height: 30px; }
   .wizstep-mobile { padding-right: 44px; }
-  .wizctx { margin-top: 4px; }
 }
 
 /* Step footer: Back / Continue, with the blocking reason spelled out. */
@@ -729,19 +745,15 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
 /* ── Hours summary: sticky on a phone, never over the last row ───────── */
 @media (max-width: 860px) {
-  /* Sticky, so it has to stay small: the label on its own line, then both
-     figures and the toggle sharing one. Four stacked rows ate a third of the
-     screen and pushed the day being edited off it. */
-  .totals-bar { position: sticky; bottom: 0; z-index: 12; gap: 2px 16px;
-    padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
-    align-items: baseline;
-    border-top: 2px solid var(--color-divider); box-shadow: 0 -6px 12px rgba(0,0,0,.06); }
-  .totals-bar .totals-label { flex: 1 1 100%; margin-right: 0; }
-  .totals-bar > div { display: flex; align-items: baseline; gap: 6px; }
-  .totals-bar .t-key { display: inline; font-size: 11px; }
-  .totals-bar .t-val { font-size: 19px; }
-  .totals-bar .totals-toggle { margin-left: auto; min-height: 32px; padding: 0; }
-  .preview-body { padding-bottom: 8px; }
+  /* Nothing pinned to the bottom of a phone screen: in landscape the bar was
+     taking a fifth of the height to repeat two figures. The month total lives
+     in the breakdown sheet, and the row that opens it sits in the flow. */
+  .totals-bar { position: static; gap: 0; padding: 4px 16px;
+    justify-content: flex-end; border-top: 1px solid var(--color-divider);
+    box-shadow: none; }
+  .totals-bar .totals-label, .totals-bar > div { display: none; }
+  .totals-bar .totals-toggle { margin-left: 0; min-height: var(--control-h); padding: 0; }
+  .preview-body { padding-bottom: 0; }
 }
 .totals-toggle { appearance: none; background: none; border: 0; padding: 6px 0;
   font: inherit; font-size: 13px; color: var(--color-accent-700); cursor: pointer;
@@ -784,7 +796,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
      cells are found by the field they hold, not by column number, so the
      standard and extended layouts need no separate rules. */
   .preview-table tr.shift-row { display: grid; align-items: center;
-    grid-template-columns: 68px 1fr 1fr; column-gap: 14px; row-gap: 6px; }
+    grid-template-columns: 68px minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 14px; row-gap: 6px; }
   .shift-row td:nth-child(1) { grid-column: 1; font-size: 22px; }
   .shift-row td:nth-child(2) { grid-column: 2 / -1; font-size: 13px;
     letter-spacing: .04em; text-transform: uppercase; }
@@ -817,16 +830,23 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .shift-row .time-edit { width: 100%; }
 
   /* Remove sits under the times and says what it does. */
-  .shift-row .action-cell { grid-column: 2; display: flex; gap: 10px;
-    justify-content: flex-start; padding-top: 2px; }
+  .shift-row .action-cell { grid-column: 2; display: flex; gap: 6px;
+    justify-content: flex-start; padding-top: 2px; min-width: 0; }
   .shift-row .action-cell::before { content: none; display: none; }
   .shift-row .action-cell .row-clear::after { content: "Remove"; }
   .shift-row .action-cell .row-undo::after { content: "Undo"; }
   .shift-row .action-cell .row-clear,
   .shift-row .action-cell .row-undo { flex: 1 1 0; width: auto; min-width: 0;
-    height: var(--control-h); gap: 8px; padding: 0 10px;
+    height: var(--control-h); gap: 8px; padding: 0 10px; overflow: hidden;
     font-family: var(--font-body); font-weight: 500; font-size: 14px;
     border: 1px solid var(--color-divider); color: var(--color-neutral-700); }
+  /* Two of them share the width of one time field, which is not enough for
+     two words. The glyphs stand alone there; each button keeps its title, so
+     the accessible name and the hover tooltip are unchanged. */
+  .shift-row .action-cell:has(.row-undo) .row-clear::after,
+  .shift-row .action-cell:has(.row-undo) .row-undo::after { content: none; }
+  .shift-row .action-cell:has(.row-undo) button { gap: 0; padding: 0;
+    font-size: 17px; }
 
   /* A day with no duty on it — or only a public holiday — stays one line. */
   .preview-table tr.empty-row, .preview-table tr.ph-row {
@@ -841,8 +861,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .empty-row .action-cell, .ph-row .action-cell { margin-left: auto; }
   .empty-row td::before, .ph-row td::before { content: none; display: none; }
 
-  .preview-table td .input, .preview-table td .type-select,
-  .preview-table td .time-edit { height: var(--control-h); min-height: 0; font-size: 14px; }
+  .preview-table td .input, .preview-table td .type-select {
+    height: var(--control-h); min-height: 0; font-size: 14px; }
+  .preview-table td .time-edit { height: var(--control-h); min-height: 0;
+    font-size: 16px; }
   .preview-table .row-clear, .preview-table .row-add, .preview-table .row-undo {
     min-width: var(--control-h); height: var(--control-h); font-size: 17px; }
   /* Public holiday and weekend rows keep their tint as a full-width band. */
@@ -894,7 +916,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   <div class="brand">
     <span class="brand-mark"></span>
     <span class="brand-name" id="headerTitle">Hospital Roster Translator</span>
-    <span class="brand-ver">v04.09.2026</span>
+    <span class="brand-ver">v05.09.2026</span>
   </div>
   <span class="ec-mode" id="ecMode" style="display:none;"></span>
   <button type="button" class="safe-btn" id="privacyBtn" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>Your data is safe.</button>
@@ -996,7 +1018,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
               <input type="file" id="rosterFile" accept=".pdf,.xlsx,.docx,.doc" multiple
                      style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;z-index:1;">
               <span class="upload-label">Click or drag files here</span>
-              <span class="upload-hint">Monthly shift roster export &mdash; max 5 files, one month per file</span>
+              <span class="upload-hint">Monthly department roster &mdash; max 5 files</span>
             </label>
             <div id="rosterList" class="roster-list" style="display:none;"></div>
           </div>
@@ -1102,9 +1124,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       <div class="reviewack" id="reviewAckWrap" hidden>
         <input type="checkbox" id="reviewAck">
         <label for="reviewAck">I have reviewed all days in this month, including shifts,
-          swaps, leave and additional hours.
-          <span class="hint">Nothing here is checked for you &mdash; this is your confirmation
-            that the schedule above matches what you actually worked.</span></label>
+          swaps, leave and additional hours.</label>
       </div>
 
       <div class="wiznav" id="wizNav2">
@@ -1159,8 +1179,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
             <label for="detailSigDate">Date of signature<span class="req-star">*</span></label>
             <div class="date-picker-wrap">
               <input type="text" id="detailSigDate" class="input" maxlength="10" placeholder="DD / MM / YYYY" inputmode="numeric" autocomplete="off" aria-required="true">
-              <input type="date" id="detailSigDatePicker" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;" tabindex="-1">
-              <button type="button" id="detailSigDateBtn" title="Open calendar" onclick="document.getElementById('detailSigDatePicker').showPicker()"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></button>
+              <span class="date-picker-btn" id="detailSigDateBtn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><input type="date" id="detailSigDatePicker" aria-label="Choose date of signature"></span>
             </div>
           </div>
         </div>
@@ -1188,8 +1207,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <!-- ── 04 · GENERATE DOCUMENTS ─────────────────────────────── -->
     <section class="sec" id="sec-4">
       <div class="sec-head"><span class="sec-num">04</span><h2>Generate documents</h2></div>
-      <p class="sec-intro">Each document is built here in your browser from the schedule you reviewed and the details you entered. Nothing is uploaded.</p>
-      <p class="sec-intro" style="color:var(--color-neutral-700);">Downloading a document does not submit it. Send the files on to payroll or your HOD yourself, as you would today.</p>
+      <p class="sec-intro">Each document is built here in your browser from the schedule you reviewed and the details you entered.</p>
+      <p class="sec-intro" style="color:var(--color-neutral-700);">Please sign your documents and submit to your HoD for approval.</p>
 
       <div class="downloads-row">
         <button class="dl" id="proceedDownloadBtn" type="button" disabled>
@@ -1237,7 +1256,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
 <footer>
   <div class="wrap footer-inner">
-    <span class="copy">&copy; vic-ec &middot; v04.09.2026</span>
+    <span class="copy">&copy; vic-ec &middot; v05.09.2026</span>
     <a href="mailto:Paul.Xafis&#64;westerncape.gov.za?subject=EC%20Roster%20Translator%20%E2%80%94%20Feedback">Send feedback</a>
     <a href="#" id="openWizardLink">Set up a new profile</a>
   </div>
@@ -4930,8 +4949,6 @@ function hoursBetween(from,to){
   return d/60;
 }
 function updatePreviewTotals(){
-  const nEl=$('totalNormal'),oEl=$('totalOt');
-  if(!nEl||!oEl) return;
   let normal=0,ot=0;
   for(const es of Object.values(state.editedShifts||{})){
     normal+=hoursBetween(es.nf,es.nt);
@@ -4942,8 +4959,10 @@ function updatePreviewTotals(){
     ot+=banded>0?banded:hoursBetween(es.of,es.ot);
   }
   const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'')+' h';
-  nEl.textContent=fmt(normal);
-  oEl.textContent=fmt(ot);
+  // The figures are hidden on a phone, so the bar may not be on screen at all.
+  const nEl=$('totalNormal'),oEl=$('totalOt');
+  if(nEl) nEl.textContent=fmt(normal);
+  if(oEl) oEl.textContent=fmt(ot);
   updateTotalsDetail();
 }
 
@@ -5370,6 +5389,15 @@ $('detailSupervisorSel').addEventListener('change',()=>{
   saveDetailsToState();checkDetailsComplete();
 });
 $('detailSupervisorOther').addEventListener('input',()=>{ saveDetailsToState();checkDetailsComplete(); });
+// Chrome only opens the picker from its own calendar glyph, which is the part
+// we have hidden, so ask for it explicitly. The gesture is real and the input
+// is rendered, so this is allowed; where it is not supported the native tap
+// behaviour still applies.
+$('detailSigDatePicker').addEventListener('click',e=>{
+  if(typeof e.currentTarget.showPicker==='function'){
+    try{ e.currentTarget.showPicker(); }catch(_){}
+  }
+});
 $('detailSigDatePicker').addEventListener('change',e=>{
   const d=e.target.value;
   if(d){const [y,m,day]=d.split('-');$('detailSigDate').value=`${day}/${m}/${y}`;}

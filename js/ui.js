@@ -605,8 +605,6 @@ function hoursBetween(from,to){
   return d/60;
 }
 function updatePreviewTotals(){
-  const nEl=$('totalNormal'),oEl=$('totalOt');
-  if(!nEl||!oEl) return;
   let normal=0,ot=0;
   for(const es of Object.values(state.editedShifts||{})){
     normal+=hoursBetween(es.nf,es.nt);
@@ -617,8 +615,10 @@ function updatePreviewTotals(){
     ot+=banded>0?banded:hoursBetween(es.of,es.ot);
   }
   const fmt=v=>(Math.round(v*10)/10).toString().replace(/\.0$/,'')+' h';
-  nEl.textContent=fmt(normal);
-  oEl.textContent=fmt(ot);
+  // The figures are hidden on a phone, so the bar may not be on screen at all.
+  const nEl=$('totalNormal'),oEl=$('totalOt');
+  if(nEl) nEl.textContent=fmt(normal);
+  if(oEl) oEl.textContent=fmt(ot);
   updateTotalsDetail();
 }
 
@@ -1017,6 +1017,15 @@ $('detailSupervisorSel').addEventListener('change',()=>{
   saveDetailsToState();checkDetailsComplete();
 });
 $('detailSupervisorOther').addEventListener('input',()=>{ saveDetailsToState();checkDetailsComplete(); });
+// Chrome only opens the picker from its own calendar glyph, which is the part
+// we have hidden, so ask for it explicitly. The gesture is real and the input
+// is rendered, so this is allowed; where it is not supported the native tap
+// behaviour still applies.
+$('detailSigDatePicker').addEventListener('click',e=>{
+  if(typeof e.currentTarget.showPicker==='function'){
+    try{ e.currentTarget.showPicker(); }catch(_){}
+  }
+});
 $('detailSigDatePicker').addEventListener('change',e=>{
   const d=e.target.value;
   if(d){const [y,m,day]=d.split('-');$('detailSigDate').value=`${day}/${m}/${y}`;}

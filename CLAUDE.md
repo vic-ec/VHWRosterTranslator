@@ -73,6 +73,10 @@ the parts worth knowing before editing:
   form on a phone. Do not reintroduce a per-component `min-height` — a
   component that sets its own `padding` (as `.actions-row` did) outranks a
   plain `.btn` rule and silently opts out of it.
+- **The date-of-signature icon is a real `<input type="date">`** sitting under
+  the glyph at full size, not a button calling `showPicker()` on a hidden one
+  — a browser will not open a picker for an input that is 0x0 and
+  `pointer-events: none`.
 - **`--header-h` is measured, not guessed.** The wizard bar sticks below the
   header at `top: var(--header-h)`; JS sets it from the header's real height
   and a `ResizeObserver` keeps it current as the header wraps.

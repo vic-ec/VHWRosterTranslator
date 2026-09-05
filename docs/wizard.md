@@ -38,10 +38,14 @@ file under `js/` and the matching block inside `index.html`'s inline `<script>`
   current with a `ResizeObserver` — the header wraps to two and three lines on
   narrow screens, and at `top: 0` the bar covered it on the first scroll.
 - `#totalsOverlay` — the hours breakdown, a bottom sheet
-  (`.modal-overlay.is-sheet`) rather than a panel inside the totals bar. One
-  row per figure, value right: days on duty, days on leave, normal, overtime,
-  weekend, public holiday. A public holiday falling on a weekend counts once,
-  as a holiday.
+  (`.modal-overlay.is-sheet`). One row per figure, value right: days on duty,
+  days on leave, normal, overtime, weekend, public holiday. A public holiday
+  falling on a weekend counts once, as a holiday. On a phone this is the only
+  place the month total appears — `.totals-bar` keeps its figures on a desktop
+  but shows nothing except the button that opens this, and is not sticky:
+  pinned to the bottom it cost a fifth of a landscape screen.
+  `updatePreviewTotals()` therefore has to survive its own readouts being off
+  screen, and guards every write.
 - `#wizEditOverlay` — the Edit panel: Change period, Change department and
   Start over. Spelling all three out in the bar cost two lines on a phone.
   Start over lives here because the wizard hides the masthead that used to
