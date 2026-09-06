@@ -154,6 +154,18 @@ they are — see `profiles/README.md`.
   `roster_type: 'shift'`, which is the coordinate-parsed Victoria Hospital EC
   export with shift bands hardcoded in `holidays.js` / `config.js`; that path
   is unchanged and still fits only a roster with VHW EC's layout and times.
+- **The offline VHW fallback and the Supabase row are the same profile.**
+  `VHW_FALLBACK_PROFILE` (in `js/parser.js` and its inlined twin) is a
+  field-for-field copy of row 1's `profile` jsonb in `ec_profiles`, which is
+  what `fetchProfiles()` selects. Verified equal end-to-end: with the network
+  blocked, the `activeProfile` the app applies matches the row on all eight
+  fields. If that row is ever edited, edit the fallback to match, in both
+  places. Note the table also has a `pdf_columns_v2` column, holding different
+  coordinates and an extra `leave_weekend` key: it belongs to a dual-template
+  experiment added on 2026-06-26 (`f0cb8eb`) and reverted the next day
+  (`3d88465`, "revert to working consultant roster parser"). Nothing reads it
+  — neither the select list nor any parser — so it is stale data, not part of
+  the profile, and the fallback deliberately does not carry it.
 - **Viewing the uploaded file back.** `View roster file` (step 1, beside
   Preview schedule) reopens whatever was uploaded — a PDF through PDF.js onto
   canvases, a grid file through `extractWordTables` — so a wrong-looking parse

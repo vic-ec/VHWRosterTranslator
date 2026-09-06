@@ -94,6 +94,62 @@ function nearestCol(x, anchorXs, maxDist) {
 }
 
 // ── Name utilities ──────────────────────────────────────────────────────────
+// ── Built-in VHW fallback profile ──────────────────────────────────────────
+// The EC Shift Roster parser (parseRosterPDF) needs no profile at all — its
+// column positions are detected dynamically from each PDF's own time-band
+// headers. The Consultant On-Call parser, however, needs real column
+// coordinates and time rules. This hardcoded default lets BOTH upload boxes
+// work the very first time the app is ever opened, with no internet
+// connection and no prior cached profile — matching the app's original
+// purpose as a VHW-specific tool. If a real profile is later fetched from
+// Supabase (or restored from cache), it takes priority over this fallback.
+const VHW_FALLBACK_PROFILE = {
+  ec_name: 'VHW Emergency Medicine',
+  // Kept genuinely short: it is what the offline badge and note print, and a
+  // full department name there wraps the header at narrow widths.
+  ec_short: 'VHW EM',
+  roster_type: 'consultant',
+  // Named here rather than relying on supervisorOptionsFor()'s legacy branch,
+  // which only fires for roster_type 'shift' — VHW's own profile is
+  // 'consultant', so it was falling through to a free-text box. Spelled out
+  // rather than referencing LEGACY_EC_SUPERVISORS: that const is inlined from
+  // config.js further down the bundle, so naming it here is a dead-zone throw
+  // at load.
+  supervisors: ['Philip Cloete', 'Sebastian De Haan', 'Paul Xafis'],
+  data_start_y: 188,
+  time_rules: {
+    weekend_ph: {
+      ot1: ['07:30', '11:30'],
+      ot2: ['11:30', '07:30'],
+    },
+    weekday_slot2_3: {
+      ot1: ['15:30', '16:30'],
+      normal: ['07:30', '15:30'],
+    },
+    weekday_call_only: {
+      ot2: ['16:30', '07:30'],
+    },
+    weekday_slot1_oncall: {
+      ot1: ['15:30', '16:30'],
+      ot2: ['16:30', '07:30'],
+      normal: ['07:30', '15:30'],
+    },
+    weekday_slot1_no_oncall: {
+      ot1: ['15:30', '16:30'],
+      normal: ['07:30', '15:30'],
+    },
+  },
+  known_names: ['Cloete', 'Xafis', 'De Haan', 'Els', 'Zaayman'],
+  pdf_columns: {
+    call:     { x_max: 792, x_min: 618 },
+    leave:    { x_max: 618, x_min: 535 },
+    slot1:    { x_max: 295, x_min: 220 },
+    slot2:    { x_max: 360, x_min: 295 },
+    slot3:    { x_max: 445, x_min: 360 },
+    meetings: { x_max: 535, x_min: 445 },
+  },
+};
+
 const NAME_PREFIXES = new Set(['Van','De','Du','Von','Le']);
 const NOISE_RE = /^(WEEK|CONSULTANT|REGISTRAR|COSMO|INTERN|PERSAL|MDHS|Shifts|Hours|TOTAL|NUMBER|Leave|worked|Nights|PH|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|January|February|March|April|May|June|July|August|September|October|November|December|Good|Family|Freedom|Worker|Heritage|Youth|Reconciliation|Christmas|Goodwill|Day|Week|No|TOT|Psych)/i;
 
