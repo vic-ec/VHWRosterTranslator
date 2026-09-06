@@ -173,7 +173,17 @@ they are — see `profiles/README.md`.
   the `File` handle after extraction; nothing is written to storage. Note that
   `extractWordTables` returns an array of *tables*, not rows: `gridRowsFor`
   picks the largest and passes the profile's column count, which a legacy
-  `.doc` needs to find row boundaries at all.
+  `.doc` needs to find row boundaries at all. The viewer has a **find box**
+  (`#rosterViewFind`, prefilled with `state.selectedDoctor`) that highlights
+  every occurrence of a name and steps through them. Three things about it:
+  a PDF page is indexed *once*, at render time, into a string plus a map back
+  to the text item and character each position came from — so searching never
+  re-reads the file or re-paints a page, and a name split across two text
+  items still matches; highlight boxes are percentages of the viewport in a
+  layer over the canvas, so they hold as it scales to the panel width; and
+  spaces in the query are loosened to `\s*`, because a PDF may set "De Haan"
+  as `De` + `Haan` with no space character between them. Nothing is "current"
+  until the user steps, so the panel does not jump while they type.
 - All PDF parsing is coordinate-based against PDF.js text positions, since roster layouts vary — logic in `parser.js`/`parser-consultant.js` (and their inlined counterparts) is layout-sensitive. Word parsing is not: `parser-word.js` reads real cell boundaries and needs no calibration.
 - **The app no longer bundles SheetJS.** `js/xlsx.full.min.js` had been a GitHub error page rather than a library, so `window.XLSX` was never defined and Excel upload always failed. It is replaced by `js/parser-xlsx.js`, a small reader over JSZip — an `.xlsx` is a zip of XML, so no extra dependency is needed. SheetJS was not restored because the newest version obtainable from npm is 0.18.5 (March 2022), which carries two unfixed high-severity parsing advisories (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9); the patched builds are only on `cdn.sheetjs.com`. Consequence: legacy binary `.xls` is no longer accepted — the upload zone takes `.pdf,.xlsx,.docx,.doc`, and an `.xls` gets a message telling the user to Save As `.xlsx`.
 - `parseRosterExcel` is **async** (it awaits `readXlsxSheets`); call sites must `await` it.

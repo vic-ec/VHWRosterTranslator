@@ -1484,15 +1484,18 @@ async function renderRosterView(){
   }
   const entry = files[Math.min(pick ? pick.selectedIndex : 0, files.length - 1)];
   body.innerHTML = '<p class="rv-note">Reading\u2026</p>';
+  rvPdfPages = []; rvGridRows = null; rvHits = []; rvHitIdx = -1;
   try {
     const buf = await readFile(entry.file);
     const ext = String(entry.name).split('.').pop().toLowerCase();
     if (ext === 'pdf') {
       await drawPdfInto(body, buf);
+      rvApplyFind();
       if (note) note.textContent = 'The file as uploaded. Compare it with the schedule behind this panel.';
     } else {
       const { rows, tables } = await gridRowsFor(buf, entry.name);
-      drawGridInto(body, rows);
+      rvGridRows = rows;
+      rvApplyFind();
       if (note) note.textContent =
         `The rows the reader recovered — ${rows.length} row${rows.length===1?'':'s'}` +
         (tables > 1 ? ` from the largest of ${tables} tables in the file` : '') + '. ' +
@@ -1505,14 +1508,25 @@ async function renderRosterView(){
 }
 async function drawPdfInto(host, buf){
   host.innerHTML = '';
+  rvPdfPages = [];
   const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
   for (let n = 1; n <= pdf.numPages; n++) {
     const page = await pdf.getPage(n);
     const vp = page.getViewport({ scale: 2 });
+    // The canvas is painted once; highlights go in a sibling layer on top of
+    // it, positioned in percentages so they survive the canvas being scaled
+    // down to the panel width. Re-searching never re-renders a page.
+    const wrap = document.createElement('div');
+    wrap.className = 'rv-page';
     const c = document.createElement('canvas');
     c.width = vp.width; c.height = vp.height;
-    host.appendChild(c);
+    const layer = document.createElement('div');
+    layer.className = 'rv-marks';
+    wrap.appendChild(c); wrap.appendChild(layer);
+    host.appendChild(wrap);
     await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    const items = (await page.getTextContent()).items;
+    rvPdfPages.push({ layer, vp, items, index: rvIndexPage(items) });
   }
 }
 async function gridRowsFor(buf, name){
@@ -1525,15 +1539,173 @@ async function gridRowsFor(buf, name){
   const rows = tables.reduce((best, t) => (t.length > best.length ? t : best), []);
   return { rows, tables: tables.length };
 }
-function drawGridInto(host, rows){
+function drawGridInto(host, rows, re){
   const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  // A cell is escaped in pieces so the <mark> can be inserted around a match
+  // without the escaping swallowing it.
+  const cell = v => {
+    const raw = String(v == null ? '' : v);
+    if (!re) return esc(raw);
+    re.lastIndex = 0;
+    let out = '', last = 0, m;
+    while ((m = re.exec(raw))) {
+      if (!m[0].length) { re.lastIndex++; continue; }
+      out += esc(raw.slice(last, m.index)) + '<mark class="rv-hit">' + esc(m[0]) + '</mark>';
+      last = m.index + m[0].length;
+    }
+    return out + esc(raw.slice(last));
+  };
   const width = rows.reduce((m, r) => Math.max(m, (r || []).length), 0);
   const head = '<tr><th class="rv-rownum">#</th>' +
     Array.from({length: width}, (_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr>';
   const cells = rows.map((r, i) => '<tr><td class="rv-rownum">' + (i + 1) + '</td>' +
-    Array.from({length: width}, (_, c) => '<td>' + esc((r || [])[c]) + '</td>').join('') + '</tr>').join('');
+    Array.from({length: width}, (_, c) => '<td>' + cell((r || [])[c]) + '</td>').join('') + '</tr>').join('');
   host.innerHTML = '<table class="rv-grid"><thead>' + head + '</thead><tbody>' + cells + '</tbody></table>';
 }
+// ── Roster viewer: find and highlight ──────────────────────────────────────
+// The viewer exists so a suspect parse can be checked against the file, and on
+// a month-wide consultant roster that means following one surname down the
+// page. Every occurrence is boxed and the arrows step through them.
+//
+// PDF text arrives as items, not lines, and a name can be split across two of
+// them, so each page is indexed into one string with a map back to the item
+// and character a match starts at. Highlighting is geometry over the painted
+// canvas; the grid path re-renders its table with <mark> instead.
+let rvPdfPages = [];    // rendered pages: mark layer, viewport, text geometry
+let rvGridRows = null;  // the grid path re-marks from these, not from the file
+let rvHits = [];        // one entry per match; a match can span several boxes
+let rvHitIdx = -1;
+let rvFindTimer = null;
+
+// Spaces in the query are loosened to \s* because a PDF splits text wherever
+// it likes: "De Haan" can arrive as "De" + "Haan" with no space between them.
+function rvFindRe(q){
+  const esc = String(q || '').trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  if (!esc) return null;
+  return new RegExp(esc.replace(/\s+/g, '\\s*'), 'gi');
+}
+
+function rvIndexPage(items){
+  let text = ''; const map = [];
+  items.forEach((it, i) => {
+    const s = it.str || '';
+    for (let c = 0; c < s.length; c++) map.push([i, c]);
+    text += s;
+    if (it.hasEOL) { text += '\n'; map.push(null); }
+  });
+  return { text, map };
+}
+
+// Where characters [from,to) of a text item sit on the page, as percentages of
+// the viewport. PDF.js gives a width for the whole item only, so a partial
+// match is apportioned by character count — near enough to box a name.
+function rvItemRect(it, vp, from, to){
+  const tx = window.pdfjsLib.Util.transform(vp.transform, it.transform);
+  const h = Math.hypot(tx[2], tx[3]);
+  const per = (it.width * vp.scale) / ((it.str || '').length || 1);
+  return {
+    left:   (tx[4] + from * per) / vp.width * 100,
+    top:    (tx[5] - h) / vp.height * 100,
+    width:  Math.max(to - from, 1) * per / vp.width * 100,
+    height: h / vp.height * 100,
+  };
+}
+
+function rvMarkPdf(re){
+  rvPdfPages.forEach(p => {
+    const { text, map } = p.index;
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text))) {
+      if (!m[0].length) { re.lastIndex++; continue; }
+      // Consecutive characters landing in the same item share one box.
+      const runs = [];
+      for (let k = m.index; k < m.index + m[0].length; k++) {
+        const at = map[k];
+        if (!at) continue;
+        const last = runs[runs.length - 1];
+        if (last && last.i === at[0] && last.to === at[1]) last.to = at[1] + 1;
+        else runs.push({ i: at[0], from: at[1], to: at[1] + 1 });
+      }
+      const boxes = runs.map(g => {
+        const r = rvItemRect(p.items[g.i], p.vp, g.from, g.to);
+        const el = document.createElement('i');
+        el.style.left = r.left + '%'; el.style.top = r.top + '%';
+        el.style.width = r.width + '%'; el.style.height = r.height + '%';
+        p.layer.appendChild(el);
+        return el;
+      });
+      if (boxes.length) rvHits.push(boxes);
+    }
+  });
+}
+
+// Applied on every keystroke, so it never re-reads the file or re-paints a
+// page. Nothing is current until the user steps: the count reads "12 matches"
+// until then, and the panel does not jump while they are still typing.
+function rvApplyFind(){
+  const input = $('rosterViewFind');
+  const re = rvFindRe(input ? input.value : '');
+  rvPdfPages.forEach(p => { p.layer.innerHTML = ''; });
+  rvHits = []; rvHitIdx = -1;
+  if (rvPdfPages.length) {
+    if (re) rvMarkPdf(re);
+  } else if (rvGridRows) {
+    const body = $('rosterViewBody');
+    if (body) {
+      drawGridInto(body, rvGridRows, re);
+      rvHits = Array.from(body.querySelectorAll('mark.rv-hit')).map(el => [el]);
+    }
+  }
+  rvRenderCount();
+}
+
+function rvSetHit(i){
+  rvHits.forEach(g => g.forEach(el => el.classList.remove('is-current')));
+  rvHitIdx = i;
+  if (i < 0 || !rvHits[i]) return;
+  rvHits[i].forEach(el => el.classList.add('is-current'));
+  rvHits[i][0].scrollIntoView({ block: 'center' });
+}
+
+function rvStep(d){
+  if (!rvHits.length) return;
+  const n = rvHits.length;
+  rvSetHit(rvHitIdx < 0 ? (d > 0 ? 0 : n - 1) : (rvHitIdx + d + n) % n);
+  rvRenderCount();
+}
+
+function rvRenderCount(){
+  const el = $('rosterViewCount'), input = $('rosterViewFind');
+  const q = input ? input.value.trim() : '';
+  const n = rvHits.length;
+  if (el) el.textContent = !q ? ''
+    : !n ? 'No matches'
+    : rvHitIdx < 0 ? n + (n === 1 ? ' match' : ' matches')
+    : (rvHitIdx + 1) + ' of ' + n;
+  const prev = $('rosterViewPrev'), next = $('rosterViewNext');
+  if (prev) prev.disabled = !n;
+  if (next) next.disabled = !n;
+}
+
+document.addEventListener('input', e => {
+  if (!e.target || e.target.id !== 'rosterViewFind') return;
+  clearTimeout(rvFindTimer);
+  rvFindTimer = setTimeout(rvApplyFind, 160);
+});
+document.addEventListener('keydown', e => {
+  if (!e.target || e.target.id !== 'rosterViewFind' || e.key !== 'Enter') return;
+  e.preventDefault();
+  clearTimeout(rvFindTimer);
+  if (!rvHits.length) rvApplyFind();
+  rvStep(e.shiftKey ? -1 : 1);
+});
+document.addEventListener('click', e => {
+  if (!e.target || !e.target.closest) return;
+  if (e.target.closest('#rosterViewPrev')) rvStep(-1);
+  else if (e.target.closest('#rosterViewNext')) rvStep(1);
+});
+
 document.addEventListener('change', e => {
   if (e.target && e.target.id === 'rosterViewPick') renderRosterView();
 });
@@ -1681,6 +1853,8 @@ document.addEventListener('click', e => {
         const files=rosterViewFiles();
         pick.innerHTML=files.map(f=>`<option>${String(f.name).replace(/</g,'&lt;')}</option>`).join('');
       }
+      const find=$('rosterViewFind');
+      if(find) find.value=state.selectedDoctor||'';
       renderRosterView();
     });
   }

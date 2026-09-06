@@ -56,7 +56,10 @@ file under `js/` and the matching block inside `index.html`'s inline `<script>`
   needs it to recover row boundaries at all. The note under the picker says
   which of the two the user is looking at, because they mean different things:
   the PDF is the source, the grid is what the parser saw. The file picker
-  (`.rv-pick`) is hidden unless two or more files are loaded.
+  (`.rv-pick`) is hidden unless two or more files are loaded. A find box above it
+  highlights every occurrence of a name — prefilled with the doctor being
+  reviewed, which is the reason to search at all — with a match count and
+  arrows that step through them, wrapping at either end.
   This needs the `File` handle to survive extraction, so the objects pushed
   onto `state.parsedFiles` now carry `file`; it stays in memory only, like the
   rest of `state`. `wizRefresh()` disables the button until at least one
