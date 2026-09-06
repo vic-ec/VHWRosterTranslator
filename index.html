@@ -287,7 +287,8 @@ header {
   height: var(--control-h); padding: 0 12px; white-space: nowrap;
   transition: background 110ms linear, border-color 110ms linear, color 110ms linear;
 }
-.safe-btn svg { display: block; width: 13px; height: 13px; flex: none; }
+/* 17px to match the Start over icon beside it; both sit in 38px buttons. */
+.safe-btn svg { display: block; width: 17px; height: 17px; flex: none; }
 .safe-btn:hover { background: var(--color-accent-100); border-color: var(--color-accent);
   color: var(--color-accent-700); }
 .safe-btn:active, .safe-btn[aria-expanded="true"] { background: var(--color-accent-200);
@@ -330,6 +331,27 @@ header {
 .modal-choice:hover .t { color: var(--color-accent); }
 /* The header carries Start over on a desktop, so the panel does not. */
 @media (min-width: 861px) { #wizStartOver { display: none; } }
+/* The viewer needs the room a page or a wide grid wants. */
+.modal-overlay.is-wide .modal-panel { max-width: 1100px; width: 100%;
+  display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
+.modal-overlay.is-wide .modal-body { overflow: auto; flex: 1 1 auto; }
+.rv-pick { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rv-pick label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--color-neutral-700); }
+.rv-pick select { height: var(--control-h); max-width: 420px; }
+.rv-pick[hidden] { display: none; }
+.rv-note { font-size: 13px; color: var(--color-neutral-700); margin: 0 0 14px; }
+.rv-body canvas { display: block; width: 100%; height: auto; margin-bottom: 14px;
+  border: 1px solid var(--color-divider); }
+.rv-grid { border-collapse: collapse; font-size: 12px; width: 100%; }
+.rv-grid th, .rv-grid td { border: 1px solid var(--color-divider); padding: 4px 7px;
+  text-align: left; vertical-align: top; white-space: pre-wrap; }
+.rv-grid th { background: var(--color-surface); font-weight: 500;
+  position: sticky; top: 0; }
+.rv-grid tr:first-child td { background: var(--color-neutral-100); }
+.rv-rownum { color: var(--color-neutral-600); font-variant-numeric: tabular-nums;
+  text-align: right; width: 1%; }
+
 .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .modal-actions .btn { flex: 1 1 0; min-height: var(--control-h); }
 #confirmText { font-size: 15px; line-height: 1.5; color: var(--color-text); }
@@ -844,7 +866,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .totals-bar .totals-toggle { margin-left: 0; min-height: var(--control-h); padding: 0; }
   .preview-body { padding-bottom: 0; }
 }
-#totalsToggle2 svg, .totals-toggle svg { width: 16px; height: 16px; flex: none; }
+#totalsToggle2 svg, #viewRosterBtn svg, .totals-toggle svg { width: 16px; height: 16px; flex: none; }
 .totals-toggle { display: inline-flex; align-items: center; gap: 8px;
   appearance: none; background: none; border: 0; padding: 6px 0;
   font: inherit; font-size: 13px; color: var(--color-accent-700); cursor: pointer;
@@ -986,10 +1008,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .input, .field select, .field input[type=text] { height: var(--control-h);
     min-height: 0; font-size: 16px; }
   .field textarea { min-height: 0; font-size: 16px; }
-  #totalsToggle2 .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden;
-    clip: rect(0 0 0 0); white-space: nowrap; }
-  #totalsToggle2 { width: var(--control-h); padding: 0; }
-  #totalsToggle2 svg { width: 18px; height: 18px; }
+  #totalsToggle2 .lbl, #viewRosterBtn .lbl { position: absolute; width: 1px;
+    height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #totalsToggle2, #viewRosterBtn { width: var(--control-h); padding: 0; }
+  #totalsToggle2 svg, #viewRosterBtn svg { width: 18px; height: 18px; }
   .staff-head { min-height: var(--control-h); align-items: center; padding: 0 14px; }
   .doctor-chip { min-height: var(--control-h); padding: 0 14px; }
   .attention-list button { min-height: var(--control-h); }
@@ -1221,6 +1243,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
             </div>
             <div class="field-preview">
               <button class="btn btn-secondary btn-preview" id="previewBtn" disabled>Preview schedule</button>
+            </div>
+            <div class="field-preview">
+              <button type="button" class="btn btn-secondary" id="viewRosterBtn"
+                aria-haspopup="dialog" aria-expanded="false" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">View roster file</span></button>
             </div>
             <div class="field-preview">
               <button type="button" class="btn btn-secondary" id="totalsToggle2"
@@ -4900,7 +4926,7 @@ $('parseBtn').addEventListener('click',async()=>{
       const dominantMonth=result.days.length>0
         ? parseInt(Object.entries(monthCounts).sort((a,b)=>b[1]-a[1])[0][0]) : -1;
       const filteredDays=result.days.filter(d=>d.month===dominantMonth);
-      state.parsedFiles.push({name:file.name,days:filteredDays,doctors:result.doctors});
+      state.parsedFiles.push({name:file.name,days:filteredDays,doctors:result.doctors,file});
       state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);
     }catch(err){console.error('Parse error',file.name,err);errors++;state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);}
   }
@@ -6880,6 +6906,8 @@ function wizRefresh(){
   wizRenderSteps(); wizRenderContext(); wizRenderNav();
   const hb = $('totalsToggle2');
   if (hb) hb.disabled = !wizPreviewed();
+  const vr = $('viewRosterBtn');
+  if (vr) vr.disabled = !rosterViewFiles().length;
   const ack = $('reviewAckWrap');
   if (ack) ack.hidden = !wizPreviewed();
   buildAttentionItems();
@@ -7011,6 +7039,82 @@ function unlockPageScroll(){
   el.style.overflow='';
   el.style.paddingRight='';
 }
+
+// ── Roster viewer ──────────────────────────────────────────────────────────
+// Looking at what was uploaded, in the page. A PDF is drawn with the PDF.js
+// that already ships here; anything grid-shaped shows the rows the reader
+// recovered, which is what a disagreement with the parser is usually about.
+// The file is read again from the handle held in state — nothing is copied and
+// nothing leaves the browser.
+function rosterViewFiles(){
+  return (state.parsedFiles || []).filter(f => f && f.file);
+}
+async function renderRosterView(){
+  const body = $('rosterViewBody'), note = $('rosterViewNote'), pick = $('rosterViewPick');
+  if (!body) return;
+  const files = rosterViewFiles();
+  const wrap = document.querySelector('.rv-pick');
+  if (wrap) wrap.hidden = files.length < 2;
+  if (!files.length) {
+    body.innerHTML = '';
+    if (note) note.textContent = 'No roster file is loaded. Upload one on step 1 and choose Extract data.';
+    return;
+  }
+  const entry = files[Math.min(pick ? pick.selectedIndex : 0, files.length - 1)];
+  body.innerHTML = '<p class="rv-note">Reading\u2026</p>';
+  try {
+    const buf = await readFile(entry.file);
+    const ext = String(entry.name).split('.').pop().toLowerCase();
+    if (ext === 'pdf') {
+      await drawPdfInto(body, buf);
+      if (note) note.textContent = 'The file as uploaded. Compare it with the schedule behind this panel.';
+    } else {
+      const { rows, tables } = await gridRowsFor(buf, entry.name);
+      drawGridInto(body, rows);
+      if (note) note.textContent =
+        `The rows the reader recovered — ${rows.length} row${rows.length===1?'':'s'}` +
+        (tables > 1 ? ` from the largest of ${tables} tables in the file` : '') + '. ' +
+        'If a name or a date is missing here, the reader did not find it in the file.';
+    }
+  } catch (err) {
+    body.innerHTML = '';
+    if (note) note.textContent = 'Could not read this file back: ' + (err && err.message ? err.message : err);
+  }
+}
+async function drawPdfInto(host, buf){
+  host.innerHTML = '';
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n);
+    const vp = page.getViewport({ scale: 2 });
+    const c = document.createElement('canvas');
+    c.width = vp.width; c.height = vp.height;
+    host.appendChild(c);
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  }
+}
+async function gridRowsFor(buf, name){
+  // extractWordTables returns every table it can find. A legacy .doc needs the
+  // column count to recover its row boundaries at all, so pass the profile's
+  // when there is one. The roster is the biggest table; the rest are headers
+  // and notes.
+  const nCols = (activeProfile && activeProfile.table && activeProfile.table.columns || []).length || undefined;
+  const tables = await extractWordTables(buf, name, nCols);
+  const rows = tables.reduce((best, t) => (t.length > best.length ? t : best), []);
+  return { rows, tables: tables.length };
+}
+function drawGridInto(host, rows){
+  const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const width = rows.reduce((m, r) => Math.max(m, (r || []).length), 0);
+  const head = '<tr><th class="rv-rownum">#</th>' +
+    Array.from({length: width}, (_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr>';
+  const cells = rows.map((r, i) => '<tr><td class="rv-rownum">' + (i + 1) + '</td>' +
+    Array.from({length: width}, (_, c) => '<td>' + esc((r || [])[c]) + '</td>').join('') + '</tr>').join('');
+  host.innerHTML = '<table class="rv-grid"><thead>' + head + '</thead><tbody>' + cells + '</tbody></table>';
+}
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'rosterViewPick') renderRosterView();
+});
 
 // ── Confirmation ───────────────────────────────────────────────────────────
 // One panel in front of everything destructive. Nothing is cleared, removed or
@@ -7149,6 +7253,14 @@ document.addEventListener('click', e => {
     dialog('hdrPeriodBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('period'));
     dialog('hdrDeptBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('dept'));
     dialog(['totalsToggle','totalsToggle2'],'totalsOverlay','totalsCloseBtn',updateTotalsDetail);
+    dialog('viewRosterBtn','rosterViewOverlay','rosterViewCloseBtn',()=>{
+      const pick=$('rosterViewPick');
+      if(pick){
+        const files=rosterViewFiles();
+        pick.innerHTML=files.map(f=>`<option>${String(f.name).replace(/</g,'&lt;')}</option>`).join('');
+      }
+      renderRosterView();
+    });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();
@@ -7173,6 +7285,21 @@ document.addEventListener('click', e => {
         <button type="button" class="btn btn-primary" id="confirmYes">Yes</button>
         <button type="button" class="btn btn-secondary" id="confirmNo">No</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div id="rosterViewOverlay" class="modal-overlay is-wide" role="dialog" aria-modal="true" aria-labelledby="rosterViewTitle">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h3 id="rosterViewTitle">Roster file</h3>
+      <button type="button" id="rosterViewCloseBtn" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="rv-pick"><label for="rosterViewPick">File</label>
+        <select id="rosterViewPick" class="input"></select></div>
+      <p class="rv-note" id="rosterViewNote"></p>
+      <div class="rv-body" id="rosterViewBody"></div>
     </div>
   </div>
 </div>

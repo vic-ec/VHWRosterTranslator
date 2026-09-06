@@ -154,6 +154,14 @@ they are — see `profiles/README.md`.
   `roster_type: 'shift'`, which is the coordinate-parsed Victoria Hospital EC
   export with shift bands hardcoded in `holidays.js` / `config.js`; that path
   is unchanged and still fits only a roster with VHW EC's layout and times.
+- **Viewing the uploaded file back.** `View roster file` (step 1, beside
+  Preview schedule) reopens whatever was uploaded — a PDF through PDF.js onto
+  canvases, a grid file through `extractWordTables` — so a wrong-looking parse
+  can be inspected in the app. It relies on `state.parsedFiles[].file` keeping
+  the `File` handle after extraction; nothing is written to storage. Note that
+  `extractWordTables` returns an array of *tables*, not rows: `gridRowsFor`
+  picks the largest and passes the profile's column count, which a legacy
+  `.doc` needs to find row boundaries at all.
 - All PDF parsing is coordinate-based against PDF.js text positions, since roster layouts vary — logic in `parser.js`/`parser-consultant.js` (and their inlined counterparts) is layout-sensitive. Word parsing is not: `parser-word.js` reads real cell boundaries and needs no calibration.
 - **The app no longer bundles SheetJS.** `js/xlsx.full.min.js` had been a GitHub error page rather than a library, so `window.XLSX` was never defined and Excel upload always failed. It is replaced by `js/parser-xlsx.js`, a small reader over JSZip — an `.xlsx` is a zip of XML, so no extra dependency is needed. SheetJS was not restored because the newest version obtainable from npm is 0.18.5 (March 2022), which carries two unfixed high-severity parsing advisories (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9); the patched builds are only on `cdn.sheetjs.com`. Consequence: legacy binary `.xls` is no longer accepted — the upload zone takes `.pdf,.xlsx,.docx,.doc`, and an `.xls` gets a message telling the user to Save As `.xlsx`.
 - `parseRosterExcel` is **async** (it awaits `readXlsxSheets`); call sites must `await` it.

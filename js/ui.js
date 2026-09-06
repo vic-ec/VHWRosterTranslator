@@ -425,7 +425,7 @@ $('parseBtn').addEventListener('click',async()=>{
       const dominantMonth=result.days.length>0
         ? parseInt(Object.entries(monthCounts).sort((a,b)=>b[1]-a[1])[0][0]) : -1;
       const filteredDays=result.days.filter(d=>d.month===dominantMonth);
-      state.parsedFiles.push({name:file.name,days:filteredDays,doctors:result.doctors});
+      state.parsedFiles.push({name:file.name,days:filteredDays,doctors:result.doctors,file});
       state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);
     }catch(err){console.error('Parse error',file.name,err);errors++;state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);}
   }
@@ -1328,6 +1328,8 @@ function wizRefresh(){
   wizRenderSteps(); wizRenderContext(); wizRenderNav();
   const hb = $('totalsToggle2');
   if (hb) hb.disabled = !wizPreviewed();
+  const vr = $('viewRosterBtn');
+  if (vr) vr.disabled = !rosterViewFiles().length;
   const ack = $('reviewAckWrap');
   if (ack) ack.hidden = !wizPreviewed();
   buildAttentionItems();
@@ -1459,6 +1461,82 @@ function unlockPageScroll(){
   el.style.overflow='';
   el.style.paddingRight='';
 }
+
+// ── Roster viewer ──────────────────────────────────────────────────────────
+// Looking at what was uploaded, in the page. A PDF is drawn with the PDF.js
+// that already ships here; anything grid-shaped shows the rows the reader
+// recovered, which is what a disagreement with the parser is usually about.
+// The file is read again from the handle held in state — nothing is copied and
+// nothing leaves the browser.
+function rosterViewFiles(){
+  return (state.parsedFiles || []).filter(f => f && f.file);
+}
+async function renderRosterView(){
+  const body = $('rosterViewBody'), note = $('rosterViewNote'), pick = $('rosterViewPick');
+  if (!body) return;
+  const files = rosterViewFiles();
+  const wrap = document.querySelector('.rv-pick');
+  if (wrap) wrap.hidden = files.length < 2;
+  if (!files.length) {
+    body.innerHTML = '';
+    if (note) note.textContent = 'No roster file is loaded. Upload one on step 1 and choose Extract data.';
+    return;
+  }
+  const entry = files[Math.min(pick ? pick.selectedIndex : 0, files.length - 1)];
+  body.innerHTML = '<p class="rv-note">Reading\u2026</p>';
+  try {
+    const buf = await readFile(entry.file);
+    const ext = String(entry.name).split('.').pop().toLowerCase();
+    if (ext === 'pdf') {
+      await drawPdfInto(body, buf);
+      if (note) note.textContent = 'The file as uploaded. Compare it with the schedule behind this panel.';
+    } else {
+      const { rows, tables } = await gridRowsFor(buf, entry.name);
+      drawGridInto(body, rows);
+      if (note) note.textContent =
+        `The rows the reader recovered — ${rows.length} row${rows.length===1?'':'s'}` +
+        (tables > 1 ? ` from the largest of ${tables} tables in the file` : '') + '. ' +
+        'If a name or a date is missing here, the reader did not find it in the file.';
+    }
+  } catch (err) {
+    body.innerHTML = '';
+    if (note) note.textContent = 'Could not read this file back: ' + (err && err.message ? err.message : err);
+  }
+}
+async function drawPdfInto(host, buf){
+  host.innerHTML = '';
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n);
+    const vp = page.getViewport({ scale: 2 });
+    const c = document.createElement('canvas');
+    c.width = vp.width; c.height = vp.height;
+    host.appendChild(c);
+    await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  }
+}
+async function gridRowsFor(buf, name){
+  // extractWordTables returns every table it can find. A legacy .doc needs the
+  // column count to recover its row boundaries at all, so pass the profile's
+  // when there is one. The roster is the biggest table; the rest are headers
+  // and notes.
+  const nCols = (activeProfile && activeProfile.table && activeProfile.table.columns || []).length || undefined;
+  const tables = await extractWordTables(buf, name, nCols);
+  const rows = tables.reduce((best, t) => (t.length > best.length ? t : best), []);
+  return { rows, tables: tables.length };
+}
+function drawGridInto(host, rows){
+  const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const width = rows.reduce((m, r) => Math.max(m, (r || []).length), 0);
+  const head = '<tr><th class="rv-rownum">#</th>' +
+    Array.from({length: width}, (_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr>';
+  const cells = rows.map((r, i) => '<tr><td class="rv-rownum">' + (i + 1) + '</td>' +
+    Array.from({length: width}, (_, c) => '<td>' + esc((r || [])[c]) + '</td>').join('') + '</tr>').join('');
+  host.innerHTML = '<table class="rv-grid"><thead>' + head + '</thead><tbody>' + cells + '</tbody></table>';
+}
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'rosterViewPick') renderRosterView();
+});
 
 // ── Confirmation ───────────────────────────────────────────────────────────
 // One panel in front of everything destructive. Nothing is cleared, removed or
@@ -1597,6 +1675,14 @@ document.addEventListener('click', e => {
     dialog('hdrPeriodBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('period'));
     dialog('hdrDeptBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('dept'));
     dialog(['totalsToggle','totalsToggle2'],'totalsOverlay','totalsCloseBtn',updateTotalsDetail);
+    dialog('viewRosterBtn','rosterViewOverlay','rosterViewCloseBtn',()=>{
+      const pick=$('rosterViewPick');
+      if(pick){
+        const files=rosterViewFiles();
+        pick.innerHTML=files.map(f=>`<option>${String(f.name).replace(/</g,'&lt;')}</option>`).join('');
+      }
+      renderRosterView();
+    });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();

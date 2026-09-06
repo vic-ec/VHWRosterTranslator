@@ -46,6 +46,21 @@ file under `js/` and the matching block inside `index.html`'s inline `<script>`
   pinned to the bottom it cost a fifth of a landscape screen.
   `updatePreviewTotals()` therefore has to survive its own readouts being off
   screen, and guards every write.
+- `#rosterViewOverlay` — View roster file, a wide dialog beside Preview
+  schedule and Hours breakdown on step 1. It shows the file the user actually
+  uploaded, so a suspect parse can be checked without leaving the page: a PDF
+  is rendered page by page onto canvases at scale 2 via PDF.js, and a grid file
+  (`.xlsx` / `.docx` / `.doc`) is drawn as the rows the reader recovered.
+  `extractWordTables` returns *every* table it finds, so `gridRowsFor` takes
+  the largest one and passes the profile's column count — a legacy `.doc`
+  needs it to recover row boundaries at all. The note under the picker says
+  which of the two the user is looking at, because they mean different things:
+  the PDF is the source, the grid is what the parser saw. The file picker
+  (`.rv-pick`) is hidden unless two or more files are loaded.
+  This needs the `File` handle to survive extraction, so the objects pushed
+  onto `state.parsedFiles` now carry `file`; it stays in memory only, like the
+  rest of `state`. `wizRefresh()` disables the button until at least one
+  retained file exists.
 - `#wizEditOverlay` — the Edit panel: Change period, Change department and
   Start over. Spelling all three out in the bar cost two lines on a phone.
   Start over lives here because the wizard hides the masthead that used to
