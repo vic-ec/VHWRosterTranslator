@@ -86,9 +86,21 @@ the parts worth knowing before editing:
   re-sends the click. It ignores untrusted events on purpose: the app presses
   these buttons itself (`fullReset()` clicks Clear all), and asking there left
   the page inert waiting on an answer nobody could give.
-- **Start over is only reachable from the Edit panel** (`#wizEditOverlay`)
-  once the wizard is running — the masthead button it shares a handler with is
-  hidden from the moment a department is chosen.
+- **Start over lives in the header** (`#hdrResetBtn`) at every width; the
+  masthead button it shares a handler with is hidden from the moment a
+  department is chosen, so this is the only route to it once the wizard runs.
+- **The period and department are header controls on a desktop**
+  (`#hdrPeriodBtn`, `#hdrDeptBtn`), each opening `#wizEditOverlay` filtered to
+  its own action by `showEditChoices()`. The bar's `.wizctx` carries them on a
+  phone instead and is hidden above 860px.
+- **A wizard-built profile can carry `supervisors`.** The setup wizard asks for
+  them (`#wizSupervisors`, one name per line) and both profile builders attach
+  the list when there is one. Without it every wizard profile fell through to
+  the free-text box, which read as the dropdown being broken.
+- **`.shell` is the flex column that makes the footer sit on the bottom edge.**
+  Not `body` — making the body the flex container changes how its children
+  resolve their width. `.shell > .wrap` needs an explicit `width: 100%`
+  because its auto side margins otherwise stop it stretching.
 - **The phone schedule (≤860px) is a card per day**, and its cells are
   selected by the field they hold (`td:has([data-field=nf])`), not by column
   number — so the standard and extended column sets share one set of rules.

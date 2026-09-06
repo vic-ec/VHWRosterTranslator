@@ -86,7 +86,7 @@ Optional keys any profile can set:
 |---|---|---|
 | `duty_noun` | What section 2 calls a duty — "Preview & edit *calls*" | `shifts` |
 | `z1_component` | Component line on the Z1(a) leave form | the profile's own `ec_short` / `ec_name`, with the hospital stripped; `Emergency Medicine` if nothing is left |
-| `supervisors` | Names for the supervisor dropdown. Empty or absent gives a free-text box (except the original EC `shift` profile, which keeps its built-in list) | — |
+| `supervisors` | Names for the supervisor dropdown. Empty or absent gives a free-text box (except the original EC `shift` profile, which keeps its built-in list). The in-app wizard asks for these, one name per line | — |
 | `leave_types` | Activity types offered alongside the roster's own duty labels | the standard leave list |
 | `work_pattern` | `calls` or `shifts` — see above | `calls` |
 

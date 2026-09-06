@@ -63,6 +63,9 @@
      the 24px WCAG 2.5.8 minimum target size, below the old 44-52px sprawl. */
   --control-h: 38px;
 
+  /* Lucide RotateCcw, as a mask so it takes currentColor like a glyph would. */
+  --icon-rotate-ccw: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>');
+
   --font-heading: "Inter Tight", system-ui, sans-serif;
   --font-heading-weight: 800;
   --font-body: "IBM Plex Sans", system-ui, sans-serif;
@@ -108,7 +111,6 @@ html { scroll-behavior: smooth; scrollbar-gutter: stable; }
 body {
   margin: 0; background: var(--color-bg); color: var(--color-text);
   font-family: var(--font-body); font-size: 15px; line-height: 1.55; font-weight: 400;
-  min-height: 100vh;
 }
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading); font-weight: var(--font-heading-weight);
@@ -195,7 +197,18 @@ select.input, .field select {
 /* ═══════════════════════════════════════════════════════════════
    Application layout
    ═══════════════════════════════════════════════════════════ */
-.shell { min-height: 100vh; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
+/* The footer lives inside the shell, so the shell is the column that has to be
+   at least a windowful tall: the section wrapper takes the slack and the
+   footer lands on the bottom edge even when a step is short. Making the body
+   the flex container instead changed how its children resolve their width and
+   pushed the page past a 320px viewport. */
+.shell { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
+/* .wrap centres itself with auto side margins. As a flex item those margins
+   stop it stretching and it shrink-to-fits its widest content instead, which
+   pushed a 320px viewport sideways — so give it the width explicitly. */
+.shell > .wrap { flex: 1 0 auto; width: 100%; }
+.shell > footer { flex: none; }
 .wrap { max-width: 1320px; margin: 0 auto; }
 
 /* ── header ─────────────────────────────────────────────────── */
@@ -217,6 +230,26 @@ header {
 .ec-change { font-size: 11px; padding: 3px 8px; }
 .ec-mode { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-accent); border: 1px solid var(--color-accent); padding: 3px 8px; white-space: nowrap; }
 #resetFormBtn.btn { font-size: 12px; white-space: nowrap; }
+/* Period and department as controls rather than a line of text: they are the
+   two things a person changes, and the header is where they now live. */
+.hdr-ctx { display: none; align-items: center; gap: 8px; }
+@media (min-width: 861px) { .hdr-ctx:not([hidden]) { display: inline-flex; } }
+.hdr-chip { appearance: none; background: none; border: 1px solid var(--color-divider);
+  border-radius: 0; padding: 0 10px; height: var(--control-h); font: inherit;
+  font-size: 13px; color: var(--color-text); cursor: pointer; white-space: nowrap;
+  max-width: 30ch; overflow: hidden; text-overflow: ellipsis; }
+.hdr-chip:hover { background: var(--color-accent-100); border-color: var(--color-accent);
+  color: var(--color-accent-700); }
+.hdr-chip:active, .hdr-chip[aria-expanded="true"] { background: var(--color-accent-200); }
+.hdr-icon { appearance: none; display: inline-flex; align-items: center;
+  justify-content: center; background: none; border: 1px solid var(--color-divider);
+  border-radius: 0; padding: 0; width: var(--control-h); height: var(--control-h);
+  color: var(--color-text); cursor: pointer; flex: none; }
+.hdr-icon svg { width: 17px; height: 17px; display: block; }
+.hdr-icon:hover { background: var(--color-accent-100); border-color: var(--color-accent);
+  color: var(--color-accent-700); }
+.hdr-icon:active { background: var(--color-accent-200); }
+
 
 /* ── masthead ───────────────────────────────────────────────── */
 .masthead { padding: 56px 32px 40px; border-bottom: 2px solid var(--color-neutral-500); }
@@ -266,10 +299,12 @@ header {
 .modal-overlay.open { display: flex; }
 /* A sheet sits on the bottom edge and spans the width — the breakdown belongs
    with the totals bar it came from, not floating in the middle of the page. */
-.modal-overlay.is-sheet { align-items: flex-end; justify-content: center;
-  padding: 0; }
-.modal-overlay.is-sheet .modal-panel { max-width: 640px; border-bottom: 0;
-  padding-bottom: env(safe-area-inset-bottom, 0px); }
+@media (max-width: 860px) {
+  .modal-overlay.is-sheet { align-items: flex-end; justify-content: center;
+    padding: 0; }
+  .modal-overlay.is-sheet .modal-panel { max-width: 640px; border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px); }
+}
 .modal-panel { background: var(--color-bg); border: 1px solid var(--color-divider);
   box-shadow: var(--shadow-lg); max-width: 540px; width: 100%; }
 .modal-head { display: flex; align-items: flex-start; justify-content: space-between;
@@ -442,6 +477,11 @@ main { padding: 40px 32px 0; }
   font-family: var(--font-heading); font-weight: 800; font-size: 14px; line-height: 1;
   color: var(--color-neutral-600);
 }
+.row-undo { font-size: 0; }
+.row-undo::before { content: ""; display: block; width: 17px; height: 17px;
+  background: currentColor;
+  -webkit-mask: var(--icon-rotate-ccw) center / contain no-repeat;
+  mask: var(--icon-rotate-ccw) center / contain no-repeat; }
 .row-add:hover, .row-undo:hover { color: var(--color-accent); background: var(--color-accent-100); }
 /* Removing a row is the one destructive control in the table, so it tints
    red rather than accent — and presses one step darker. */
@@ -482,9 +522,10 @@ main { padding: 40px 32px 0; }
 .downloads-row { display: flex; flex-wrap: wrap; gap: 2px; }
 .downloads-row .dl { flex: 1 1 220px; }
 .dl {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
   cursor: pointer; text-align: left; font: inherit; border: 0;
   background: var(--color-accent); color: var(--color-bg);
-  padding: 11px 20px 11px; display: block; width: 100%;
+  padding: 11px 20px 11px; width: 100%;
   transition: background 120ms linear;
 }
 .dl:hover:not(:disabled) { background: var(--color-accent-600); }
@@ -583,6 +624,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 .wiz-body { padding: 24px; }
 .wiz-intro { font-size: 14px; color: var(--color-neutral-700); margin: 0 0 18px; line-height: 1.55; }
 .wiz-field { margin-bottom: 16px; }
+.wiz-hint { font-size: 12px; color: var(--color-neutral-700); margin-top: 6px; line-height: 1.5; }
 .wiz-label { display: block; font-size: 12px; margin-bottom: 5px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
 .wiz-input { width: 100%; min-height: 36px; padding: 6px 10px; font: inherit; font-size: 14px; background: var(--color-surface); border: 1px solid var(--color-divider); border-radius: 0; color: var(--color-text); }
 .wiz-input:focus-visible { border-color: var(--color-accent); outline: none; }
@@ -695,9 +737,11 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   border: 0; border-radius: 0; padding: 0;
   width: var(--control-h); height: var(--control-h); font: inherit;
   color: var(--color-accent-700); cursor: pointer; }
-.wizctx-edit svg { width: 100%; height: 100%; flex: none; }
+.wizctx-edit svg { width: 24px; height: 24px; flex: none; }
 .wizctx-edit:hover { background: var(--color-accent-100); border-color: var(--color-accent); }
 .wizctx-edit:active, .wizctx-edit[aria-expanded="true"] { background: var(--color-accent-200); }
+/* The bar keeps the context on a phone; on a desktop the header carries it. */
+@media (min-width: 861px) { .wizctx { display: none; } }
 
 /* On a phone the step title leaves room to its right, and the Edit button is
    the only other thing in the bar — so it rides up there rather than costing
@@ -717,6 +761,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   border-top: 2px solid var(--color-divider); margin-top: 32px; padding-top: 20px; }
 .wiznav .grow { flex: 1 1 auto; }
 .wiznav .btn { min-height: var(--control-h); padding-inline: 20px; }
+.wiznav .btn svg { width: 15px; height: 15px; flex: none; }
+.wiznav [data-wiz="next"] svg { order: 2; }
 .wiznav-why { flex: 1 1 100%; order: 3; font-size: 14px; color: var(--color-neutral-700);
   display: flex; align-items: flex-start; gap: 8px; }
 .wiznav-why[hidden] { display: none; }
@@ -769,7 +815,9 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .totals-bar .totals-toggle { margin-left: 0; min-height: var(--control-h); padding: 0; }
   .preview-body { padding-bottom: 0; }
 }
-.totals-toggle { appearance: none; background: none; border: 0; padding: 6px 0;
+#totalsToggle2 svg, .totals-toggle svg { width: 16px; height: 16px; flex: none; }
+.totals-toggle { display: inline-flex; align-items: center; gap: 8px;
+  appearance: none; background: none; border: 0; padding: 6px 0;
   font: inherit; font-size: 13px; color: var(--color-accent-700); cursor: pointer;
   text-decoration: underline; text-underline-offset: 3px; min-height: 40px; }
 .totals-detail { flex: 1 1 100%; font-size: 13px; color: var(--color-neutral-700);
@@ -857,13 +905,16 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .shift-row .action-cell::before { content: none; display: none; }
   .shift-row .action-cell .row-clear::after { content: "Remove"; }
   .shift-row .action-cell .row-undo::after { content: "Undo"; }
-  /* Out of the time columns they have room for their words, in every
-     orientation. */
+  /* Bare glyphs, the same size and weight as the + that adds a day, so the
+     three read as one family. Each keeps its title as its accessible name. */
   .shift-row .action-cell .row-clear,
-  .shift-row .action-cell .row-undo { flex: 0 0 auto; width: auto; min-width: 0;
-    height: var(--control-h); gap: 6px; padding: 0 9px;
-    font-family: var(--font-body); font-weight: 500; font-size: 13px;
-    border: 1px solid var(--color-divider); color: var(--color-neutral-700); }
+  .shift-row .action-cell .row-undo { flex: 0 0 auto; min-width: var(--control-h);
+    width: var(--control-h); height: var(--control-h); padding: 0; border: 0; }
+  .shift-row .action-cell .row-clear { font-size: 17px; }
+  /* Undo is drawn, not lettered — its own glyph stays hidden behind the icon. */
+  .shift-row .action-cell .row-undo { font-size: 0; }
+  .shift-row .action-cell .row-clear::after,
+  .shift-row .action-cell .row-undo::after { content: none; }
 
   /* A day with no duty on it — or only a public holiday — stays one line. */
   .preview-table tr.empty-row, .preview-table tr.ph-row {
@@ -889,25 +940,6 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .we-row, .ph-wd-row { background: var(--color-accent-100); }
 }
 
-/* Both buttons plus a weekday will not fit on one line on a portrait phone —
-   "Wednesday" alone is 88px of the 335 available. Landscape and desktop have
-   the room, so they keep their words there; below 430px the pair falls back to
-   its glyphs, and each button keeps its title as its accessible name. A row
-   with only Remove on it has room for the word at any width. */
-@media (max-width: 469px) {
-  .shift-row .action-cell:has(.row-undo) .row-clear::after,
-  .shift-row .action-cell:has(.row-undo) .row-undo::after { content: none; }
-  .shift-row .action-cell:has(.row-undo) button { gap: 0; padding: 0;
-    width: var(--control-h); font-size: 16px; }
-  /* The weekday gives up a step too, so it clears the pair on a 320px screen. */
-  .shift-row:has(.row-undo) td:nth-child(2) { font-size: 11px; }
-}
-/* A 320px screen is 9px short even then. The pair tightens rather than the
-   weekday truncating; 32px is still well above the 24px minimum target size. */
-@media (max-width: 360px) {
-  .shift-row .action-cell:has(.row-undo) { gap: 4px; }
-  .shift-row .action-cell:has(.row-undo) button { width: 32px; height: 32px; }
-}
 
 /* ═══════════════════════════════════════════════════════════════
    Touch and readability floors
@@ -925,6 +957,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .input, .field select, .field input[type=text] { height: var(--control-h);
     min-height: 0; font-size: 16px; }
   .field textarea { min-height: 0; font-size: 16px; }
+  #totalsToggle2 .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; }
+  #totalsToggle2 { width: var(--control-h); padding: 0; }
+  #totalsToggle2 svg { width: 18px; height: 18px; }
   .staff-head { min-height: var(--control-h); align-items: center; padding: 0 14px; }
   .doctor-chip { min-height: var(--control-h); padding: 0 14px; }
   .attention-list button { min-height: var(--control-h); }
@@ -933,6 +969,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
 /* ── Document cards, step 4 ─────────────────────────────────────────── */
 .dl-purpose { display: block; font-size: 13px; margin-top: 2px; opacity: .92; }
+.dl .dl-text { display: block; min-width: 0; }
+.dl .dl-arrow { width: 22px; height: 22px; flex: none; opacity: .9; }
 #printHelp { margin-top: 20px; border-top: 1px solid var(--color-divider); }
 #printHelp > summary { cursor: pointer; list-style: none; padding: 14px 0;
   display: flex; align-items: center; gap: 8px; font-family: var(--font-heading);
@@ -957,6 +995,16 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <span class="brand-ver">v05.09.2026</span>
   </div>
   <span class="ec-mode" id="ecMode" style="display:none;"></span>
+  <span class="hdr-ctx" id="hdrCtx" hidden>
+    <button type="button" class="hdr-chip" id="hdrPeriodBtn" aria-haspopup="dialog"
+      aria-expanded="false" title="Change period">No month selected</button>
+    <button type="button" class="hdr-chip" id="hdrDeptBtn" aria-haspopup="dialog"
+      aria-expanded="false" title="Change department">&nbsp;</button>
+  </span>
+  <button type="button" class="hdr-icon" id="hdrResetBtn" aria-label="Start over" title="Start over"><svg
+    viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+    stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path
+    d="M3 3v5h5"/></svg></button>
   <button type="button" class="safe-btn" id="privacyBtn" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>Your data is safe.</button>
 </header>
 
@@ -1088,7 +1136,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
       <div class="wiznav" id="wizNav1">
         <span class="grow"></span>
-        <button type="button" class="btn btn-primary" data-wiz="next" aria-describedby="wizWhy1">Continue to review</button>
+        <button type="button" class="btn btn-primary" data-wiz="next" aria-describedby="wizWhy1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>Continue to review</button>
         <p class="wiznav-why" id="wizWhy1" role="status" hidden><span aria-hidden="true">&#9432;</span><span class="txt"></span></p>
       </div>
 
@@ -1147,7 +1195,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
             </div>
             <div class="field-preview">
               <button type="button" class="btn btn-secondary" id="totalsToggle2"
-                aria-haspopup="dialog" aria-expanded="false" disabled>Hours breakdown</button>
+                aria-haspopup="dialog" aria-expanded="false" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 22h2a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><circle cx="8" cy="16" r="6"/><path d="M9.5 17.5 8 16.25V14"/></svg><span class="lbl">Hours breakdown</span></button>
             </div>
           </div>
 
@@ -1160,7 +1208,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
             <div><span class="t-key">Normal</span><span class="t-val" id="totalNormal">0 h</span></div>
             <div><span class="t-key">Overtime</span><span class="t-val accent" id="totalOt">0 h</span></div>
             <button type="button" class="totals-toggle" id="totalsToggle"
-              aria-haspopup="dialog" aria-expanded="false">Hours breakdown</button>
+              aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 22h2a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><circle cx="8" cy="16" r="6"/><path d="M9.5 17.5 8 16.25V14"/></svg><span class="lbl">Hours breakdown</span></button>
           </div>
         </div>
       </div>
@@ -1172,9 +1220,9 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       </div>
 
       <div class="wiznav" id="wizNav2">
-        <button type="button" class="btn btn-secondary" data-wiz="back">Back to upload</button>
+        <button type="button" class="btn btn-secondary" data-wiz="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Back to upload</button>
         <span class="grow"></span>
-        <button type="button" class="btn btn-primary" data-wiz="next" aria-describedby="wizWhy2">Continue to your details</button>
+        <button type="button" class="btn btn-primary" data-wiz="next" aria-describedby="wizWhy2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>Continue to your details</button>
         <p class="wiznav-why" id="wizWhy2" role="status" hidden><span aria-hidden="true">&#9432;</span><span class="txt"></span></p>
       </div>
 
@@ -1240,9 +1288,9 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       </div>
 
       <div class="wiznav" id="wizNav3">
-        <button type="button" class="btn btn-secondary" data-wiz="back">Back to schedule</button>
+        <button type="button" class="btn btn-secondary" data-wiz="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Back to schedule</button>
         <span class="grow"></span>
-        <button type="button" class="btn btn-primary" data-wiz="next" aria-describedby="wizWhy3">Continue to documents</button>
+        <button type="button" class="btn btn-primary" data-wiz="next" aria-describedby="wizWhy3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg>Continue to documents</button>
         <p class="wiznav-why" id="wizWhy3" role="status" hidden><span aria-hidden="true">&#9432;</span><span class="txt"></span></p>
       </div>
 
@@ -1256,19 +1304,22 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
       <div class="downloads-row">
         <button class="dl" id="proceedDownloadBtn" type="button" disabled>
+          <span class="dl-text">
           <span class="dlkicker">Excel</span>
           <span class="dltitle">Duty roster</span>
-          <span class="dlnote">Your month, hour by hour</span><span class="dl-purpose" id="dlPeriod1"></span>
+          <span class="dlnote">Your month, hour by hour</span><span class="dl-purpose" id="dlPeriod1"></span></span><svg class="dl-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>
         </button>
         <button class="dl" id="annexureCBtn" type="button" disabled>
+          <span class="dl-text">
           <span class="dlkicker">Word</span>
           <span class="dltitle">Annexure C</span>
-          <span class="dlnote">Overtime claim, pre-filled</span><span class="dl-purpose" id="dlPeriod2"></span>
+          <span class="dlnote">Overtime claim, pre-filled</span><span class="dl-purpose" id="dlPeriod2"></span></span><svg class="dl-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>
         </button>
         <button class="dl" id="z1aBtn" type="button" disabled style="display:none;">
+          <span class="dl-text">
           <span class="dlkicker">Word</span>
           <span class="dltitle">Z1(a) leave</span>
-          <span class="dlnote">Leave application form</span><span class="dl-purpose" id="dlPeriod3"></span>
+          <span class="dlnote">Leave application form</span><span class="dl-purpose" id="dlPeriod3"></span></span><svg class="dl-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 17V3"/><path d="m6 11 6 6 6-6"/><path d="M19 21H5"/></svg>
         </button>
       </div>
       <div class="downloads-locked" id="downloadsLocked" role="status">Complete the required details in step 03 to unlock the downloads.</div>
@@ -1289,7 +1340,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       </details>
     
       <div class="wiznav" id="wizNav4">
-        <button type="button" class="btn btn-secondary" data-wiz="back">Back to your details</button>
+        <button type="button" class="btn btn-secondary" data-wiz="back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Back to your details</button>
         <span class="grow"></span>
       </div>
 
@@ -1337,6 +1388,13 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       <div class="wiz-field">
         <label class="wiz-label">Short name <span class="req-star">*</span></label>
         <input id="wizEcShort" type="text" class="wiz-input" placeholder="e.g. VHW Anaesthetics (shown in the app header)">
+      </div>
+      <div class="wiz-field">
+        <label class="wiz-label" for="wizSupervisors">Who signs off overtime?</label>
+        <textarea id="wizSupervisors" class="wiz-input" rows="3"
+          placeholder="One name per line, e.g.&#10;Philip Cloete&#10;Sebastian De Haan"></textarea>
+        <div class="wiz-hint">Optional. Given names, the details step offers them as a
+          dropdown; left blank it offers a free-text box instead.</div>
       </div>
       <div class="wiz-field">
         <label class="wiz-label">Which of these is your monthly roster? <span class="req-star">*</span></label>
@@ -4773,7 +4831,7 @@ function confirmFullReset(){ fullReset(); }
 // chosen, and the Edit panel once the wizard has taken the masthead's place.
 $('resetFormBtn')?.addEventListener('click',confirmFullReset);
 document.addEventListener('click',e=>{
-  const t=e.target.closest&&e.target.closest('#wizStartOver');
+  const t=e.target.closest&&e.target.closest('#hdrResetBtn');
   if(t){ e.preventDefault(); confirmFullReset(); }
 });
 
@@ -6164,6 +6222,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return { columns, roleCols, dateCol, dayCol, map };
   }
 
+  // One name per line, blanks dropped. Absent rather than empty, so a profile
+  // with nothing entered looks exactly like every profile made before this
+  // field existed and takes the same free-text path.
+  function wizSupervisorList() {
+    const el = $('wizSupervisors');
+    if (!el) return null;
+    const names = el.value.split('\n').map(s => s.trim()).filter(Boolean);
+    return names.length ? names : null;
+  }
+
   function wizBuildTableProfile(ecShort) {
     const t = id => ($(id) ? $(id).value.trim() : '') || null;
     const pair = (a, b) => (t(a) && t(b)) ? [t(a), t(b)] : null;
@@ -6193,6 +6261,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ec_short: ecShort,
         roster_type: 'table',
         work_pattern: 'shifts',
+        ...(wizSupervisorList() ? { supervisors: wizSupervisorList() } : {}),
         table: {
           header_row: $('wizDocHeader') ? $('wizDocHeader').checked : true,
           columns, date_col: dateCol, day_col: dayCol,
@@ -6342,6 +6411,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const profile = {
       ec_short:    $('wizEcShort').value.trim(),
       roster_type: isConsultant ? 'consultant' : 'shift',
+      ...(wizSupervisorList() ? { supervisors: wizSupervisorList() } : {}),
     };
     if (isConsultant) {
       const dataY = parseInt($('wizDataY').value) || 188;
@@ -6711,14 +6781,29 @@ function wizRenderSteps(){
   if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span>`;
 }
 
+// Which rows the Edit panel shows, and what it is called while it shows them.
+function showEditChoices(which){
+  const p = $('wizChangePeriod'), d = $('wizChangeDept'), t = $('wizEditTitle');
+  if (p) p.hidden = which === 'dept';
+  if (d) d.hidden = which === 'period';
+  if (t) t.textContent = which === 'period' ? 'Change period'
+                       : which === 'dept'   ? 'Change department' : 'Edit';
+}
+
 function wizRenderContext(){
   const { month, year } = getMonthYear();
   const per = $('wizPeriod');
   if (per) per.textContent = (month !== null && year)
     ? `${MONTH_NAMES[month]} ${year}` : 'No month selected';
   const dept = $('wizDept');
-  if (dept) dept.textContent = (activeProfile && activeProfile.ec_name)
+  const deptName = (activeProfile && activeProfile.ec_name)
     ? activeProfile.ec_name : 'VHW Emergency Medicine';
+  if (dept) dept.textContent = deptName;
+  // The same two facts, as the header's controls.
+  const hp = $('hdrPeriodBtn'), hd = $('hdrDeptBtn'), hc = $('hdrCtx'), bar = $('wizBar');
+  if (hp && per) hp.textContent = per.textContent;
+  if (hd) hd.textContent = deptName;
+  if (hc && bar) hc.hidden = bar.hidden;
   for (const [id, n] of [['dlPeriod1', 1], ['dlPeriod2', 2], ['dlPeriod3', 3]]) {
     const el = $(id);
     if (el) el.textContent = (month !== null && year) ? `${MONTH_NAMES[month]} ${year}` : '';
@@ -6949,7 +7034,7 @@ const CONFIRM_ACTIONS = [
   ['.ri-remove',       'Are you sure you want to remove this file?'],
   ['.row-clear',       'Are you sure you want to remove this entry?'],
   ['#resetFormBtn',    'Are you sure you want to clear all data and start over?'],
-  ['#wizStartOver',    'Are you sure you want to clear all data and start over?'],
+  ['#hdrResetBtn',     'Are you sure you want to clear all data and start over?'],
 ];
 // Capture, so the question is asked before the handlers that do the work. On
 // yes the same click is sent again, flagged, and passes straight through.
@@ -7020,7 +7105,11 @@ document.addEventListener('click', e => {
   }
   function wire(){
     dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
-    dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn');
+    // The bar's icon offers both; each header chip offers only its own, which
+    // is what makes them read as controls for that one thing.
+    dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('all'));
+    dialog('hdrPeriodBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('period'));
+    dialog('hdrDeptBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('dept'));
     dialog(['totalsToggle','totalsToggle2'],'totalsOverlay','totalsCloseBtn',updateTotalsDetail);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
@@ -7077,10 +7166,6 @@ document.addEventListener('click', e => {
         <button type="button" class="modal-choice" id="wizChangeDept">
           <span class="t">Change department</span>
           <span class="d">Go back to the department list.</span>
-        </button>
-        <button type="button" class="modal-choice is-danger" id="wizStartOver">
-          <span class="t">Start over</span>
-          <span class="d">Clear the roster, the schedule and your details, and pick a department again.</span>
         </button>
       </div>
     </div>

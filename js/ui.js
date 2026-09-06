@@ -385,7 +385,7 @@ function confirmFullReset(){ fullReset(); }
 // chosen, and the Edit panel once the wizard has taken the masthead's place.
 $('resetFormBtn')?.addEventListener('click',confirmFullReset);
 document.addEventListener('click',e=>{
-  const t=e.target.closest&&e.target.closest('#wizStartOver');
+  const t=e.target.closest&&e.target.closest('#hdrResetBtn');
   if(t){ e.preventDefault(); confirmFullReset(); }
 });
 
@@ -1258,14 +1258,29 @@ function wizRenderSteps(){
   if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span>`;
 }
 
+// Which rows the Edit panel shows, and what it is called while it shows them.
+function showEditChoices(which){
+  const p = $('wizChangePeriod'), d = $('wizChangeDept'), t = $('wizEditTitle');
+  if (p) p.hidden = which === 'dept';
+  if (d) d.hidden = which === 'period';
+  if (t) t.textContent = which === 'period' ? 'Change period'
+                       : which === 'dept'   ? 'Change department' : 'Edit';
+}
+
 function wizRenderContext(){
   const { month, year } = getMonthYear();
   const per = $('wizPeriod');
   if (per) per.textContent = (month !== null && year)
     ? `${MONTH_NAMES[month]} ${year}` : 'No month selected';
   const dept = $('wizDept');
-  if (dept) dept.textContent = (activeProfile && activeProfile.ec_name)
+  const deptName = (activeProfile && activeProfile.ec_name)
     ? activeProfile.ec_name : 'VHW Emergency Medicine';
+  if (dept) dept.textContent = deptName;
+  // The same two facts, as the header's controls.
+  const hp = $('hdrPeriodBtn'), hd = $('hdrDeptBtn'), hc = $('hdrCtx'), bar = $('wizBar');
+  if (hp && per) hp.textContent = per.textContent;
+  if (hd) hd.textContent = deptName;
+  if (hc && bar) hc.hidden = bar.hidden;
   for (const [id, n] of [['dlPeriod1', 1], ['dlPeriod2', 2], ['dlPeriod3', 3]]) {
     const el = $(id);
     if (el) el.textContent = (month !== null && year) ? `${MONTH_NAMES[month]} ${year}` : '';
@@ -1496,7 +1511,7 @@ const CONFIRM_ACTIONS = [
   ['.ri-remove',       'Are you sure you want to remove this file?'],
   ['.row-clear',       'Are you sure you want to remove this entry?'],
   ['#resetFormBtn',    'Are you sure you want to clear all data and start over?'],
-  ['#wizStartOver',    'Are you sure you want to clear all data and start over?'],
+  ['#hdrResetBtn',     'Are you sure you want to clear all data and start over?'],
 ];
 // Capture, so the question is asked before the handlers that do the work. On
 // yes the same click is sent again, flagged, and passes straight through.
@@ -1567,7 +1582,11 @@ document.addEventListener('click', e => {
   }
   function wire(){
     dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
-    dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn');
+    // The bar's icon offers both; each header chip offers only its own, which
+    // is what makes them read as controls for that one thing.
+    dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('all'));
+    dialog('hdrPeriodBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('period'));
+    dialog('hdrDeptBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('dept'));
     dialog(['totalsToggle','totalsToggle2'],'totalsOverlay','totalsCloseBtn',updateTotalsDetail);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);

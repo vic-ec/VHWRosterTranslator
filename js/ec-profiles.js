@@ -577,6 +577,16 @@ document.addEventListener('DOMContentLoaded', () => {
     return { columns, roleCols, dateCol, dayCol, map };
   }
 
+  // One name per line, blanks dropped. Absent rather than empty, so a profile
+  // with nothing entered looks exactly like every profile made before this
+  // field existed and takes the same free-text path.
+  function wizSupervisorList() {
+    const el = $('wizSupervisors');
+    if (!el) return null;
+    const names = el.value.split('\n').map(s => s.trim()).filter(Boolean);
+    return names.length ? names : null;
+  }
+
   function wizBuildTableProfile(ecShort) {
     const t = id => ($(id) ? $(id).value.trim() : '') || null;
     const pair = (a, b) => (t(a) && t(b)) ? [t(a), t(b)] : null;
@@ -606,6 +616,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ec_short: ecShort,
         roster_type: 'table',
         work_pattern: 'shifts',
+        ...(wizSupervisorList() ? { supervisors: wizSupervisorList() } : {}),
         table: {
           header_row: $('wizDocHeader') ? $('wizDocHeader').checked : true,
           columns, date_col: dateCol, day_col: dayCol,
@@ -755,6 +766,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const profile = {
       ec_short:    $('wizEcShort').value.trim(),
       roster_type: isConsultant ? 'consultant' : 'shift',
+      ...(wizSupervisorList() ? { supervisors: wizSupervisorList() } : {}),
     };
     if (isConsultant) {
       const dataY = parseInt($('wizDataY').value) || 188;
