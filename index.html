@@ -686,7 +686,9 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   /* The header runs out of room around 400px and the version was the part
      that fell off the edge. The footer carries it, so drop it here and let
      the two status chips share the second line. */
-  header { gap: 8px; padding: 10px 16px; }
+  /* 20px is the app's gutter — main, the wizard bar and the footer all use
+     it — so the shield lines up with the Edit button directly below it. */
+  header { gap: 8px; padding: 10px 20px; }
   .brand-ver { display: none; }
   .ec-mode { font-size: 10px; padding: 3px 6px; }
   .safe-btn { font-size: 11px; padding: 5px 8px; }
@@ -780,8 +782,16 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 /* Both buttons take the width of the wider label, so a step's pair is
    symmetrical whatever the two steps either side are called. */
 .wiznav .btn { min-height: var(--control-h); padding-inline: 20px; min-width: 264px; }
-.wiznav .btn svg { width: 15px; height: 15px; flex: none; }
-.wiznav [data-wiz="next"] svg { order: 2; }
+/* The chevron sits on the button's edge and the label stays centred, the same
+   way the download cards put their arrow against the edge — 20px in, matching
+   their padding. Absolute, so it takes no part in centring the label; 19px
+   because the offset starts inside the button's 1px border, and the download
+   cards have none. */
+.wiznav .btn { position: relative; }
+.wiznav .btn svg { position: absolute; top: 50%; transform: translateY(-50%);
+  width: 15px; height: 15px; flex: none; }
+.wiznav [data-wiz="back"] svg { left: 19px; }
+.wiznav [data-wiz="next"] svg { right: 19px; }
 .wiznav-why { flex: 1 1 100%; order: 3; font-size: 14px; color: var(--color-neutral-700);
   display: flex; align-items: flex-start; gap: 8px; }
 .wiznav-why[hidden] { display: none; }
