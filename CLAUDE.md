@@ -81,6 +81,12 @@ the parts worth knowing before editing:
   bar; neither is sticky on its own. Two stacked sticky boxes — the second
   offset by a measured header height — came apart under an iOS over-scroll and
   both slid away.
+- **The EC setup wizard uses the app's own chrome.** Its close button carries
+  `.modal-close` like every other panel — only the ink is overridden, since its
+  head is an accent band — and its Back/Next carry the step nav's chevrons at
+  the same 19px inset and one `--control-h`. `#wizBackBtn`/`#wizNextBtn` need a
+  `min-width` for that: the step nav keeps a short label clear of its chevron
+  via its 264px, which will not fit two-up inside a modal on a phone.
 - **Destructive controls go through `askConfirm()`.** A capture-phase listener
   matches `CONFIRM_ACTIONS` and asks before the real handler runs, then
   re-sends the click. It ignores untrusted events on purpose: the app presses
