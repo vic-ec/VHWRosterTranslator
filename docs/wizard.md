@@ -59,7 +59,10 @@ file under `js/` and the matching block inside `index.html`'s inline `<script>`
   (`.rv-pick`) is hidden unless two or more files are loaded. A find box above it
   highlights every occurrence of a name — prefilled with the doctor being
   reviewed, which is the reason to search at all — with a match count and
-  arrows that step through them, wrapping at either end.
+  arrows that step through them, wrapping at either end. The panel opens from
+  three controls sharing one preparer: the step-1 button, an eye in the header
+  on a desktop and one in the bar on a phone — both sticky, so the file is
+  reachable from anywhere in the schedule.
   This needs the `File` handle to survive extraction, so the objects pushed
   onto `state.parsedFiles` now carry `file`; it stays in memory only, like the
   rest of `state`. `wizRefresh()` disables the button until at least one

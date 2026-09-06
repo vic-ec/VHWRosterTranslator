@@ -105,6 +105,12 @@ the parts worth knowing before editing:
   them (`#wizSupervisors`, one name per line) and both profile builders attach
   the list when there is one. Without it every wizard profile fell through to
   the free-text box, which read as the dropdown being broken.
+- **`showEcPicker()` hides `#hdrCtx` as well as the bar.** The header context
+  mirrors the wizard bar, and everywhere else that pairing is maintained by
+  `wizRefresh()`. This is the one place that hides the bar without it, and
+  `reopenEcPicker()` is async — so a caller cannot sync the header itself, its
+  line would run first. Before this, Start over left the header showing the
+  period and department of the roster just cleared.
 - **`.shell` is the flex column that makes the footer sit on the bottom edge.**
   Not `body` — making the body the flex container changes how its children
   resolve their width. `.shell > .wrap` needs an explicit `width: 100%`
@@ -183,7 +189,14 @@ they are — see `profiles/README.md`.
   layer over the canvas, so they hold as it scales to the panel width; and
   spaces in the query are loosened to `\s*`, because a PDF may set "De Haan"
   as `De` + `Haan` with no space character between them. Nothing is "current"
-  until the user steps, so the panel does not jump while they type.
+  until the user steps, so the panel does not jump while they type. It opens
+  from three places that share one preparer (`rosterViewOpen`): the button
+  beside Preview schedule, `#hdrViewBtn` in the header (desktop) and
+  `#wizViewBtn` in the wizard bar (phone) — both inside the sticky `.topbar`,
+  so the file stays reachable while scrolling the schedule. The two icons are
+  *hidden* until a file is retained rather than disabled, which needs explicit
+  `.hdr-icon[hidden]` / `.wizctx-edit[hidden]` rules: both classes set
+  `display: inline-flex`, which outranks the UA rule for `[hidden]`.
 - All PDF parsing is coordinate-based against PDF.js text positions, since roster layouts vary — logic in `parser.js`/`parser-consultant.js` (and their inlined counterparts) is layout-sensitive. Word parsing is not: `parser-word.js` reads real cell boundaries and needs no calibration.
 - **The app no longer bundles SheetJS.** `js/xlsx.full.min.js` had been a GitHub error page rather than a library, so `window.XLSX` was never defined and Excel upload always failed. It is replaced by `js/parser-xlsx.js`, a small reader over JSZip — an `.xlsx` is a zip of XML, so no extra dependency is needed. SheetJS was not restored because the newest version obtainable from npm is 0.18.5 (March 2022), which carries two unfixed high-severity parsing advisories (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9); the patched builds are only on `cdn.sheetjs.com`. Consequence: legacy binary `.xls` is no longer accepted — the upload zone takes `.pdf,.xlsx,.docx,.doc`, and an `.xls` gets a message telling the user to Save As `.xlsx`.
 - `parseRosterExcel` is **async** (it awaits `readXlsxSheets`); call sites must `await` it.

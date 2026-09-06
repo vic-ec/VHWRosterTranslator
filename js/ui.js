@@ -378,6 +378,10 @@ function fullReset(){
   const modeEl=$('ecMode'); if(modeEl){modeEl.textContent='';modeEl.style.display='none';}
   const offNote=$('ecOfflineNote'); if(offNote) offNote.style.display='none';
   if(typeof window.reopenEcPicker==='function') window.reopenEcPicker();
+  // Leaves the viewer icons and the Preview-schedule button in step with the
+  // now-empty state. The header context itself is hidden by showEcPicker(),
+  // which reopenEcPicker() reaches asynchronously — after this line.
+  if(typeof wizRefresh==='function') wizRefresh();
 }
 // The confirmation panel has already been answered by the time this runs.
 function confirmFullReset(){ fullReset(); }
@@ -1328,8 +1332,15 @@ function wizRefresh(){
   wizRenderSteps(); wizRenderContext(); wizRenderNav();
   const hb = $('totalsToggle2');
   if (hb) hb.disabled = !wizPreviewed();
+  // The button beside Preview schedule greys out; the header and bar icons
+  // are hidden until there is a file, so they appear when they become useful.
+  const anyFile = !!rosterViewFiles().length;
   const vr = $('viewRosterBtn');
-  if (vr) vr.disabled = !rosterViewFiles().length;
+  if (vr) vr.disabled = !anyFile;
+  for (const id of ['hdrViewBtn','wizViewBtn']) {
+    const el = $(id);
+    if (el) el.hidden = !anyFile;
+  }
   const ack = $('reviewAckWrap');
   if (ack) ack.hidden = !wizPreviewed();
   buildAttentionItems();
@@ -1562,6 +1573,20 @@ function drawGridInto(host, rows, re){
     Array.from({length: width}, (_, c) => '<td>' + cell((r || [])[c]) + '</td>').join('') + '</tr>').join('');
   host.innerHTML = '<table class="rv-grid"><thead>' + head + '</thead><tbody>' + cells + '</tbody></table>';
 }
+// Opening the viewer is the same job from three places: the button beside
+// Preview schedule, and the header/bar icons that stay in reach while the user
+// is scrolling the schedule. One preparer for all of them.
+function rosterViewOpen(){
+  const pick=$('rosterViewPick');
+  if(pick){
+    const files=rosterViewFiles();
+    pick.innerHTML=files.map(f=>`<option>${String(f.name).replace(/</g,'&lt;')}</option>`).join('');
+  }
+  const find=$('rosterViewFind');
+  if(find) find.value=state.selectedDoctor||'';
+  renderRosterView();
+}
+
 // ── Roster viewer: find and highlight ──────────────────────────────────────
 // The viewer exists so a suspect parse can be checked against the file, and on
 // a month-wide consultant roster that means following one surname down the
@@ -1847,16 +1872,8 @@ document.addEventListener('click', e => {
     dialog('hdrPeriodBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('period'));
     dialog('hdrDeptBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('dept'));
     dialog(['totalsToggle','totalsToggle2'],'totalsOverlay','totalsCloseBtn',updateTotalsDetail);
-    dialog('viewRosterBtn','rosterViewOverlay','rosterViewCloseBtn',()=>{
-      const pick=$('rosterViewPick');
-      if(pick){
-        const files=rosterViewFiles();
-        pick.innerHTML=files.map(f=>`<option>${String(f.name).replace(/</g,'&lt;')}</option>`).join('');
-      }
-      const find=$('rosterViewFind');
-      if(find) find.value=state.selectedDoctor||'';
-      renderRosterView();
-    });
+    for(const id of ['viewRosterBtn','hdrViewBtn','wizViewBtn'])
+      dialog(id,'rosterViewOverlay','rosterViewCloseBtn',rosterViewOpen);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();

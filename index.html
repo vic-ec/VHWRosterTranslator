@@ -249,6 +249,9 @@ header {
 .hdr-icon:hover { background: var(--color-accent-100); border-color: var(--color-accent);
   color: var(--color-accent-700); }
 .hdr-icon:active { background: var(--color-accent-200); }
+/* display:inline-flex above outranks the UA rule for [hidden], so hiding
+   these needs saying explicitly — see .modal-choice for the same trap. */
+.hdr-icon[hidden] { display: none; }
 
 
 /* ── masthead ───────────────────────────────────────────────── */
@@ -804,6 +807,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 .wizctx-edit svg { width: 24px; height: 24px; flex: none; }
 .wizctx-edit:hover { background: var(--color-accent-100); border-color: var(--color-accent); }
 .wizctx-edit:active, .wizctx-edit[aria-expanded="true"] { background: var(--color-accent-200); }
+.wizctx-edit[hidden] { display: none; }
 /* The bar keeps the context on a phone; on a desktop the header carries it. */
 @media (min-width: 861px) { .wizctx { display: none; } }
 
@@ -822,6 +826,11 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     border: 1px solid var(--color-divider); color: var(--color-text); }
   .wizctx-edit svg { width: 15px; height: 15px; }
   .wizstep-mobile { padding-right: 44px; }
+  /* The eye sits to the left of Edit, and only then does the row need the
+     wider gutter — so the reservation is made by :has(), not unconditionally. */
+  .wizctx-view { right: 40px; }
+  .wizctx:has(.wizctx-view:not([hidden])) { padding-right: 84px; }
+  .wizbar-inner:has(.wizctx-view:not([hidden])) .wizstep-mobile { padding-right: 84px; }
 }
 
 /* Step footer: Back / Continue, with the blocking reason spelled out. */
@@ -1078,6 +1087,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       aria-expanded="false" title="Change period">No month selected</button>
     <button type="button" class="hdr-chip" id="hdrDeptBtn" aria-haspopup="dialog"
       aria-expanded="false" title="Change department">&nbsp;</button>
+    <button type="button" class="hdr-icon" id="hdrViewBtn" aria-haspopup="dialog"
+      aria-expanded="false" aria-label="View roster file" title="View roster file" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></button>
     <button type="button" class="hdr-icon" id="hdrResetBtn" aria-label="Start over" title="Start over"><svg
     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
     stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path
@@ -1098,6 +1109,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       <span class="period" id="wizPeriod">No month selected</span>
       <span class="sep" aria-hidden="true">&middot;</span>
       <span class="dept" id="wizDept">VHW Emergency Medicine</span>
+      <button type="button" class="wizctx-edit wizctx-view" id="wizViewBtn" aria-haspopup="dialog"
+        aria-expanded="false" aria-label="View roster file" title="View roster file" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></button>
       <button type="button" class="wizctx-edit" id="wizEditBtn" aria-haspopup="dialog"
         aria-expanded="false" aria-label="Edit period or department" title="Edit"><svg
         viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -4906,6 +4919,10 @@ function fullReset(){
   const modeEl=$('ecMode'); if(modeEl){modeEl.textContent='';modeEl.style.display='none';}
   const offNote=$('ecOfflineNote'); if(offNote) offNote.style.display='none';
   if(typeof window.reopenEcPicker==='function') window.reopenEcPicker();
+  // Leaves the viewer icons and the Preview-schedule button in step with the
+  // now-empty state. The header context itself is hidden by showEcPicker(),
+  // which reopenEcPicker() reaches asynchronously — after this line.
+  if(typeof wizRefresh==='function') wizRefresh();
 }
 // The confirmation panel has already been answered by the time this runs.
 function confirmFullReset(){ fullReset(); }
@@ -5798,6 +5815,10 @@ function showEcPicker(profiles) {
   const _mh=document.querySelector('.masthead'), _wb=document.getElementById('wizBar');
   if(_mh) _mh.hidden=false;
   if(_wb) _wb.hidden=true;
+  // The header context mirrors the bar, and this is the one place that hides
+  // the bar without going through wizRefresh(). reopenEcPicker() is async, so
+  // a caller cannot sync the header itself — it would run first.
+  const _hc=document.getElementById('hdrCtx'); if(_hc) _hc.hidden=true;
   for(const _s of ['sec-1','sec-2','sec-3','sec-4']){
     const _el=document.getElementById(_s); if(_el) _el.hidden=true;
   }
@@ -6933,8 +6954,15 @@ function wizRefresh(){
   wizRenderSteps(); wizRenderContext(); wizRenderNav();
   const hb = $('totalsToggle2');
   if (hb) hb.disabled = !wizPreviewed();
+  // The button beside Preview schedule greys out; the header and bar icons
+  // are hidden until there is a file, so they appear when they become useful.
+  const anyFile = !!rosterViewFiles().length;
   const vr = $('viewRosterBtn');
-  if (vr) vr.disabled = !rosterViewFiles().length;
+  if (vr) vr.disabled = !anyFile;
+  for (const id of ['hdrViewBtn','wizViewBtn']) {
+    const el = $(id);
+    if (el) el.hidden = !anyFile;
+  }
   const ack = $('reviewAckWrap');
   if (ack) ack.hidden = !wizPreviewed();
   buildAttentionItems();
@@ -7167,6 +7195,20 @@ function drawGridInto(host, rows, re){
     Array.from({length: width}, (_, c) => '<td>' + cell((r || [])[c]) + '</td>').join('') + '</tr>').join('');
   host.innerHTML = '<table class="rv-grid"><thead>' + head + '</thead><tbody>' + cells + '</tbody></table>';
 }
+// Opening the viewer is the same job from three places: the button beside
+// Preview schedule, and the header/bar icons that stay in reach while the user
+// is scrolling the schedule. One preparer for all of them.
+function rosterViewOpen(){
+  const pick=$('rosterViewPick');
+  if(pick){
+    const files=rosterViewFiles();
+    pick.innerHTML=files.map(f=>`<option>${String(f.name).replace(/</g,'&lt;')}</option>`).join('');
+  }
+  const find=$('rosterViewFind');
+  if(find) find.value=state.selectedDoctor||'';
+  renderRosterView();
+}
+
 // ── Roster viewer: find and highlight ──────────────────────────────────────
 // The viewer exists so a suspect parse can be checked against the file, and on
 // a month-wide consultant roster that means following one surname down the
@@ -7452,16 +7494,8 @@ document.addEventListener('click', e => {
     dialog('hdrPeriodBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('period'));
     dialog('hdrDeptBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('dept'));
     dialog(['totalsToggle','totalsToggle2'],'totalsOverlay','totalsCloseBtn',updateTotalsDetail);
-    dialog('viewRosterBtn','rosterViewOverlay','rosterViewCloseBtn',()=>{
-      const pick=$('rosterViewPick');
-      if(pick){
-        const files=rosterViewFiles();
-        pick.innerHTML=files.map(f=>`<option>${String(f.name).replace(/</g,'&lt;')}</option>`).join('');
-      }
-      const find=$('rosterViewFind');
-      if(find) find.value=state.selectedDoctor||'';
-      renderRosterView();
-    });
+    for(const id of ['viewRosterBtn','hdrViewBtn','wizViewBtn'])
+      dialog(id,'rosterViewOverlay','rosterViewCloseBtn',rosterViewOpen);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();

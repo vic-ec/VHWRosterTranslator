@@ -82,6 +82,10 @@ function showEcPicker(profiles) {
   const _mh=document.querySelector('.masthead'), _wb=document.getElementById('wizBar');
   if(_mh) _mh.hidden=false;
   if(_wb) _wb.hidden=true;
+  // The header context mirrors the bar, and this is the one place that hides
+  // the bar without going through wizRefresh(). reopenEcPicker() is async, so
+  // a caller cannot sync the header itself — it would run first.
+  const _hc=document.getElementById('hdrCtx'); if(_hc) _hc.hidden=true;
   for(const _s of ['sec-1','sec-2','sec-3','sec-4']){
     const _el=document.getElementById(_s); if(_el) _el.hidden=true;
   }
