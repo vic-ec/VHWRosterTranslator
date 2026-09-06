@@ -90,6 +90,10 @@ the parts worth knowing before editing:
   Edit panel on a phone (`#wizStartOver`); each width shows exactly one of
   them. The masthead button all three share a handler with is hidden from the
   moment a department is chosen.
+- **The scroll lock goes on `<html>`, not `<body>`.** `scrollbar-gutter:
+  stable` is declared on `html`; body's overflow only reaches the viewport by
+  propagation, and once it does, the gutter reserved on `html` is released and
+  the whole layout shifts by the scrollbar's width when a modal opens.
 - **`.modal-choice[hidden]` needs its own rule.** The class sets
   `display: flex`, which outranks the browser's rule for `[hidden]`, so
   setting the attribute alone left both choices on screen.

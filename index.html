@@ -284,7 +284,7 @@ header {
   font-family: var(--font-heading); font-weight: 800; font-size: 12px; line-height: 1;
   color: var(--color-text); background: var(--color-bg);
   border: 1px solid var(--color-divider); border-radius: 0;
-  padding: 7px 12px; white-space: nowrap;
+  height: var(--control-h); padding: 0 12px; white-space: nowrap;
   transition: background 110ms linear, border-color 110ms linear, color 110ms linear;
 }
 .safe-btn svg { display: block; width: 13px; height: 13px; flex: none; }
@@ -381,14 +381,12 @@ main { padding: 40px 32px 0; }
 .actions-row .btn-primary { min-height: var(--control-h); padding: 0 20px; font-size: 14px; }
 .actions-row .btn-secondary { min-height: var(--control-h); padding: 0 16px; font-size: 14px; }
 #parseStatus { font-size: 12px; color: var(--color-neutral-600); margin-left: auto; text-align: right; }
-/* On a phone the pair spans the upload zone above it, the primary taking
-   whatever Clear all does not need. */
-@media (max-width: 860px) {
-  .actions-row { gap: 10px; }
-  .actions-row .btn-primary { flex: 1 1 auto; }
-  .actions-row .btn-secondary { flex: 0 0 auto; }
-  .actions-row #parseStatus { flex: 1 1 100%; margin-left: 0; }
-}
+/* The pair spans the upload zone above it, the primary taking whatever Clear
+   all does not need. */
+.actions-row { gap: 10px; }
+.actions-row .btn-primary { flex: 1 1 auto; }
+.actions-row .btn-secondary { flex: 0 0 auto; }
+.actions-row #parseStatus { flex: 1 1 100%; margin-left: 0; text-align: right; }
 
 /* ── 02 preview ─────────────────────────────────────────────── */
 .split { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 0; border: 1px solid var(--color-divider); }
@@ -422,7 +420,9 @@ main { padding: 40px 32px 0; }
    Both cap at the same viewport-derived height, so neither runs away. */
 .preview-col { min-width: 0; display: flex; flex-direction: column; }
 .step2-controls { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--color-divider); flex-wrap: wrap; }
-.step2-controls .field-name { min-width: 180px; }
+/* The month, year and the two buttons sit against the right edge so the name
+   — the only free-text field here — keeps the rest. */
+.step2-controls .field-name { min-width: 180px; margin-right: auto; }
 .step2-controls .field-name label,
 .step2-controls .field-month label,
 .step2-controls .field-year label { display: block; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-neutral-600); margin-bottom: 2px; }
@@ -681,9 +681,6 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .safe-btn { width: 32px; height: 32px; padding: 0; gap: 0;
     justify-content: center; }
   .safe-btn svg { width: 15px; height: 15px; }
-  /* Start over goes back into the Edit panel here; the header keeps it on a
-     desktop, where the panel only ever opens filtered to one action. */
-  #hdrResetBtn { display: none; }
 }
 @media (max-width: 560px) {
   /* The header runs out of room around 400px and the version was the part
@@ -780,7 +777,9 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 .wiznav { display: flex; flex-wrap: wrap; align-items: center; gap: 12px;
   border-top: 2px solid var(--color-divider); margin-top: 32px; padding-top: 20px; }
 .wiznav .grow { flex: 1 1 auto; }
-.wiznav .btn { min-height: var(--control-h); padding-inline: 20px; }
+/* Both buttons take the width of the wider label, so a step's pair is
+   symmetrical whatever the two steps either side are called. */
+.wiznav .btn { min-height: var(--control-h); padding-inline: 20px; min-width: 264px; }
 .wiznav .btn svg { width: 15px; height: 15px; flex: none; }
 .wiznav [data-wiz="next"] svg { order: 2; }
 .wiznav-why { flex: 1 1 100%; order: 3; font-size: 14px; color: var(--color-neutral-700);
@@ -1020,11 +1019,11 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
       aria-expanded="false" title="Change period">No month selected</button>
     <button type="button" class="hdr-chip" id="hdrDeptBtn" aria-haspopup="dialog"
       aria-expanded="false" title="Change department">&nbsp;</button>
-  </span>
-  <button type="button" class="hdr-icon" id="hdrResetBtn" aria-label="Start over" title="Start over"><svg
+    <button type="button" class="hdr-icon" id="hdrResetBtn" aria-label="Start over" title="Start over"><svg
     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
     stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path
     d="M3 3v5h5"/></svg></button>
+  </span>
   <button type="button" class="safe-btn" id="privacyBtn" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg><span class="lbl">Your data is safe.</span></button>
 </header>
 
@@ -6840,10 +6839,13 @@ function wizRenderNav(){
     const fwd = nav.querySelector('[data-wiz="next"]');
     const reason = wizBlockedReason(s.n);
     if (fwd) fwd.disabled = !!reason;
+    // Step 3's reason is already printed under the fields it is about, so the
+    // button stays disabled there but says nothing a second time.
+    const spoken = s.n === 3 ? null : reason;
     if (why) {
-      why.hidden = !reason;
+      why.hidden = !spoken;
       const t = why.querySelector('.txt');
-      if (t) t.textContent = reason || '';
+      if (t) t.textContent = spoken || '';
     }
   }
 }
@@ -6987,14 +6989,17 @@ function wizInvalidateReview(){
 // reserved by scrollbar-gutter, the layout widens by that much and every
 // centred thing jumps right, so put back exactly the width locking took.
 function lockPageScroll(){
-  const before=document.documentElement.clientWidth;
-  document.body.style.overflow='hidden';
-  const grew=document.documentElement.clientWidth-before;
-  if(grew>0) document.body.style.paddingRight=grew+'px';
+  const el=document.documentElement;
+  const before=el.clientWidth;
+  el.style.overflow='hidden';
+  // Belt and braces: if a browser still releases the gutter, put the width back.
+  const grew=el.clientWidth-before;
+  if(grew>0) el.style.paddingRight=grew+'px';
 }
 function unlockPageScroll(){
-  document.body.style.overflow='';
-  document.body.style.paddingRight='';
+  const el=document.documentElement;
+  el.style.overflow='';
+  el.style.paddingRight='';
 }
 
 // ── Confirmation ───────────────────────────────────────────────────────────

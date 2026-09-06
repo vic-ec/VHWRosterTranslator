@@ -1297,10 +1297,13 @@ function wizRenderNav(){
     const fwd = nav.querySelector('[data-wiz="next"]');
     const reason = wizBlockedReason(s.n);
     if (fwd) fwd.disabled = !!reason;
+    // Step 3's reason is already printed under the fields it is about, so the
+    // button stays disabled there but says nothing a second time.
+    const spoken = s.n === 3 ? null : reason;
     if (why) {
-      why.hidden = !reason;
+      why.hidden = !spoken;
       const t = why.querySelector('.txt');
-      if (t) t.textContent = reason || '';
+      if (t) t.textContent = spoken || '';
     }
   }
 }
@@ -1444,14 +1447,17 @@ function wizInvalidateReview(){
 // reserved by scrollbar-gutter, the layout widens by that much and every
 // centred thing jumps right, so put back exactly the width locking took.
 function lockPageScroll(){
-  const before=document.documentElement.clientWidth;
-  document.body.style.overflow='hidden';
-  const grew=document.documentElement.clientWidth-before;
-  if(grew>0) document.body.style.paddingRight=grew+'px';
+  const el=document.documentElement;
+  const before=el.clientWidth;
+  el.style.overflow='hidden';
+  // Belt and braces: if a browser still releases the gutter, put the width back.
+  const grew=el.clientWidth-before;
+  if(grew>0) el.style.paddingRight=grew+'px';
 }
 function unlockPageScroll(){
-  document.body.style.overflow='';
-  document.body.style.paddingRight='';
+  const el=document.documentElement;
+  el.style.overflow='';
+  el.style.paddingRight='';
 }
 
 // ── Confirmation ───────────────────────────────────────────────────────────
