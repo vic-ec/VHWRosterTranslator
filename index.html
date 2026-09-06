@@ -326,7 +326,10 @@ header {
   color: var(--color-text); }
 .modal-choice .t { font-family: var(--font-heading); font-weight: 800; font-size: 15px; }
 .modal-choice .d { font-size: 13px; color: var(--color-neutral-700); }
+.modal-choice[hidden] { display: none; }
 .modal-choice:hover .t { color: var(--color-accent); }
+/* The header carries Start over on a desktop, so the panel does not. */
+@media (min-width: 861px) { #wizStartOver { display: none; } }
 .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .modal-actions .btn { flex: 1 1 0; min-height: var(--control-h); }
 #confirmText { font-size: 15px; line-height: 1.5; color: var(--color-text); }
@@ -669,6 +672,19 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   .downloads-row .dl { flex-basis: 100%; }
   footer { padding: 24px 20px 32px; }
 }
+/* On a phone the header is icons: the shield loses its sentence and the two
+   controls become matching squares. 32px rather than the shield's own 25 —
+   an icon-only button that small is an awkward target. */
+@media (max-width: 860px) {
+  .safe-btn .lbl { position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); white-space: nowrap; }
+  .safe-btn { width: 32px; height: 32px; padding: 0; gap: 0;
+    justify-content: center; }
+  .safe-btn svg { width: 15px; height: 15px; }
+  /* Start over goes back into the Edit panel here; the header keeps it on a
+     desktop, where the panel only ever opens filtered to one action. */
+  #hdrResetBtn { display: none; }
+}
 @media (max-width: 560px) {
   /* The header runs out of room around 400px and the version was the part
      that fell off the edge. The footer carries it, so drop it here and let
@@ -751,8 +767,12 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   /* Positioned against the context row itself, so it centres on the period
      and department however those wrap. */
   .wizctx { position: relative; margin-top: 4px; padding-right: 44px; }
+  /* A bordered square matching the shield beside it, in ink rather than
+     accent — the two read as one pair of header controls. */
   .wizctx-edit { position: absolute; right: 0; top: 50%;
-    transform: translateY(-50%); margin-left: 0; width: 30px; height: 30px; }
+    transform: translateY(-50%); margin-left: 0; width: 32px; height: 32px;
+    border: 1px solid var(--color-divider); color: var(--color-text); }
+  .wizctx-edit svg { width: 15px; height: 15px; }
   .wizstep-mobile { padding-right: 44px; }
 }
 
@@ -1005,7 +1025,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
     stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path
     d="M3 3v5h5"/></svg></button>
-  <button type="button" class="safe-btn" id="privacyBtn" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>Your data is safe.</button>
+  <button type="button" class="safe-btn" id="privacyBtn" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg><span class="lbl">Your data is safe.</span></button>
 </header>
 
 <!-- Where you are, and what you are working on. Sticky, because on a phone
@@ -4831,7 +4851,7 @@ function confirmFullReset(){ fullReset(); }
 // chosen, and the Edit panel once the wizard has taken the masthead's place.
 $('resetFormBtn')?.addEventListener('click',confirmFullReset);
 document.addEventListener('click',e=>{
-  const t=e.target.closest&&e.target.closest('#hdrResetBtn');
+  const t=e.target.closest&&e.target.closest('#hdrResetBtn,#wizStartOver');
   if(t){ e.preventDefault(); confirmFullReset(); }
 });
 
@@ -6784,8 +6804,10 @@ function wizRenderSteps(){
 // Which rows the Edit panel shows, and what it is called while it shows them.
 function showEditChoices(which){
   const p = $('wizChangePeriod'), d = $('wizChangeDept'), t = $('wizEditTitle');
+  const sv = $('wizStartOver');
   if (p) p.hidden = which === 'dept';
   if (d) d.hidden = which === 'period';
+  if (sv) sv.hidden = which !== 'all';
   if (t) t.textContent = which === 'period' ? 'Change period'
                        : which === 'dept'   ? 'Change department' : 'Edit';
 }
@@ -7035,6 +7057,7 @@ const CONFIRM_ACTIONS = [
   ['.row-clear',       'Are you sure you want to remove this entry?'],
   ['#resetFormBtn',    'Are you sure you want to clear all data and start over?'],
   ['#hdrResetBtn',     'Are you sure you want to clear all data and start over?'],
+  ['#wizStartOver',    'Are you sure you want to clear all data and start over?'],
 ];
 // Capture, so the question is asked before the handlers that do the work. On
 // yes the same click is sent again, flagged, and passes straight through.
@@ -7166,6 +7189,10 @@ document.addEventListener('click', e => {
         <button type="button" class="modal-choice" id="wizChangeDept">
           <span class="t">Change department</span>
           <span class="d">Go back to the department list.</span>
+        </button>
+        <button type="button" class="modal-choice is-danger" id="wizStartOver">
+          <span class="t">Start over</span>
+          <span class="d">Clear the roster, the schedule and your details, and pick a department again.</span>
         </button>
       </div>
     </div>

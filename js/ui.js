@@ -385,7 +385,7 @@ function confirmFullReset(){ fullReset(); }
 // chosen, and the Edit panel once the wizard has taken the masthead's place.
 $('resetFormBtn')?.addEventListener('click',confirmFullReset);
 document.addEventListener('click',e=>{
-  const t=e.target.closest&&e.target.closest('#hdrResetBtn');
+  const t=e.target.closest&&e.target.closest('#hdrResetBtn,#wizStartOver');
   if(t){ e.preventDefault(); confirmFullReset(); }
 });
 
@@ -1261,8 +1261,10 @@ function wizRenderSteps(){
 // Which rows the Edit panel shows, and what it is called while it shows them.
 function showEditChoices(which){
   const p = $('wizChangePeriod'), d = $('wizChangeDept'), t = $('wizEditTitle');
+  const sv = $('wizStartOver');
   if (p) p.hidden = which === 'dept';
   if (d) d.hidden = which === 'period';
+  if (sv) sv.hidden = which !== 'all';
   if (t) t.textContent = which === 'period' ? 'Change period'
                        : which === 'dept'   ? 'Change department' : 'Edit';
 }
@@ -1512,6 +1514,7 @@ const CONFIRM_ACTIONS = [
   ['.row-clear',       'Are you sure you want to remove this entry?'],
   ['#resetFormBtn',    'Are you sure you want to clear all data and start over?'],
   ['#hdrResetBtn',     'Are you sure you want to clear all data and start over?'],
+  ['#wizStartOver',    'Are you sure you want to clear all data and start over?'],
 ];
 // Capture, so the question is asked before the handlers that do the work. On
 // yes the same click is sent again, flagged, and passes straight through.

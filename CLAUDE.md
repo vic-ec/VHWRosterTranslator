@@ -86,9 +86,13 @@ the parts worth knowing before editing:
   re-sends the click. It ignores untrusted events on purpose: the app presses
   these buttons itself (`fullReset()` clicks Clear all), and asking there left
   the page inert waiting on an answer nobody could give.
-- **Start over lives in the header** (`#hdrResetBtn`) at every width; the
-  masthead button it shares a handler with is hidden from the moment a
-  department is chosen, so this is the only route to it once the wizard runs.
+- **Start over is in the header on a desktop** (`#hdrResetBtn`) and in the
+  Edit panel on a phone (`#wizStartOver`); each width shows exactly one of
+  them. The masthead button all three share a handler with is hidden from the
+  moment a department is chosen.
+- **`.modal-choice[hidden]` needs its own rule.** The class sets
+  `display: flex`, which outranks the browser's rule for `[hidden]`, so
+  setting the attribute alone left both choices on screen.
 - **The period and department are header controls on a desktop**
   (`#hdrPeriodBtn`, `#hdrDeptBtn`), each opening `#wizEditOverlay` filtered to
   its own action by `showEditChoices()`. The bar's `.wizctx` carries them on a
