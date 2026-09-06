@@ -403,7 +403,7 @@ $('parseBtn').addEventListener('click',async()=>{
   const btn=$('parseBtn');btn.disabled=true;
   btn.innerHTML='<span class="spinner"></span> Extracting\u2026';
   const totalSrc=state.pendingFiles.length+(state.consultantFile?1:0);  setStatus('Extracting from '+totalSrc+' file(s)\u2026','info');
-  let errors=0;
+  let errors=0; const errMsgs=[];
   for(const file of [...state.pendingFiles]){
     try{
       const buf=await readFile(file);
@@ -431,7 +431,11 @@ $('parseBtn').addEventListener('click',async()=>{
       const filteredDays=result.days.filter(d=>d.month===dominantMonth);
       state.parsedFiles.push({name:file.name,days:filteredDays,doctors:result.doctors,file});
       state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);
-    }catch(err){console.error('Parse error',file.name,err);errors++;state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);}
+    }catch(err){console.error('Parse error',file.name,err);errors++;
+      // Keep the reason: "1 error(s)" on its own tells the user nothing they
+      // can act on, and a parser that returns nothing is not always at fault.
+      errMsgs.push(file.name+': '+(err&&err.message?err.message:err));
+      state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);}
   }
   if(state.parsedFiles.length) { mergeAndRefresh();renderFileList(); }
   // Extraction is done — the wizard can now judge whether step 1 is complete.
@@ -458,7 +462,7 @@ $('parseBtn').addEventListener('click',async()=>{
   } else {
     const total=state.rosterData?.days.length||0,docs=state.rosterData?.doctors.size||0;
     setStatus(errors
-      ?`\u2713 Extracted with ${errors} error(s) \u2014 ${total} days, ${docs} staff`
+      ?`${errMsgs[0]||`Extracted with ${errors} error(s)`}${errors>1?` (and ${errors-1} more)`:''}`
       :`\u2713 ${total} days \u00b7 ${docs} staff across ${state.parsedFiles.length} file(s)`
       ,errors?'error':'success');
   }

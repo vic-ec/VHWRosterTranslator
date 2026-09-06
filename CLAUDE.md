@@ -203,6 +203,23 @@ they are — see `profiles/README.md`.
   *hidden* until a file is retained rather than disabled, which needs explicit
   `.hdr-icon[hidden]` / `.wizctx-edit[hidden]` rules: both classes set
   `display: inline-flex`, which outranks the UA rule for `[hidden]`.
+- **The EC roster template has a typo the parser has to tolerate.** Its first
+  time band reads `08;00 - 18:00` — a semicolon — in at least the 2023 and 2024
+  exports. `TIME_TOK_SINGLE`/`TIME_TOK_RANGE` therefore accept `;` alongside
+  `:` and `h`. Without that the token did not look like a time, `findAnchors()`
+  located three of the four columns instead of four, and every name in the
+  08:00 column fell outside `maxDist` and was silently dropped — a ~30% under-
+  count of shifts. Widening the class cannot change a correctly typed roster,
+  since those tokens already matched: A/B on real files showed the 2019 export
+  (proper colons) byte-identical, while 2023 went from 0/16 to 16/16 matching
+  the roster's own printed shift tally. **This is the pattern to follow for
+  layout drift**: accept an extra spelling of something the parser already
+  understands, never loosen what a match means.
+- **A PDF with no text throws rather than returning nothing.** A scan or photo
+  has no text layer, and the old code reported `✓ 0 days · 0 staff` in green
+  over it. `parseRosterPDF` tracks whether any page had words and throws if
+  none did, and the parse loop keeps the first error's message so the status
+  line says what was wrong instead of `1 error(s)`.
 - All PDF parsing is coordinate-based against PDF.js text positions, since roster layouts vary — logic in `parser.js`/`parser-consultant.js` (and their inlined counterparts) is layout-sensitive. Word parsing is not: `parser-word.js` reads real cell boundaries and needs no calibration.
 - **The app no longer bundles SheetJS.** `js/xlsx.full.min.js` had been a GitHub error page rather than a library, so `window.XLSX` was never defined and Excel upload always failed. It is replaced by `js/parser-xlsx.js`, a small reader over JSZip — an `.xlsx` is a zip of XML, so no extra dependency is needed. SheetJS was not restored because the newest version obtainable from npm is 0.18.5 (March 2022), which carries two unfixed high-severity parsing advisories (GHSA-4r6h-8v6p-xvw6, GHSA-5pgg-2g8v-p4x9); the patched builds are only on `cdn.sheetjs.com`. Consequence: legacy binary `.xls` is no longer accepted — the upload zone takes `.pdf,.xlsx,.docx,.doc`, and an `.xls` gets a message telling the user to Save As `.xlsx`.
 - `parseRosterExcel` is **async** (it awaits `readXlsxSheets`); call sites must `await` it.

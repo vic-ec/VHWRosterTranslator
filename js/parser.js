@@ -31,9 +31,15 @@ function inferYear(pageText, detectedDates) {
 
 // ── Column anchor detection ─────────────────────────────────────────────────
 // Matches standalone "08:00" or "18h00" tokens
-const TIME_TOK_SINGLE = /^\d{2}[h:]\d{2}$/i;
+// The separator is ';' as well as ':' and 'h' on purpose. The EC roster
+// template has carried a typo since at least 2023 — its first band reads
+// "08;00 - 18:00" — and because that token then failed to look like a time,
+// findAnchors() located only three of the four columns and every name in the
+// 08:00 column fell outside maxDist and was dropped. Accepting ';' cannot
+// change a correctly typed roster: those tokens already matched.
+const TIME_TOK_SINGLE = /^\d{2}[h:;]\d{2}$/i;
 // Matches combined range tokens like "08:00 - 18h00", "13:00 - 23:00", etc.
-const TIME_TOK_RANGE = /^(\d{2}[h:]\d{2})\s*[-–]\s*(\d{2}[h:]\d{2})$/i;
+const TIME_TOK_RANGE = /^(\d{2}[h:;]\d{2})\s*[-–]\s*(\d{2}[h:;]\d{2})$/i;
 
 function findAnchors(words, minCount) {
   // Collect time tokens: both single ("08:00") and combined ("08:00 - 18h00")
@@ -200,6 +206,9 @@ function extractNamesWithAnchors(rowWords, anchorXs, maxDist) {
 
 // ── Main PDF parser ─────────────────────────────────────────────────────────
 async function parseRosterPDF(arrayBuffer) {
+  // A PDF with no text at all is a scan or a photo, not an export. Saying so
+  // is the difference between a useful message and a green tick over nothing.
+  let sawText = false;
   const pdfjsLib = window.pdfjsLib;
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const doctors = new Set(), days = [];
@@ -212,6 +221,7 @@ async function parseRosterPDF(arrayBuffer) {
       .filter(w => w.text.length > 0);
 
     const pageText = words.map(w => w.text).join(' ');
+    sawText = sawText || words.length > 0;
     if (!HAS_DATE.test(pageText)) continue;
 
     // ── Column anchors ───────────────────────────────────────────────────
@@ -381,6 +391,9 @@ async function parseRosterPDF(arrayBuffer) {
     }
   }
 
+  if (!sawText) throw new Error(
+    'this PDF has no text in it \u2014 it is a scan or a photo. Only a PDF ' +
+    'exported from the roster file itself can be read.');
   return { days, doctors };
 }
 
