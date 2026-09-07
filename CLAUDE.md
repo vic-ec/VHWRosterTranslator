@@ -105,7 +105,9 @@ the parts worth knowing before editing:
   side by side and CSS picks by width — four full names were being cut off
   mid-word on a phone. Tabs 2 and 3 are rewritten in JS per roster type, so
   those writes go through `wizTabLabel(n, full, short)` and emit both forms;
-  writing a bare string there silently loses the short label.
+  writing a bare string there silently loses the short label. `Columns` is the
+  longest short form and sets the floor: below 380px it needs the tracking
+  gone as well to fit a 320px screen.
 - **Destructive controls go through `askConfirm()`.** A capture-phase listener
   matches `CONFIRM_ACTIONS` and asks before the real handler runs, then
   re-sends the click. It ignores untrusted events on purpose: the app presses

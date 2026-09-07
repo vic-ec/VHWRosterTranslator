@@ -718,6 +718,11 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 @media (max-width: 420px) {
   .wiz-step-tab { padding-inline: 5px; letter-spacing: 0.04em; }
 }
+/* "Columns" is the longest of the four short forms and is what sets the floor
+   here: at 320px it needs the tracking gone as well. */
+@media (max-width: 380px) {
+  .wiz-step-tab { padding-inline: 3px; letter-spacing: 0; }
+}
 .wiz-body { padding: 24px; }
 .wiz-intro { font-size: 14px; color: var(--color-neutral-700); margin: 0 0 18px; line-height: 1.55; }
 .wiz-field { margin-bottom: 16px; }
@@ -1522,7 +1527,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <div class="wiz-tabs">
       <div class="wiz-step-tab" id="wizTab1" data-step="1">1 &nbsp;<span class="t-full">Department details</span><span class="t-short">Details</span></div>
       <div class="wiz-step-tab" id="wizTab2" data-step="2">2 &nbsp;<span class="t-full">Upload PDF</span><span class="t-short">Upload</span></div>
-      <div class="wiz-step-tab" id="wizTab3" data-step="3">3 &nbsp;<span class="t-full">Columns &amp; rules</span><span class="t-short">Setup</span></div>
+      <div class="wiz-step-tab" id="wizTab3" data-step="3">3 &nbsp;<span class="t-full">Columns &amp; rules</span><span class="t-short">Columns</span></div>
       <div class="wiz-step-tab" id="wizTab4" data-step="4">4 &nbsp;<span class="t-full">Review &amp; submit</span><span class="t-short">Review</span></div>
     </div>
 
@@ -6085,7 +6090,7 @@ function wizTabLabel(n, full, short){
     pane('wizStep2Cons', 'wizStep2Table');
     pane('wizStep3Cons', 'wizStep3Table');
     if ($('wizTab2')) $('wizTab2').innerHTML = wizTabLabel(2, isTable ? 'Upload Roster File' : 'Upload PDF', 'Upload');
-    if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Setup');
+    if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Columns');
     // Update tabs
     for (let i = 1; i <= WIZ_STEPS; i++) {
       const tab = $('wizTab' + i);
@@ -6124,7 +6129,7 @@ function wizTabLabel(n, full, short){
       const isTable = r.value === 'table';
       if ($('wizPatternWrap')) $('wizPatternWrap').style.display = isTable ? '' : 'none';
       if ($('wizTab2')) $('wizTab2').innerHTML = wizTabLabel(2, isTable ? 'Upload Roster File' : 'Upload PDF', 'Upload');
-      if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Setup');
+      if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Columns');
     });
   });
 
