@@ -271,7 +271,7 @@ function wizTabLabel(n, full, short){
     pane('wizStep2Cons', 'wizStep2Table');
     pane('wizStep3Cons', 'wizStep3Table');
     if ($('wizTab2')) $('wizTab2').innerHTML = wizTabLabel(2, isTable ? 'Upload Roster File' : 'Upload PDF', 'Upload');
-    if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Setup');
+    if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Columns');
     // Update tabs
     for (let i = 1; i <= WIZ_STEPS; i++) {
       const tab = $('wizTab' + i);
@@ -310,7 +310,7 @@ function wizTabLabel(n, full, short){
       const isTable = r.value === 'table';
       if ($('wizPatternWrap')) $('wizPatternWrap').style.display = isTable ? '' : 'none';
       if ($('wizTab2')) $('wizTab2').innerHTML = wizTabLabel(2, isTable ? 'Upload Roster File' : 'Upload PDF', 'Upload');
-      if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Setup');
+      if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Columns');
     });
   });
 
