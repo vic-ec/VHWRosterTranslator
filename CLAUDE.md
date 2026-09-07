@@ -168,6 +168,28 @@ wider preview layout via `isExtendedRosterMode()`. A Word table carries its
 grid explicitly, so `table` profiles declare what columns *mean*, not where
 they are — see `profiles/README.md`.
 
+## Tests
+
+`tests/` holds replay fixtures for the shift parser and a runner —
+`node tests/run.js`, Playwright's Chromium the only requirement. It is a
+dev-only tool: the app still has no build step and no dependencies.
+
+A fixture is not a PDF. The parser reads nothing from one but `numPages` and,
+per page, a list of `{str, x, y}`, so the fixture *is* that list with every
+name replaced — no glyphs, fonts, metadata or incremental-save history to leak
+a real roster into a public repository. Coordinates are the real ones, since
+that is what the parser is sensitive to.
+
+A substitute has to be indistinguishable *to the parser*: `make-fixture.js`
+preserves length, capitalisation and hyphen positions, and verifies both that
+every item classifies identically (`isNameTok`, `isNoise`, compound match) and
+that every row keeps its date-grammar verdict (`DATE_RE`, `PARTIAL_DATE_RE`,
+`HAS_DATE`). The row check is the one that catches the subtle cases — a noise-
+shaped stand-in for "Wednesday" passed every item-level check and still broke
+`DATE_RE`. Never commit the real→substitute map: it is the re-identification
+key. `tests/README.md` has the whole picture, including what these tests do
+*not* prove.
+
 ## Notes
 
 - **A `table` roster is a grid, whatever file carries it.** `gridKind()` picks
