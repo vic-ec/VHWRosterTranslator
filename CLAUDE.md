@@ -87,6 +87,25 @@ the parts worth knowing before editing:
   the same 19px inset and one `--control-h`. `#wizBackBtn`/`#wizNextBtn` need a
   `min-width` for that: the step nav keeps a short label clear of its chevron
   via its 264px, which will not fit two-up inside a modal on a phone.
+- **Extract data and Clear all are a cell of the upload grid.** The row used
+  to sit outside `.two`, so it was as wide as both upload zones; as a grid item
+  with `grid-column: 1` it tracks the department zone through every reflow,
+  including the case where the consultant zone is hidden and `auto-fit`
+  collapses to one full-width column. Its `margin-top` is zeroed there — the
+  grid's own `gap` provides the space.
+- **Hairlines between cells are borders, not a 1px grid gap.** The printing
+  steps drew their rules as `gap: 1px` over a divider-coloured container. With
+  `auto-fit` the tracks take fractional widths, and a gap whose two edges round
+  onto the same device pixel paints nothing — so rules went missing and
+  flickered while the window resized. Fixed column counts per breakpoint plus a
+  `border-left` per cell fixes both: a border always paints, and a known column
+  count is the only way to identify the first cell of a row (`:nth-child(3n+1)`)
+  so its rule can be dropped. `auto-fit` never allows that.
+- **The setup wizard's tabs carry two labels.** `.t-full` and `.t-short` sit
+  side by side and CSS picks by width — four full names were being cut off
+  mid-word on a phone. Tabs 2 and 3 are rewritten in JS per roster type, so
+  those writes go through `wizTabLabel(n, full, short)` and emit both forms;
+  writing a bare string there silently loses the short label.
 - **Destructive controls go through `askConfirm()`.** A capture-phase listener
   matches `CONFIRM_ACTIONS` and asks before the real handler runs, then
   re-sends the click. It ignores untrusted events on purpose: the app presses

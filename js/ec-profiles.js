@@ -229,6 +229,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const COL_COLOURS = ['#2D6B45','#1A6B3A','#5b9bd5','#9b59b6','#c0392b','#e67e22'];
   const WIZ_STEPS   = 4;
 
+  // A tab shows its full name on a desktop and a one-word form on a phone; the
+// two live side by side and CSS picks. These labels change with the roster
+// type, so the rewrite has to emit both forms too.
+function wizTabLabel(n, full, short){
+  return n + ' &nbsp;<span class="t-full">' + full + '</span>' +
+    '<span class="t-short">' + short + '</span>';
+}
   function openWizard() {
     wizState = { step:1, pdfBuf:null, canvasScale:1, pageW:0, pageH:0, divPositions:[], draggingY:false, draggingDiv:-1, yLinePx:0 };
     $('wizardOverlay').style.display = '';
@@ -263,8 +270,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     pane('wizStep2Cons', 'wizStep2Table');
     pane('wizStep3Cons', 'wizStep3Table');
-    if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Roster File' : '2 &nbsp;Upload PDF';
-    if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
+    if ($('wizTab2')) $('wizTab2').innerHTML = wizTabLabel(2, isTable ? 'Upload Roster File' : 'Upload PDF', 'Upload');
+    if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Setup');
     // Update tabs
     for (let i = 1; i <= WIZ_STEPS; i++) {
       const tab = $('wizTab' + i);
@@ -302,8 +309,8 @@ document.addEventListener('DOMContentLoaded', () => {
       $('wizDataYWrap').style.display = r.value === 'consultant' ? '' : 'none';
       const isTable = r.value === 'table';
       if ($('wizPatternWrap')) $('wizPatternWrap').style.display = isTable ? '' : 'none';
-      if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Roster File' : '2 &nbsp;Upload PDF';
-      if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
+      if ($('wizTab2')) $('wizTab2').innerHTML = wizTabLabel(2, isTable ? 'Upload Roster File' : 'Upload PDF', 'Upload');
+      if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Setup');
     });
   });
 

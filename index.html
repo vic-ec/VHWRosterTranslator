@@ -439,6 +439,9 @@ main { padding: 40px 32px 0; }
 .actions-row .btn-primary { flex: 1 1 auto; }
 .actions-row .btn-secondary { flex: 0 0 auto; }
 .actions-row #parseStatus { flex: 1 1 100%; margin-left: 0; text-align: right; }
+/* In the upload grid it is a cell, so it lines up under the department zone
+   and inherits the grid's own gap — its margin would double that. */
+.two > .actions-row { grid-column: 1; margin-top: 0; }
 
 /* ── 02 preview ─────────────────────────────────────────────── */
 .split { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 0; border: 1px solid var(--color-divider); }
@@ -593,8 +596,30 @@ main { padding: 40px 32px 0; }
 .printguide { margin-top: 32px; border-top: 2px solid var(--color-divider); padding-top: 24px; }
 .printguide h3 { font-size: 18px; margin: 0 0 4px; }
 .printguide p { font-size: 13px; color: var(--color-neutral-700); margin: 0 0 18px; }
-.printsteps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 1px; background: var(--color-divider); }
-.printstep { background: var(--color-bg); padding: 14px 12px 16px; }
+/* The rules between steps were a 1px grid gap with the divider showing
+   through. With auto-fit the six tracks take fractional widths, and a gap
+   whose two edges round onto the same device pixel paints nothing — which is
+   why some rules were missing and why they flickered as the window resized.
+   A border belongs to the cell and is always painted, so the columns are
+   fixed per breakpoint instead and each cell draws its own left rule; a
+   known column count is also what makes the first cell of each row
+   identifiable, which auto-fit never allows. */
+.printsteps { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; }
+.printstep { background: var(--color-bg); padding: 14px 12px 16px;
+  border-left: 1px solid var(--color-divider); }
+.printstep:nth-child(6n + 1) { border-left: 0; }
+@media (max-width: 1000px) {
+  .printsteps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .printsteps .printstep { border-left: 1px solid var(--color-divider); border-top: 0; }
+  .printstep:nth-child(3n + 1) { border-left: 0; }
+  .printstep:nth-child(n + 4) { border-top: 1px solid var(--color-divider); }
+}
+@media (max-width: 560px) {
+  .printsteps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .printsteps .printstep { border-left: 1px solid var(--color-divider); border-top: 0; }
+  .printstep:nth-child(2n + 1) { border-left: 0; }
+  .printstep:nth-child(n + 3) { border-top: 1px solid var(--color-divider); }
+}
 .printstep .num { font-family: var(--font-heading); font-weight: 800; font-size: 11px; color: var(--color-accent); margin-bottom: 8px; }
 .printstep .txt { font-size: 12px; line-height: 1.4; }
 /* ── Masthead: profile panel beside the hero, process a full-width row ─── */
@@ -680,6 +705,19 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 .wiz-step-tab + .wiz-step-tab { border-left: 1px solid var(--color-divider); }
 .wiz-step-tab.active { color: var(--color-text); border-bottom-color: var(--color-accent); }
 .wiz-step-tab.done { color: var(--color-accent-700); }
+/* Four full names do not fit the panel on a phone — they were being cut off
+   mid-word. Below 700px each tab shows a one-word form instead. */
+.wiz-step-tab .t-short { display: none; }
+@media (max-width: 700px) {
+  .wiz-step-tab .t-full { display: none; }
+  .wiz-step-tab .t-short { display: inline; }
+}
+/* On the narrowest phones even the short form overflows a quarter of the
+   panel: the tracking and the side padding are what tip it over, not the
+   words. */
+@media (max-width: 420px) {
+  .wiz-step-tab { padding-inline: 5px; letter-spacing: 0.04em; }
+}
 .wiz-body { padding: 24px; }
 .wiz-intro { font-size: 14px; color: var(--color-neutral-700); margin: 0 0 18px; line-height: 1.55; }
 .wiz-field { margin-bottom: 16px; }
@@ -1231,12 +1269,12 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
             <div id="consultantBadgeList" class="roster-list" style="display:none;"></div>
           </div>
 
-        </div>
+          <div class="actions-row">
+            <button class="btn btn-primary" id="parseBtn" disabled>Extract data</button>
+            <button class="btn btn-secondary" id="clearBtn" style="display:none;">Clear all</button>
+            <span id="parseStatus" style="display:none;"></span>
+          </div>
 
-        <div class="actions-row">
-          <button class="btn btn-primary" id="parseBtn" disabled>Extract data</button>
-          <button class="btn btn-secondary" id="clearBtn" style="display:none;">Clear all</button>
-          <span id="parseStatus" style="display:none;"></span>
         </div>
       </div>
 
@@ -1482,10 +1520,10 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     </div>
 
     <div class="wiz-tabs">
-      <div class="wiz-step-tab" id="wizTab1" data-step="1">1 &nbsp;Department details</div>
-      <div class="wiz-step-tab" id="wizTab2" data-step="2">2 &nbsp;Upload PDF</div>
-      <div class="wiz-step-tab" id="wizTab3" data-step="3">3 &nbsp;Columns &amp; rules</div>
-      <div class="wiz-step-tab" id="wizTab4" data-step="4">4 &nbsp;Review &amp; submit</div>
+      <div class="wiz-step-tab" id="wizTab1" data-step="1">1 &nbsp;<span class="t-full">Department details</span><span class="t-short">Details</span></div>
+      <div class="wiz-step-tab" id="wizTab2" data-step="2">2 &nbsp;<span class="t-full">Upload PDF</span><span class="t-short">Upload</span></div>
+      <div class="wiz-step-tab" id="wizTab3" data-step="3">3 &nbsp;<span class="t-full">Columns &amp; rules</span><span class="t-short">Setup</span></div>
+      <div class="wiz-step-tab" id="wizTab4" data-step="4">4 &nbsp;<span class="t-full">Review &amp; submit</span><span class="t-short">Review</span></div>
     </div>
 
     <!-- ── STEP 1: EC Details ──────────────────────────────────── -->
@@ -6005,6 +6043,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const COL_COLOURS = ['#2D6B45','#1A6B3A','#5b9bd5','#9b59b6','#c0392b','#e67e22'];
   const WIZ_STEPS   = 4;
 
+  // A tab shows its full name on a desktop and a one-word form on a phone; the
+// two live side by side and CSS picks. These labels change with the roster
+// type, so the rewrite has to emit both forms too.
+function wizTabLabel(n, full, short){
+  return n + ' &nbsp;<span class="t-full">' + full + '</span>' +
+    '<span class="t-short">' + short + '</span>';
+}
   function openWizard() {
     wizState = { step:1, pdfBuf:null, canvasScale:1, pageW:0, pageH:0, divPositions:[], draggingY:false, draggingDiv:-1, yLinePx:0 };
     $('wizardOverlay').style.display = '';
@@ -6039,8 +6084,8 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     pane('wizStep2Cons', 'wizStep2Table');
     pane('wizStep3Cons', 'wizStep3Table');
-    if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Roster File' : '2 &nbsp;Upload PDF';
-    if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
+    if ($('wizTab2')) $('wizTab2').innerHTML = wizTabLabel(2, isTable ? 'Upload Roster File' : 'Upload PDF', 'Upload');
+    if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Setup');
     // Update tabs
     for (let i = 1; i <= WIZ_STEPS; i++) {
       const tab = $('wizTab' + i);
@@ -6078,8 +6123,8 @@ document.addEventListener('DOMContentLoaded', () => {
       $('wizDataYWrap').style.display = r.value === 'consultant' ? '' : 'none';
       const isTable = r.value === 'table';
       if ($('wizPatternWrap')) $('wizPatternWrap').style.display = isTable ? '' : 'none';
-      if ($('wizTab2')) $('wizTab2').innerHTML = isTable ? '2 &nbsp;Upload Roster File' : '2 &nbsp;Upload PDF';
-      if ($('wizTab3')) $('wizTab3').innerHTML = isTable ? '3 &nbsp;Columns &amp; Hours' : '3 &nbsp;Columns &amp; Rules';
+      if ($('wizTab2')) $('wizTab2').innerHTML = wizTabLabel(2, isTable ? 'Upload Roster File' : 'Upload PDF', 'Upload');
+      if ($('wizTab3')) $('wizTab3').innerHTML = wizTabLabel(3, isTable ? 'Columns &amp; Hours' : 'Columns &amp; Rules', 'Setup');
     });
   });
 
