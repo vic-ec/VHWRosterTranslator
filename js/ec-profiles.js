@@ -77,6 +77,8 @@ function showEcSelected(name) {
   // upload section, which stays hidden until this point.
   const step1 = $('step1');
   if (step1) step1.style.display = '';
+  const altRoute = $('altRoute');
+  if (altRoute) altRoute.style.display = '';
 }
 
 function showEcPicker(profiles) {
@@ -96,6 +98,8 @@ function showEcPicker(profiles) {
   // No EC chosen yet — keep the upload section hidden until one is selected.
   const step1 = $('step1');
   if (step1) step1.style.display = 'none';
+  const altRoute = $('altRoute');
+  if (altRoute) altRoute.style.display = 'none';
   const sel = $('ecSelect');
   // Clear existing options except the placeholder
   while (sel.options.length > 1) sel.remove(1);
@@ -205,6 +209,8 @@ document.addEventListener('DOMContentLoaded', () => {
     $('headerTitle').textContent = 'Hospital Roster Translator';
     const step1 = $('step1');
     if (step1) step1.style.display = 'none';
+    const altRoute = $('altRoute');
+    if (altRoute) altRoute.style.display = 'none';
     let profiles = null;
     try {
       profiles = await fetchProfiles();

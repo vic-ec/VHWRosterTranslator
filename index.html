@@ -384,18 +384,22 @@ mark.rv-hit.is-current { background: var(--color-accent-400); }
 
 /* A second way out of step 01: a leave application needs no roster. The rule
    above it is the section divider — this is a route, not a card. */
-.alt-route { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  margin-top: 28px; border-top: 2px solid var(--color-divider); padding-top: 20px; }
-.alt-route-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 260px; }
-.alt-route-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight);
-  font-size: 15px; }
-.alt-route-note { font-size: 13px; color: var(--color-neutral-700); }
-/* flex:none and nowrap or the text column squeezes the label into a stack;
-   the icon needs an explicit size like every other icon button here. */
-.alt-route .btn { min-height: var(--control-h); padding: 0 16px; gap: 8px;
-  flex: none; white-space: nowrap; }
-.alt-route .btn svg { width: 16px; height: 16px; flex: none; }
-@media (max-width: 620px) { .alt-route .btn { width: 100%; } }
+/* A leave application needs no roster, so the offer comes before the upload
+   apparatus rather than below it. The whole prompt is the control; the 2px
+   rule beneath is the section divider, separating it from 01. */
+.alt-route { margin-bottom: 28px; border-bottom: 2px solid var(--color-divider);
+  padding-bottom: 28px; }
+.alt-route[hidden] { display: none; }
+/* .btn is inline-flex, so the width has to be said. The doubled class beats
+   the phone-wide `.btn.btn { padding-block: 0 }` floor, which would otherwise
+   crush a two-line button — the same trap .actions-row fell into. */
+.alt-route .btn.btn { display: flex; width: 100%; flex-direction: column;
+  align-items: flex-start; gap: 3px; text-align: left;
+  padding: 16px 20px; min-height: 0; }
+.alt-route-title { font-family: var(--font-heading); font-weight: 800;
+  font-size: 17px; letter-spacing: -0.015em; }
+.alt-route-note { font-size: 13px; font-family: var(--font-body);
+  font-weight: 400; color: color-mix(in srgb, var(--color-bg) 82%, transparent); }
 
 /* The leave-only panel. is-wide carries the scrolling body; 1100px is a
    viewer width, not a form width. */
@@ -873,10 +877,24 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 /* Phone: the stepper collapses to a single honest line. */
 .wizstep-mobile { display: flex; align-items: baseline; gap: 8px; }
 @media (min-width: 861px) { .wizstep-mobile { display: none; } }
+/* On a phone the four step tabs are hidden, so this counter is the only way
+   to move other than the Back button at the foot of each panel. It navigates,
+   so it is in the accent and carries the affordance. */
+.wizstep-jump { appearance: none; background: none; border: 0; border-radius: 0;
+  padding: 2px 0; margin: 0; font: inherit; cursor: pointer; text-align: left;
+  text-decoration: underline; text-underline-offset: 3px;
+  text-decoration-thickness: 1px; }
+.wizstep-jump:hover .n { color: var(--color-accent-700); }
 .wizstep-mobile .n { font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--color-neutral-700); white-space: nowrap; }
-.wizstep-mobile .t { font-family: var(--font-heading); font-weight: 800; font-size: 17px;
-  letter-spacing: -0.015em; }
+  color: var(--color-accent); white-space: nowrap; }
+/* One row of four, so a blocked step is visibly blocked rather than merely
+   unhoverable — which is what the desktop tabs still get wrong. */
+.wizjump { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  margin-top: 4px; }
+.wizjump .btn { min-height: 52px; font-size: 18px; }
+.wizjump .btn[aria-current="step"] { background: var(--color-accent);
+  color: var(--color-bg); border-color: var(--color-accent); }
+.wizjump-note { font-size: 12px; color: var(--color-neutral-600); margin: 14px 0 0; }
 
 .wizctx { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
   margin-top: 10px; font-size: 14px; }
@@ -1189,7 +1207,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   <div class="wrap wizbar-inner">
     <nav class="wizsteps" id="wizSteps" aria-label="Progress"></nav>
     <p class="wizstep-mobile" id="wizStepMobile" aria-live="polite">
-      <span class="n">Step 1 of 4</span><span class="t">Upload roster files</span>
+      <button type="button" class="wizstep-jump" id="wizJumpBtn" aria-haspopup="dialog"
+        aria-expanded="false" title="Go to a step"><span class="n" id="wizStepCount">Step 1 of 4</span></button>
     </p>
     <div class="wizctx">
       <span class="period" id="wizPeriod">No month selected</span>
@@ -1266,6 +1285,12 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
     <!-- ── 01 · UPLOAD ─────────────────────────────────────────── -->
     <section class="sec" id="sec-1">
+      <div class="alt-route" id="altRoute" style="display:none;">
+        <button type="button" class="btn btn-primary" id="z1LeaveBtn" aria-haspopup="dialog" aria-expanded="false">
+          <span class="alt-route-title">Applying for leave only?</span>
+          <span class="alt-route-note">Fill in a Z1(a) leave form on its own — no roster needed.</span>
+        </button>
+      </div>
       <div class="sec-head"><span class="sec-num">01</span><h2>Upload roster files</h2></div>
       <p class="sec-intro">Upload up to 5 files, one month per file.</p>
 
@@ -1310,13 +1335,6 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
         </div>
 
-        <div class="alt-route">
-          <div class="alt-route-text">
-            <span class="alt-route-title">Applying for leave only?</span>
-            <span class="alt-route-note">Fill in a Z1(a) leave form on its own — no roster needed.</span>
-          </div>
-          <button type="button" class="btn btn-secondary" id="z1LeaveBtn" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 11h6"/><path d="M9 15h4"/></svg><span class="lbl">Leave form only</span></button>
-        </div>
       </div>
 
       <div class="wiznav" id="wizNav1">
@@ -5963,6 +5981,8 @@ function showEcSelected(name) {
   // upload section, which stays hidden until this point.
   const step1 = $('step1');
   if (step1) step1.style.display = '';
+  const altRoute = $('altRoute');
+  if (altRoute) altRoute.style.display = '';
 }
 
 function showEcPicker(profiles) {
@@ -5982,6 +6002,8 @@ function showEcPicker(profiles) {
   // No EC chosen yet — keep the upload section hidden until one is selected.
   const step1 = $('step1');
   if (step1) step1.style.display = 'none';
+  const altRoute = $('altRoute');
+  if (altRoute) altRoute.style.display = 'none';
   const sel = $('ecSelect');
   // Clear existing options except the placeholder
   while (sel.options.length > 1) sel.remove(1);
@@ -6091,6 +6113,8 @@ document.addEventListener('DOMContentLoaded', () => {
     $('headerTitle').textContent = 'Hospital Roster Translator';
     const step1 = $('step1');
     if (step1) step1.style.display = 'none';
+    const altRoute = $('altRoute');
+    if (altRoute) altRoute.style.display = 'none';
     let profiles = null;
     try {
       profiles = await fetchProfiles();
@@ -7044,8 +7068,32 @@ function wizRenderSteps(){
   }).join('');
   // Only the counter: the section heading right below it already names the
   // step, and printing it twice was what made the bar feel crowded.
-  const m = $('wizStepMobile');
-  if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span>`;
+  const m = $('wizStepCount');
+  if (m) m.textContent = `Step ${wizStep} of 4`;
+}
+
+// The phone's equivalent of the desktop step tabs. Gating is recomputed on
+// every open from wizCanEnter — the same rule the tabs and the Continue
+// buttons use — so nothing here can drift out of step with them.
+let wizJumpDlg = null;
+function wizJumpOpen(){
+  const host = $('wizJumpList');
+  if (host) host.innerHTML = WIZ_STEPS_DEF.map(s => {
+    const current = s.n === wizStep;
+    const can = current || wizCanEnter(s.n);
+    return `<button type="button" class="btn btn-secondary" data-go="${s.n}"`
+      + (current ? ' aria-current="step"' : '')
+      + (can ? '' : ' disabled')
+      + ` aria-label="Step ${s.n}: ${s.title}">${s.n}</button>`;
+  }).join('');
+  // Say why the greyed-out ones are greyed out, rather than leaving the user
+  // to guess — the first unmet precondition is the honest answer.
+  const note = $('wizJumpNote');
+  if (note) {
+    let why = null;
+    for (let s = 1; s <= 4 && !why; s++) if (!wizCanEnter(s)) why = wizBlockedReason(s - 1);
+    note.textContent = why || WIZ_STEPS_DEF.map(s => s.n + '. ' + s.title).join('   ');
+  }
 }
 
 // Which rows the Edit panel shows, and what it is called while it shows them.
@@ -7921,6 +7969,13 @@ document.addEventListener('click', e => {
   function wire(){
     dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
     z1LeaveDlg = dialog('z1LeaveBtn','z1LeaveOverlay','z1LeaveCloseBtn', z1LeaveOpen);
+    wizJumpDlg = dialog('wizJumpBtn','wizJumpOverlay','wizJumpCloseBtn', wizJumpOpen);
+    // The step itself is changed by the delegated [data-go] listener; this
+    // only gets the panel out of the way. Bound on the overlay, so it runs
+    // before that listener and .shell is live again before wizGo() focuses.
+    $('wizJumpOverlay')?.addEventListener('click', e => {
+      if (e.target.closest && e.target.closest('[data-go]') && wizJumpDlg) wizJumpDlg.close();
+    });
     z1LeaveWire();
     // The bar's icon offers both; each header chip offers only its own, which
     // is what makes them read as controls for that one thing.
@@ -8095,6 +8150,22 @@ document.addEventListener('click', e => {
         <button type="button" class="btn btn-secondary" id="z1LeaveCancel">Cancel</button>
         <button type="button" class="btn btn-primary" id="z1LeaveGenerate" aria-describedby="z1LeaveWhy" disabled>Download Z1(a)</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Go to a step. The phone has no step tabs, so this is its equivalent; the
+     buttons carry data-go, which the wizard's own delegated listener handles,
+     so the two routes can never disagree about where a click leads. -->
+<div id="wizJumpOverlay" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="wizJumpTitle">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h3 id="wizJumpTitle">Go to step</h3>
+      <button type="button" id="wizJumpCloseBtn" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="wizjump" id="wizJumpList"></div>
+      <p class="wizjump-note" id="wizJumpNote"></p>
     </div>
   </div>
 </div>

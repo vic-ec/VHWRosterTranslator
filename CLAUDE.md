@@ -108,6 +108,28 @@ the parts worth knowing before editing:
   writing a bare string there silently loses the short label. `Columns` is the
   longest short form and sets the floor: below 380px it needs the tracking
   gone as well to fit a 320px screen.
+- **On a phone the step counter is the only way to move between steps.** The
+  four `.wizstep` tabs are `display: none` below 861px, so `#wizStepMobile`
+  carries `#wizJumpBtn`, which opens `#wizJumpOverlay` — a row of 1–4. Its
+  buttons carry **`data-go`**, the same attribute the desktop tabs use, so the
+  delegated listener in `ui.js` performs the navigation and the two routes
+  cannot disagree. Gating is `wizCanEnter(n)` recomputed on open, the same rule
+  as the tabs and the Continue buttons; no "visited" state exists or should be
+  added. The panel also prints the first unmet precondition, which the desktop
+  tabs still do not.
+- **`#wizJumpBtn` is static markup, not rendered.** `wizRenderSteps()` runs on
+  every `wizRefresh()`; it writes `textContent` into `#wizStepCount`. If the
+  button were part of that string it would be destroyed and re-created, and the
+  listener `dialog()` bound to it would be lost. (The old
+  `<span class="t">` in that paragraph was already dead for the same reason —
+  the first render removed it and nothing rebuilt it.)
+- **The leave button is the first thing in `#sec-1`**, above the section head,
+  and `#altRoute` is toggled alongside `#step1` in `showEcSelected` /
+  `showEcPicker` / `reopenEcPicker` — a Z1(a) needs a department for its
+  Component line and supervisor list, and every section renders briefly at boot
+  before the picker hides them. Its rule sets `padding` and so must outrank the
+  phone-wide `.btn.btn { padding-block: 0 }` floor: it is written
+  `.alt-route .btn.btn`, the same specificity trap `.actions-row` hit.
 - **Destructive controls go through `askConfirm()`.** A capture-phase listener
   matches `CONFIRM_ACTIONS` and asks before the real handler runs, then
   re-sends the click. It ignores untrusted events on purpose: the app presses

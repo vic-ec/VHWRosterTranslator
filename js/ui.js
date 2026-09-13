@@ -1298,8 +1298,32 @@ function wizRenderSteps(){
   }).join('');
   // Only the counter: the section heading right below it already names the
   // step, and printing it twice was what made the bar feel crowded.
-  const m = $('wizStepMobile');
-  if (m) m.innerHTML = `<span class="n">Step ${wizStep} of 4</span>`;
+  const m = $('wizStepCount');
+  if (m) m.textContent = `Step ${wizStep} of 4`;
+}
+
+// The phone's equivalent of the desktop step tabs. Gating is recomputed on
+// every open from wizCanEnter — the same rule the tabs and the Continue
+// buttons use — so nothing here can drift out of step with them.
+let wizJumpDlg = null;
+function wizJumpOpen(){
+  const host = $('wizJumpList');
+  if (host) host.innerHTML = WIZ_STEPS_DEF.map(s => {
+    const current = s.n === wizStep;
+    const can = current || wizCanEnter(s.n);
+    return `<button type="button" class="btn btn-secondary" data-go="${s.n}"`
+      + (current ? ' aria-current="step"' : '')
+      + (can ? '' : ' disabled')
+      + ` aria-label="Step ${s.n}: ${s.title}">${s.n}</button>`;
+  }).join('');
+  // Say why the greyed-out ones are greyed out, rather than leaving the user
+  // to guess — the first unmet precondition is the honest answer.
+  const note = $('wizJumpNote');
+  if (note) {
+    let why = null;
+    for (let s = 1; s <= 4 && !why; s++) if (!wizCanEnter(s)) why = wizBlockedReason(s - 1);
+    note.textContent = why || WIZ_STEPS_DEF.map(s => s.n + '. ' + s.title).join('   ');
+  }
 }
 
 // Which rows the Edit panel shows, and what it is called while it shows them.
@@ -2175,6 +2199,13 @@ document.addEventListener('click', e => {
   function wire(){
     dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
     z1LeaveDlg = dialog('z1LeaveBtn','z1LeaveOverlay','z1LeaveCloseBtn', z1LeaveOpen);
+    wizJumpDlg = dialog('wizJumpBtn','wizJumpOverlay','wizJumpCloseBtn', wizJumpOpen);
+    // The step itself is changed by the delegated [data-go] listener; this
+    // only gets the panel out of the way. Bound on the overlay, so it runs
+    // before that listener and .shell is live again before wizGo() focuses.
+    $('wizJumpOverlay')?.addEventListener('click', e => {
+      if (e.target.closest && e.target.closest('[data-go]') && wizJumpDlg) wizJumpDlg.close();
+    });
     z1LeaveWire();
     // The bar's icon offers both; each header chip offers only its own, which
     // is what makes them read as controls for that one thing.
