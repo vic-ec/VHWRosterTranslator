@@ -426,6 +426,10 @@ async function generateZ1ADocx(d) {
   const supervisorName = d.supervisorName || '';
   const component = d.component || 'Emergency Medicine';
   const leaveData = (function() {
+    // A leave-only application brings its own rows, and has to: the roster
+    // path builds both dates from the single d.month below, so a period
+    // crossing a month boundary cannot be expressed as editedShifts at all.
+    if (Array.isArray(d.leaveRows)) return d.leaveRows;
     const LEAVE_MAP_Z1 = {
       'Leave - Annual':'Annual Leave','Leave - Sick':'Normal Sick Leave',
       'Leave - Family Responsibility':'Family Responsibility Leave',
@@ -458,15 +462,36 @@ async function generateZ1ADocx(d) {
     'Leave - Annual': 'Annual Leave',
     'Leave - Sick': 'Normal Sick Leave (Provide supporting evidence when applicable)',
     'Leave - Family Responsibility': 'Family Responsibility Leave (Provide supporting evidence)',
-    'Leave - Study': 'Special Leave for study purposes (Prep &amp; exams only)',
+    // Study leave is a Special Leave on this form, with the kind written on
+    // the "Specify Type of Special Leave" line below it. It used to map to a
+    // label no row emits, so a study-leave application came out blank.
+    'Leave - Study': 'Special Leave ((Provide supporting evidence)',
     'Leave - Prenatal': 'Pre-natal Leave (Provide supporting evidence)',
     'Leave - Paternity': 'Paternity Leave (Provide supporting evidence)',
     'Leave - Special': 'Special Leave ((Provide supporting evidence)',
     'Leave - Maternity': 'Maternity Leave (Provide supporting evidence))',
+    'Leave - Unpaid': 'Unpaid Leave (Provide motivation)',
   };
+  // What to write on the "Specify Type of Special Leave" line for a type that
+  // shares the Special Leave row.
+  const LEAVE_SPECIFY_Z1 = { 'Leave - Study': 'Study (preparation and examinations)' };
+  // Study and Special share one row, so a period of each has to merge rather
+  // than let the second silently replace the first. A single type is
+  // unaffected — prev is undefined and the row is stored exactly as before.
+  const dsort = s => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s || ''); return m ? m[3]+m[2]+m[1] : ''; };
+  let specifySpecial = '';
   for (const ld of leaveData) {
     const label = LEAVE_LABELS_Z1[ld.type];
-    if (label) leaveMap[label] = ld;
+    if (!label) continue;
+    const prev = leaveMap[label];
+    leaveMap[label] = !prev ? ld : {
+      type: prev.type,
+      startDate: dsort(ld.startDate) < dsort(prev.startDate) ? ld.startDate : prev.startDate,
+      endDate:   dsort(ld.endDate)   > dsort(prev.endDate)   ? ld.endDate   : prev.endDate,
+      count: (Number(prev.count) || 0) + (Number(ld.count) || 0),
+    };
+    const spec = ld.specify || LEAVE_SPECIFY_Z1[ld.type] || '';
+    if (spec) specifySpecial = specifySpecial ? specifySpecial + '; ' + spec : spec;
   }
 
 const fullSurname = surname || '';
@@ -519,11 +544,13 @@ function leaveRow4(label, leaveMap) {
   ]});
 }
 
-function smallRow(label, fullWidth) {
+// value is optional: with none the row is the blank line it has always been.
+function smallRow(label, fullWidth, value) {
   const m = {top:3,bottom:3,left:40,right:40};
+  const shade = value ? { type:ShadingType.CLEAR, fill:'DEEAF1' } : undefined;
   return new TableRow({ children:[
     cell([p([b(label)],S0)], fullWidth||4785, { gridSpan:fullWidth?27:12, borders:allSng, margins:m }),
-    ...(fullWidth ? [] : [cell([p([t('')],S0)], 5727, { gridSpan:15, borders:allSng })]),
+    ...(fullWidth ? [] : [cell([p([t(value||'')],S0)], 5727, { gridSpan:15, borders:allSng, shading:shade })]),
   ]});
 }
 
@@ -575,14 +602,22 @@ function sigRow2Col(sigValue, sigLabel, dateValue) {
 }
 
 
-function calRow(label, note) {
+// leaveMap is optional. Without it this is the blank row it has always been,
+// which is why Maternity never filled in: it is the only leave type on the
+// form rendered by calRow rather than leaveRow4.
+function calRow(label, note, leaveMap) {
   const m = {top:3,bottom:3,left:40,right:40};
+  const ld = (leaveMap && leaveMap[label]) || null;
+  const shade = ld ? { type:ShadingType.CLEAR, fill:'DEEAF1' } : undefined;
+  // Centre the value only when there is one. An empty cell keeps the plain S0
+  // it has always had, so an unfilled row is byte-identical to before.
+  const va = ld ? {...S0,alignment:AlignmentType.CENTER} : S0;
   return new TableRow({ children:[
-    cell([p([b(label)],S0)], 4785, { gridSpan:12, borders:allSng, margins:m }),
-    cell([p([t('')],S0)], 1408, { gridSpan:4, borders:allSng }),
-    cell([p([t('')],S0)], 1610, { gridSpan:4, borders:allSng }),
+    cell([p([b(label)],S0)], 4785, { gridSpan:12, borders:allSng, shading:shade, margins:m }),
+    cell([p([t(ld?ld.startDate:'')],va)], 1408, { gridSpan:4, borders:allSng, shading:shade }),
+    cell([p([t(ld?ld.endDate:'')],va)], 1610, { gridSpan:4, borders:allSng, shading:shade }),
     cell([p([b(note)],{...S0,alignment:AlignmentType.CENTER})], 1958, { gridSpan:6, borders:allSng, margins:m }),
-    cell([p([t('')],S0)], 751, { borders:allSng }),
+    cell([p([t(ld?String(ld.count):'')],va)], 751, { borders:allSng, shading:shade }),
   ]});
 }
 
@@ -708,7 +743,7 @@ const doc = new Document({ sections:[{ properties:{
       leaveRow4('Pre-natal Leave (Provide supporting evidence)', leaveMap),
       leaveRow4('Paternity Leave (Provide supporting evidence)', leaveMap),
       leaveRow4('Special Leave ((Provide supporting evidence)', leaveMap),
-      smallRow('Specify Type of Special Leave'),
+      smallRow('Specify Type of Special Leave', null, specifySpecial),
       leaveRow4('Leave for Union Office Bearers (Provide supporting evidence)', leaveMap),
       leaveRow4('Leave for Union Shop Stewards (Provide supporting evidence)', leaveMap),
       smallRow('Specify Union Affiliation'),
@@ -720,7 +755,7 @@ const doc = new Document({ sections:[{ properties:{
         hdrCell('Number of Calendar Days',2709,7),
       ]}),
       leaveRow4('Unpaid Leave (Provide motivation)', leaveMap),
-      calRow('Maternity Leave (Provide supporting evidence))','No. of Calendar Months'),
+      calRow('Maternity Leave (Provide supporting evidence))','No. of Calendar Months', leaveMap),
       calRow('Surrogacy Leave: Committing Parent (Provide supporting evidence)','No. of Calendar Months'),
       calRow('Surrogacy Leave: Surrogate mother (Provide supporting evidence)','No of weeks'),
 

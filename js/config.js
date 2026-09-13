@@ -61,7 +61,7 @@ const CONSULTANT_ACTIVITY_TYPES=[
 // form and wrote the label into the timesheet's normal-hours column.
 const LEAVE_ACTIVITY_TYPES = ['Leave - Annual','Leave - Sick','Leave - Family Responsibility',
   'Leave - Study','Leave - Special','Leave - Prenatal','Leave - Maternity','Leave - Paternity',
-  'Workshop','Course','Conference'];
+  'Leave - Unpaid','Workshop','Course','Conference'];
 // Only actual leave reaches the Z1(a). A workshop or course is official duty
 // and is declared on Annexure C instead.
 const Z1_LEAVE_TYPES = LEAVE_ACTIVITY_TYPES.filter(t => t.startsWith('Leave - '));
