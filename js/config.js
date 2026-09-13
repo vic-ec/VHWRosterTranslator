@@ -105,7 +105,7 @@ const state={
   editedShifts:{},originalShifts:{},dirtyDays:new Set(),
   previewMonth:null,previewYear:null,
   availableMonths:new Set(),
-  savedDetails:{firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',shiftWorker:'yes',casualEmployee:'no',address:''},
+  savedDetails:{firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',address:''},
   phMap:null,
   // Consultant roster
   consultantFile:null, consultantFiles:[], consultantData:null,

@@ -420,8 +420,6 @@ async function generateZ1ADocx(d) {
   const sigDate = d.signatureDate || '';
   const month = d.month;
   const year = d.year;
-  const shiftWorker = d.shiftWorker || 'yes';
-  const casualEmployee = d.casualEmployee || 'no';
   const addressDuringLeave = d.addressDuringLeave || '';
   const supervisorName = d.supervisorName || '';
   const component = d.component || 'Emergency Medicine';
@@ -647,6 +645,11 @@ function secBRow(label, isFirst) {
 // Total left: 1092+4330 = 5422 ✓
 // Grand total: 5422+5090 = 10512 ✓
 
+// Both of this form's Yes/No declarations are No, always — Shift Worker and
+// Casual Employee alike. That is policy, not a missing feature: it used to be
+// a parameter fed from two form fields that never existed in the DOM, so the
+// value was always its default anyway. The tick is the ✓ convention used
+// elsewhere in this file, a literal glyph in a centred cell.
 const RIGHT_YN = (label) => [
   cell([p([b(label)],S0)], 2381, {gridSpan:6,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
   cell([p([b('Yes')],S0)], 851, {gridSpan:2,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),

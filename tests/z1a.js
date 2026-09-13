@@ -103,7 +103,24 @@ const check = (name, got, want) => {
     check(type, (rowFor(x, label)||[]).slice(1,4), ['01/06/2027','03/06/2027','3']);
   }
 
-  // 7. The roster path must be untouched by any of the above. One leave type
+  // 7. Both Yes/No declarations are No, on both routes. This is the assertion
+  //    that should have existed from the start — without it, nobody could tell
+  //    from the code whether the box was ticked, and the comment in RIGHT_YN
+  //    was the only evidence either way.
+  for (const [route, extra] of [
+    ['leave-only', { leaveRows: [{ type:'Leave - Annual', startDate:'01/02/2027', endDate:'05/02/2027', count:5 }] }],
+    ['roster',     { month:6, year:2026, editedShifts: { 3:{ typeLabel:'Leave - Annual' } } }],
+  ]) {
+    const x = await docxXml(page, extra);
+    for (const label of ['Shift Worker','Casual Employee']) {
+      const row = cellsOf(x).find(c => c.includes(label)) || [];
+      const i = row.indexOf(label);
+      check(`${label} declares No (${route})`, row.slice(i, i+5),
+            [label, 'Yes', '', 'No', '\u2713']);
+    }
+  }
+
+  // 8. The roster path must be untouched by any of the above. One leave type
   //    only, so the snapshot stays meaningful when the merging loop changes.
   const rosterXml = await docxXml(page, { month: 6, year: 2026, editedShifts: {
     3: { typeLabel:'Leave - Annual' }, 4: { typeLabel:'Leave - Annual' },

@@ -188,7 +188,8 @@ uploaded, parsed or reviewed.
   of copying it.
 - **`state.savedDetails` now declares `address`,** the key that was always
   written and read; the initialiser used to declare a dead `addressDuringLeave`
-  and so dropped the real one on reset. `fullReset()` empties the object too —
+  and so dropped the real one on reset. `shiftWorker` and `casualEmployee` are
+  gone from it entirely — see the note below on why the Z1(a) always says No. `fullReset()` empties the object too —
   the panel prefills from it directly, so clearing the DOM boxes is no longer
   enough for Start over to mean it. (`d.addressDuringLeave` remains the
   *generator's* parameter name.)
@@ -292,6 +293,15 @@ key. `tests/README.md` has the whole picture, including what these tests do
   *hidden* until a file is retained rather than disabled, which needs explicit
   `.hdr-icon[hidden]` / `.wizctx-edit[hidden]` rules: both classes set
   `display: inline-flex`, which outranks the UA rule for `[hidden]`.
+- **The Z1(a) declares No for Shift Worker and Casual Employee, always.** Both
+  rows are ticked in the No box by `RIGHT_YN` in `generator-docx.js`, on every
+  route. This is policy, not a missing feature — it was once a parameter fed
+  from `#detailShiftWorker` / `#detailCasualEmployee`, two elements that never
+  existed in the DOM, so the value was always its default anyway. The leave
+  panel used to offer dropdowns for both; they were removed because the
+  generator dropped the answers on the floor, and two controls that change
+  nothing are worse than none. `tests/z1a.js` asserts the ticked row on both
+  routes, so the question cannot go unanswered again.
 - **The EC roster template has a typo the parser has to tolerate.** Its first
   time band reads `08;00 - 18:00` — a semicolon — in at least the 2023 and 2024
   exports. `TIME_TOK_SINGLE`/`TIME_TOK_RANGE` therefore accept `;` alongside

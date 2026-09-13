@@ -254,8 +254,6 @@ function saveDetailsToState() {
   state.savedDetails.designation=desSel==='other'?$('detailDesignationOther').value.trim():desSel;
   state.savedDetails.designationOther=desSel==='other'?$('detailDesignationOther').value.trim():'';
   state.savedDetails.address=$('detailAddress')?.value.trim()||'';
-  state.savedDetails.shiftWorker=$('detailShiftWorker')?.value||'yes';
-  state.savedDetails.casualEmployee=$('detailCasualEmployee')?.value||'no';
 }
 function restoreDetailsToForm(isNewDoctor) {
   if(isNewDoctor) {
@@ -336,7 +334,7 @@ rosterZone.addEventListener('drop',e=>{e.preventDefault();rosterZone.classList.r
 $('clearBtn').addEventListener('click',()=>{
   state.pendingFiles=[];state.parsedFiles=[];state.rosterData=null;state.selectedDoctor=null;
   state.editedShifts={};state.originalShifts={};state.dirtyDays.clear();state.availableMonths=new Set();
-  state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',shiftWorker:'yes',casualEmployee:'no',address:''};
+  state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',address:''};
   state.consultantFile=null;state.consultantFiles=[];state.consultantData=null;if($('consultantZone')) setConsultantFile(null);
   renderFileList();$('parseBtn').disabled=true;$('clearBtn').style.display='none';
   rosterList.style.display='none';setStatus('');
@@ -361,7 +359,7 @@ function fullReset(){
   // Also clear all detail fields
   const fields=['detailFirstName','detailSurname','detailPersal','detailSigDate'];
   fields.forEach(id=>{const el=$(id);if(el)el.value='';});
-  const sels=['detailDesignationSel','detailSupervisorSel','detailShiftWorker','detailCasualEmployee'];
+  const sels=['detailDesignationSel','detailSupervisorSel'];
   sels.forEach(id=>{const el=$(id);if(el)el.selectedIndex=0;});
   const others=['detailDesignationOther','detailSupervisorOther'];
   others.forEach(id=>{const el=$(id);if(el){el.value='';el.style.display='none';}});
@@ -370,7 +368,7 @@ function fullReset(){
   // The leave panel prefills from savedDetails rather than from these boxes,
   // so clearing the boxes is no longer enough for Start over to mean it.
   state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',
-    designation:'',designationOther:'',shiftWorker:'yes',casualEmployee:'no',address:''};
+    designation:'',designationOther:'',address:''};
   $('detailsSection').style.display='none';
   $('leaveFieldsSection').style.display='none';
   ['proceedDownloadBtn','annexureCBtn','z1aBtn'].forEach(id=>{const el=$(id);if(el)el.disabled=true;});
@@ -1136,8 +1134,6 @@ function getFormDetails(){
     signatureDate:state.savedDetails.sigDate,
     addressDuringLeave:state.savedDetails.address||'',
     component:z1ComponentFor(),
-    shiftWorker:state.savedDetails.shiftWorker||'yes',
-    casualEmployee:state.savedDetails.casualEmployee||'no',
     editedShifts:state.editedShifts,
     month, year,
   };
@@ -1943,8 +1939,6 @@ function z1LeaveOpen(){
   $('z1lPersal').value=s.persal||'';
   $('z1lAddress').value=s.address||'';
   $('z1lSpecify').value='';
-  $('z1lShiftWorker').value=s.shiftWorker||'yes';
-  $('z1lCasual').value=s.casualEmployee||'no';
   setSupervisorValue(s.supervisor||'', 'z1l');
   z1lSetDate('z1lStart','z1lStartPicker','');
   z1lSetDate('z1lEnd','z1lEndPicker','');
@@ -1964,8 +1958,6 @@ function z1LeaveSaveShared(){
   s.supervisor=readSupervisor('z1l');
   s.sigDate=$('z1lSigDate').value.trim();
   s.address=$('z1lAddress').value.trim();
-  s.shiftWorker=$('z1lShiftWorker').value;
-  s.casualEmployee=$('z1lCasual').value;
   const put=(id,val)=>{ const el=$(id); if(el) el.value=val; };
   put('detailFirstName',s.firstName); put('detailSurname',s.surname);
   put('detailPersal',s.persal); put('detailAddress',s.address);
@@ -2029,8 +2021,7 @@ function z1LeaveWire(){
         firstName:$('z1lFirstName').value.trim(), surname:$('z1lSurname').value.trim(),
         persal:$('z1lPersal').value.trim(), signatureDate:$('z1lSigDate').value.trim(),
         supervisorName:readSupervisor('z1l'), addressDuringLeave:$('z1lAddress').value.trim(),
-        shiftWorker:$('z1lShiftWorker').value, casualEmployee:$('z1lCasual').value,
-        component:z1ComponentFor(), leaveRows:[row],
+          component:z1ComponentFor(), leaveRows:[row],
       };
       const blob=await generateZ1ADocx(d);
       const url=URL.createObjectURL(blob);
