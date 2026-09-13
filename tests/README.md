@@ -73,6 +73,26 @@ also enshrines whatever is still wrong. The real oracle is the tally printed on
 the roster's own summary page; where that is known it is worth recording as
 the expected answer rather than whatever the parser currently says.
 
+## The other two suites
+
+```
+node tests/z1a.js        # the Z1(a) generator, reading the .docx back
+node tests/leave-ui.js   # the leave-only panel, driven end to end
+```
+
+`z1a.js` builds a form for each leave type and asserts it lands in the row the
+printed form actually has for it — including the three that used to come out
+blank, and the cross-year period that the roster path cannot express. Its last
+check is a sha256 of `word/document.xml` for a roster-derived form, recorded
+from the output *before* the `leaveRows` work, so it fails if that path ever
+moves. `--update` re-records it; only do that deliberately.
+
+`leave-ui.js` opens the panel, fills it, downloads the file and reads the
+period back out of it, then checks the scroll lock and `inert` are released and
+that the shared details reached step 03.
+
+Both need Playwright's Chromium, same as `run.js`.
+
 ## Adding a fixture
 
 ```
