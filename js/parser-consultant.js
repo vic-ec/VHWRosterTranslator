@@ -199,7 +199,13 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
     if (!name) return false;
     return name.split('/').some(n => {
       const clean = n.trim().toLowerCase().replace(/[^a-z\s]/g,'').trim();
-      return clean === nl || clean.startsWith(nl) || nl.startsWith(clean);
+      // Exact match, or compound-surname containment (e.g. 'de haan' within 'de haan')
+      if (clean === nl) return true;
+      // Allow prefix match only if nl is at least 4 chars (avoids 'els' matching 'el')
+      if (nl.length >= 4 && clean.startsWith(nl)) return true;
+      if (nl.length >= 4 && clean === nl) return true;
+      // For short names (3 chars), require exact match
+      return false;
     });
   };
 

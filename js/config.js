@@ -61,7 +61,7 @@ const CONSULTANT_ACTIVITY_TYPES=[
 // form and wrote the label into the timesheet's normal-hours column.
 const LEAVE_ACTIVITY_TYPES = ['Leave - Annual','Leave - Sick','Leave - Family Responsibility',
   'Leave - Study','Leave - Special','Leave - Prenatal','Leave - Maternity','Leave - Paternity',
-  'Workshop','Course','Conference'];
+  'Leave - Unpaid','Workshop','Course','Conference'];
 // Only actual leave reaches the Z1(a). A workshop or course is official duty
 // and is declared on Annexure C instead.
 const Z1_LEAVE_TYPES = LEAVE_ACTIVITY_TYPES.filter(t => t.startsWith('Leave - '));
@@ -105,7 +105,7 @@ const state={
   editedShifts:{},originalShifts:{},dirtyDays:new Set(),
   previewMonth:null,previewYear:null,
   availableMonths:new Set(),
-  savedDetails:{firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',shiftWorker:'yes',casualEmployee:'no',addressDuringLeave:''},
+  savedDetails:{firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',address:''},
   phMap:null,
   // Consultant roster
   consultantFile:null, consultantFiles:[], consultantData:null,

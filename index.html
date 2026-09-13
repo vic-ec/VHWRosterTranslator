@@ -382,6 +382,34 @@ mark.rv-hit.is-current { background: var(--color-accent-400); }
 .rv-rownum { color: var(--color-neutral-600); font-variant-numeric: tabular-nums;
   text-align: right; width: 1%; }
 
+/* A second way out of step 01: a leave application needs no roster. The rule
+   above it is the section divider — this is a route, not a card. */
+.alt-route { display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin-top: 28px; border-top: 2px solid var(--color-divider); padding-top: 20px; }
+.alt-route-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 260px; }
+.alt-route-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 15px; }
+.alt-route-note { font-size: 13px; color: var(--color-neutral-700); }
+/* flex:none and nowrap or the text column squeezes the label into a stack;
+   the icon needs an explicit size like every other icon button here. */
+.alt-route .btn { min-height: var(--control-h); padding: 0 16px; gap: 8px;
+  flex: none; white-space: nowrap; }
+.alt-route .btn svg { width: 16px; height: 16px; flex: none; }
+@media (max-width: 620px) { .alt-route .btn { width: 100%; } }
+
+/* The leave-only panel. is-wide carries the scrolling body; 1100px is a
+   viewer width, not a form width. */
+#z1LeaveOverlay .modal-panel { max-width: 720px; }
+.z1l-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
+.z1l-grid .z1l-full { grid-column: 1 / -1; }
+@media (max-width: 640px) { .z1l-grid { grid-template-columns: 1fr; } }
+.z1l-hint { display: block; font-size: 11px; color: var(--color-neutral-600); margin-top: 4px; }
+.z1l-ro { font-size: 14px; color: var(--color-text); min-height: var(--control-h);
+  display: flex; align-items: center; margin: 0; }
+.z1l-why { font-size: 13px; color: var(--color-danger-700); margin: 18px 0 0;
+  display: flex; align-items: flex-start; gap: 8px; }
+.z1l-why[hidden] { display: none; }
+.input.is-invalid { border-color: var(--color-danger-500); }
 .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
 .modal-actions .btn { flex: 1 1 0; min-height: var(--control-h); }
 #confirmText { font-size: 15px; line-height: 1.5; color: var(--color-text); }
@@ -1280,6 +1308,14 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
             <span id="parseStatus" style="display:none;"></span>
           </div>
 
+        </div>
+
+        <div class="alt-route">
+          <div class="alt-route-text">
+            <span class="alt-route-title">Applying for leave only?</span>
+            <span class="alt-route-note">Fill in a Z1(a) leave form on its own — no roster needed.</span>
+          </div>
+          <button type="button" class="btn btn-secondary" id="z1LeaveBtn" aria-haspopup="dialog" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 11h6"/><path d="M9 15h4"/></svg><span class="lbl">Leave form only</span></button>
         </div>
       </div>
 
@@ -3855,12 +3891,14 @@ async function generateZ1ADocx(d) {
   const sigDate = d.signatureDate || '';
   const month = d.month;
   const year = d.year;
-  const shiftWorker = d.shiftWorker || 'yes';
-  const casualEmployee = d.casualEmployee || 'no';
   const addressDuringLeave = d.addressDuringLeave || '';
   const supervisorName = d.supervisorName || '';
   const component = d.component || 'Emergency Medicine';
   const leaveData = (function() {
+    // A leave-only application brings its own rows, and has to: the roster
+    // path builds both dates from the single d.month below, so a period
+    // crossing a month boundary cannot be expressed as editedShifts at all.
+    if (Array.isArray(d.leaveRows)) return d.leaveRows;
     const LEAVE_MAP_Z1 = {
       'Leave - Annual':'Annual Leave','Leave - Sick':'Normal Sick Leave',
       'Leave - Family Responsibility':'Family Responsibility Leave',
@@ -3893,15 +3931,36 @@ async function generateZ1ADocx(d) {
     'Leave - Annual': 'Annual Leave',
     'Leave - Sick': 'Normal Sick Leave (Provide supporting evidence when applicable)',
     'Leave - Family Responsibility': 'Family Responsibility Leave (Provide supporting evidence)',
-    'Leave - Study': 'Special Leave for study purposes (Prep &amp; exams only)',
+    // Study leave is a Special Leave on this form, with the kind written on
+    // the "Specify Type of Special Leave" line below it. It used to map to a
+    // label no row emits, so a study-leave application came out blank.
+    'Leave - Study': 'Special Leave ((Provide supporting evidence)',
     'Leave - Prenatal': 'Pre-natal Leave (Provide supporting evidence)',
     'Leave - Paternity': 'Paternity Leave (Provide supporting evidence)',
     'Leave - Special': 'Special Leave ((Provide supporting evidence)',
     'Leave - Maternity': 'Maternity Leave (Provide supporting evidence))',
+    'Leave - Unpaid': 'Unpaid Leave (Provide motivation)',
   };
+  // What to write on the "Specify Type of Special Leave" line for a type that
+  // shares the Special Leave row.
+  const LEAVE_SPECIFY_Z1 = { 'Leave - Study': 'Study (preparation and examinations)' };
+  // Study and Special share one row, so a period of each has to merge rather
+  // than let the second silently replace the first. A single type is
+  // unaffected — prev is undefined and the row is stored exactly as before.
+  const dsort = s => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s || ''); return m ? m[3]+m[2]+m[1] : ''; };
+  let specifySpecial = '';
   for (const ld of leaveData) {
     const label = LEAVE_LABELS_Z1[ld.type];
-    if (label) leaveMap[label] = ld;
+    if (!label) continue;
+    const prev = leaveMap[label];
+    leaveMap[label] = !prev ? ld : {
+      type: prev.type,
+      startDate: dsort(ld.startDate) < dsort(prev.startDate) ? ld.startDate : prev.startDate,
+      endDate:   dsort(ld.endDate)   > dsort(prev.endDate)   ? ld.endDate   : prev.endDate,
+      count: (Number(prev.count) || 0) + (Number(ld.count) || 0),
+    };
+    const spec = ld.specify || LEAVE_SPECIFY_Z1[ld.type] || '';
+    if (spec) specifySpecial = specifySpecial ? specifySpecial + '; ' + spec : spec;
   }
 
 const fullSurname = surname || '';
@@ -3954,11 +4013,13 @@ function leaveRow4(label, leaveMap) {
   ]});
 }
 
-function smallRow(label, fullWidth) {
+// value is optional: with none the row is the blank line it has always been.
+function smallRow(label, fullWidth, value) {
   const m = {top:3,bottom:3,left:40,right:40};
+  const shade = value ? { type:ShadingType.CLEAR, fill:'DEEAF1' } : undefined;
   return new TableRow({ children:[
     cell([p([b(label)],S0)], fullWidth||4785, { gridSpan:fullWidth?27:12, borders:allSng, margins:m }),
-    ...(fullWidth ? [] : [cell([p([t('')],S0)], 5727, { gridSpan:15, borders:allSng })]),
+    ...(fullWidth ? [] : [cell([p([t(value||'')],S0)], 5727, { gridSpan:15, borders:allSng, shading:shade })]),
   ]});
 }
 
@@ -4010,14 +4071,22 @@ function sigRow2Col(sigValue, sigLabel, dateValue) {
 }
 
 
-function calRow(label, note) {
+// leaveMap is optional. Without it this is the blank row it has always been,
+// which is why Maternity never filled in: it is the only leave type on the
+// form rendered by calRow rather than leaveRow4.
+function calRow(label, note, leaveMap) {
   const m = {top:3,bottom:3,left:40,right:40};
+  const ld = (leaveMap && leaveMap[label]) || null;
+  const shade = ld ? { type:ShadingType.CLEAR, fill:'DEEAF1' } : undefined;
+  // Centre the value only when there is one. An empty cell keeps the plain S0
+  // it has always had, so an unfilled row is byte-identical to before.
+  const va = ld ? {...S0,alignment:AlignmentType.CENTER} : S0;
   return new TableRow({ children:[
-    cell([p([b(label)],S0)], 4785, { gridSpan:12, borders:allSng, margins:m }),
-    cell([p([t('')],S0)], 1408, { gridSpan:4, borders:allSng }),
-    cell([p([t('')],S0)], 1610, { gridSpan:4, borders:allSng }),
+    cell([p([b(label)],S0)], 4785, { gridSpan:12, borders:allSng, shading:shade, margins:m }),
+    cell([p([t(ld?ld.startDate:'')],va)], 1408, { gridSpan:4, borders:allSng, shading:shade }),
+    cell([p([t(ld?ld.endDate:'')],va)], 1610, { gridSpan:4, borders:allSng, shading:shade }),
     cell([p([b(note)],{...S0,alignment:AlignmentType.CENTER})], 1958, { gridSpan:6, borders:allSng, margins:m }),
-    cell([p([t('')],S0)], 751, { borders:allSng }),
+    cell([p([t(ld?String(ld.count):'')],va)], 751, { borders:allSng, shading:shade }),
   ]});
 }
 
@@ -4047,6 +4116,11 @@ function secBRow(label, isFirst) {
 // Total left: 1092+4330 = 5422 ✓
 // Grand total: 5422+5090 = 10512 ✓
 
+// Both of this form's Yes/No declarations are No, always — Shift Worker and
+// Casual Employee alike. That is policy, not a missing feature: it used to be
+// a parameter fed from two form fields that never existed in the DOM, so the
+// value was always its default anyway. The tick is the ✓ convention used
+// elsewhere in this file, a literal glyph in a centred cell.
 const RIGHT_YN = (label) => [
   cell([p([b(label)],S0)], 2381, {gridSpan:6,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
   cell([p([b('Yes')],S0)], 851, {gridSpan:2,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
@@ -4143,7 +4217,7 @@ const doc = new Document({ sections:[{ properties:{
       leaveRow4('Pre-natal Leave (Provide supporting evidence)', leaveMap),
       leaveRow4('Paternity Leave (Provide supporting evidence)', leaveMap),
       leaveRow4('Special Leave ((Provide supporting evidence)', leaveMap),
-      smallRow('Specify Type of Special Leave'),
+      smallRow('Specify Type of Special Leave', null, specifySpecial),
       leaveRow4('Leave for Union Office Bearers (Provide supporting evidence)', leaveMap),
       leaveRow4('Leave for Union Shop Stewards (Provide supporting evidence)', leaveMap),
       smallRow('Specify Union Affiliation'),
@@ -4155,7 +4229,7 @@ const doc = new Document({ sections:[{ properties:{
         hdrCell('Number of Calendar Days',2709,7),
       ]}),
       leaveRow4('Unpaid Leave (Provide motivation)', leaveMap),
-      calRow('Maternity Leave (Provide supporting evidence))','No. of Calendar Months'),
+      calRow('Maternity Leave (Provide supporting evidence))','No. of Calendar Months', leaveMap),
       calRow('Surrogacy Leave: Committing Parent (Provide supporting evidence)','No. of Calendar Months'),
       calRow('Surrogacy Leave: Surrogate mother (Provide supporting evidence)','No of weeks'),
 
@@ -4542,7 +4616,7 @@ const CONSULTANT_ACTIVITY_TYPES=[
 // form and wrote the label into the timesheet's normal-hours column.
 const LEAVE_ACTIVITY_TYPES = ['Leave - Annual','Leave - Sick','Leave - Family Responsibility',
   'Leave - Study','Leave - Special','Leave - Prenatal','Leave - Maternity','Leave - Paternity',
-  'Workshop','Course','Conference'];
+  'Leave - Unpaid','Workshop','Course','Conference'];
 // Only actual leave reaches the Z1(a). A workshop or course is official duty
 // and is declared on Annexure C instead.
 const Z1_LEAVE_TYPES = LEAVE_ACTIVITY_TYPES.filter(t => t.startsWith('Leave - '));
@@ -4618,7 +4692,7 @@ const state={
   editedShifts:{},originalShifts:{},dirtyDays:new Set(),
   previewMonth:null,previewYear:null,
   availableMonths:new Set(),
-  savedDetails:{firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',shiftWorker:'yes',casualEmployee:'no',addressDuringLeave:''},
+  savedDetails:{firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',address:''},
   phMap:null,
   // Consultant roster
   consultantFile:null, consultantFiles:[], consultantData:null,
@@ -4668,19 +4742,32 @@ function supervisorOptionsFor(){
 // The free-text box sits under the dropdown when "Other" is picked, and needs
 // a gap there. When the profile has no list it is the whole control, and that
 // same gap drops it out of line with Designation and Date of signature.
-function showSupervisorBox(show, underSelect){
-  const o=$('detailSupervisorOther');
+// Two forms ask for a supervisor now — section 03 and the leave-only panel —
+// so the pair of elements is addressed by prefix. Every existing call omits it
+// and gets 'detail', unchanged.
+function supervisorEls(prefix){
+  prefix=prefix||'detail';
+  return { sel:$(prefix+'SupervisorSel'), other:$(prefix+'SupervisorOther') };
+}
+// The one place that decides dropdown-or-free-text when reading a value back.
+function readSupervisor(prefix){
+  const {sel,other}=supervisorEls(prefix);
+  if(!sel||!other) return '';
+  return (!supervisorOptionsFor()||sel.value==='other') ? other.value.trim() : sel.value;
+}
+function showSupervisorBox(show, underSelect, prefix){
+  const o=supervisorEls(prefix).other;
   if(!o) return;
   o.style.display=show?'':'none';
   o.style.marginTop=(show&&underSelect)?'6px':'0';
 }
-function applySupervisorMode(){
-  const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
+function applySupervisorMode(prefix){
+  const {sel,other}=supervisorEls(prefix);
   if(!sel||!other) return;
   const list=supervisorOptionsFor();
   if(!list){
     sel.style.display='none';
-    showSupervisorBox(true, false);
+    showSupervisorBox(true, false, prefix);
     return;
   }
   sel.style.display='';
@@ -4690,22 +4777,22 @@ function applySupervisorMode(){
   }
   const oth=document.createElement('option');
   oth.value='other'; oth.textContent='Other\u2026'; sel.appendChild(oth);
-  if(sel.value!=='other') showSupervisorBox(false, true);
+  if(sel.value!=='other') showSupervisorBox(false, true, prefix);
 }
 // Put a saved name back into whichever control this profile uses. Everything
 // that restores the form goes through here: a profile without a supervisor
 // list has no dropdown to hide the text box behind, and the old restore code
 // hid both, leaving the field with nothing on screen.
-function setSupervisorValue(saved){
-  const sel=$('detailSupervisorSel'), other=$('detailSupervisorOther');
+function setSupervisorValue(saved, prefix){
+  const {sel,other}=supervisorEls(prefix);
   if(!sel||!other) return;
-  applySupervisorMode();
+  applySupervisorMode(prefix);
   const list=supervisorOptionsFor();
   saved=saved||'';
-  if(!list){ sel.value=''; other.value=saved; showSupervisorBox(true, false); return; }
-  if(saved&&list.includes(saved)){ sel.value=saved; other.value=''; showSupervisorBox(false, true); }
-  else if(saved){ sel.value='other'; other.value=saved; showSupervisorBox(true, true); }
-  else { sel.value=''; other.value=''; showSupervisorBox(false, true); }
+  if(!list){ sel.value=''; other.value=saved; showSupervisorBox(true, false, prefix); return; }
+  if(saved&&list.includes(saved)){ sel.value=saved; other.value=''; showSupervisorBox(false, true, prefix); }
+  else if(saved){ sel.value='other'; other.value=saved; showSupervisorBox(true, true, prefix); }
+  else { sel.value=''; other.value=''; showSupervisorBox(false, true, prefix); }
 }
 
 function updateLeaveFields(){
@@ -4722,9 +4809,7 @@ function checkDetailsComplete() {
   const designation=desSel==='other'?(desOther||''):desSel;
   // Read the supervisor the same way saveDetailsToState does: the free-text
   // box when this profile has no list, or when "Other" is picked.
-  const supSel=$('detailSupervisorSel').value;
-  const supervisor=(!supervisorOptionsFor()||supSel==='other')
-    ? ($('detailSupervisorOther')?.value.trim()||'') : supSel;
+  const supervisor=readSupervisor();
   const date=$('detailSigDate').value.trim();
   const dateValid=date.length===10&&/^\d{2}\/\d{2}\/\d{4}$/.test(date);
   const leaveVisible=$('leaveFieldsSection')?.style.display!=='none';
@@ -4849,17 +4934,12 @@ function saveDetailsToState() {
   state.savedDetails.surname=$('detailSurname').value.trim();
   state.savedDetails.persal=$('detailPersal').value.trim();
   // Fix 3: supervisor — use dropdown value, or 'other' text input
-  const supSel=$('detailSupervisorSel').value;
-  // With no dropdown for this profile the text box is the only source.
-  state.savedDetails.supervisor=(!supervisorOptionsFor()||supSel==='other')
-    ? $('detailSupervisorOther').value.trim() : supSel;
+  state.savedDetails.supervisor=readSupervisor();
   state.savedDetails.sigDate=$('detailSigDate').value.trim();
   const desSel=$('detailDesignationSel').value;
   state.savedDetails.designation=desSel==='other'?$('detailDesignationOther').value.trim():desSel;
   state.savedDetails.designationOther=desSel==='other'?$('detailDesignationOther').value.trim():'';
   state.savedDetails.address=$('detailAddress')?.value.trim()||'';
-  state.savedDetails.shiftWorker=$('detailShiftWorker')?.value||'yes';
-  state.savedDetails.casualEmployee=$('detailCasualEmployee')?.value||'no';
 }
 function restoreDetailsToForm(isNewDoctor) {
   if(isNewDoctor) {
@@ -4940,7 +5020,7 @@ rosterZone.addEventListener('drop',e=>{e.preventDefault();rosterZone.classList.r
 $('clearBtn').addEventListener('click',()=>{
   state.pendingFiles=[];state.parsedFiles=[];state.rosterData=null;state.selectedDoctor=null;
   state.editedShifts={};state.originalShifts={};state.dirtyDays.clear();state.availableMonths=new Set();
-  state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',shiftWorker:'yes',casualEmployee:'no',addressDuringLeave:''};
+  state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',address:''};
   state.consultantFile=null;state.consultantFiles=[];state.consultantData=null;if($('consultantZone')) setConsultantFile(null);
   renderFileList();$('parseBtn').disabled=true;$('clearBtn').style.display='none';
   rosterList.style.display='none';setStatus('');
@@ -4965,12 +5045,16 @@ function fullReset(){
   // Also clear all detail fields
   const fields=['detailFirstName','detailSurname','detailPersal','detailSigDate'];
   fields.forEach(id=>{const el=$(id);if(el)el.value='';});
-  const sels=['detailDesignationSel','detailSupervisorSel','detailShiftWorker','detailCasualEmployee'];
+  const sels=['detailDesignationSel','detailSupervisorSel'];
   sels.forEach(id=>{const el=$(id);if(el)el.selectedIndex=0;});
   const others=['detailDesignationOther','detailSupervisorOther'];
   others.forEach(id=>{const el=$(id);if(el){el.value='';el.style.display='none';}});
   applySupervisorMode();
   const addr=$('detailAddress');if(addr)addr.value='';
+  // The leave panel prefills from savedDetails rather than from these boxes,
+  // so clearing the boxes is no longer enough for Start over to mean it.
+  state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',
+    designation:'',designationOther:'',address:''};
   $('detailsSection').style.display='none';
   $('leaveFieldsSection').style.display='none';
   ['proceedDownloadBtn','annexureCBtn','z1aBtn'].forEach(id=>{const el=$(id);if(el)el.disabled=true;});
@@ -5736,8 +5820,6 @@ function getFormDetails(){
     signatureDate:state.savedDetails.sigDate,
     addressDuringLeave:state.savedDetails.address||'',
     component:z1ComponentFor(),
-    shiftWorker:state.savedDetails.shiftWorker||'yes',
-    casualEmployee:state.savedDetails.casualEmployee||'no',
     editedShifts:state.editedShifts,
     month, year,
   };
@@ -7439,6 +7521,271 @@ document.addEventListener('change', e => {
   if (e.target && e.target.id === 'rosterViewPick') renderRosterView();
 });
 
+// ── Leave form only: a Z1(a) with no roster behind it ───────────────────────
+// The Z1(a) is almost roster-independent already — the generator reads a plain
+// object, and only the Section A rows came from the schedule. This panel
+// supplies those rows directly, so a doctor applying for three days' leave
+// never uploads anything.
+let z1LeaveDlg = null;
+
+// A date field is a DD/MM/YYYY text box mirrored by a real, full-size
+// <input type="date"> under the glyph. Not retrofitted onto #detailSigDate:
+// that handler leaves a stale picker value when the text stops being a valid
+// date, and changing it would move the roster path for no benefit here.
+function wireDateField(textId, pickerId, onChange){
+  const txt=$(textId), pick=$(pickerId);
+  if(!txt||!pick) return;
+  pick.addEventListener('click',e=>{
+    if(typeof e.currentTarget.showPicker==='function'){ try{ e.currentTarget.showPicker(); }catch(_){} }
+  });
+  pick.addEventListener('change',e=>{
+    const d=e.target.value;
+    txt.value=d?d.split('-').reverse().join('/'):'';
+    if(onChange) onChange();
+  });
+  txt.addEventListener('input',e=>{
+    let v=e.target.value.replace(/\D/g,'');
+    if(v.length>2) v=v.slice(0,2)+'/'+v.slice(2);
+    if(v.length>5) v=v.slice(0,5)+'/'+v.slice(5);
+    if(v.length>10) v=v.slice(0,10);
+    e.target.value=v;
+    const m=v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    pick.value=m?`${m[3]}-${m[2]}-${m[1]}`:'';
+    if(onChange) onChange();
+  });
+}
+function z1lSetDate(textId, pickerId, ddmmyyyy){
+  const txt=$(textId), pick=$(pickerId);
+  if(!txt||!pick) return;
+  txt.value=ddmmyyyy||'';
+  const m=(ddmmyyyy||'').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  pick.value=m?`${m[3]}-${m[2]}-${m[1]}`:'';
+}
+// A real calendar date, or null. Rejects 31/02 rather than rolling it over.
+function z1lParseDate(s){
+  const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s||'');
+  if(!m) return null;
+  const d=new Date(+m[3], +m[2]-1, +m[1]);
+  return (d.getFullYear()===+m[3]&&d.getMonth()===+m[2]-1&&d.getDate()===+m[1])?d:null;
+}
+const z1lIsoKey = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')
+                                      +'-'+String(d.getDate()).padStart(2,'0');
+
+// Inclusive, Monday to Friday, minus SA public holidays. buildPHCalendar is
+// per year, and a leave period is the one thing in this app that routinely
+// crosses New Year, so every year it touches is merged in.
+function z1lWorkingDays(s, e){
+  if(!s||!e||e<s) return 0;
+  const ph=new Map();
+  for(let y=s.getFullYear(); y<=e.getFullYear(); y++)
+    for(const [k,v] of buildPHCalendar(y)) ph.set(k,v);
+  let n=0;
+  for(const d=new Date(s); d<=e; d.setDate(d.getDate()+1)){
+    const wd=d.getDay();
+    if(wd===0||wd===6) continue;
+    if(ph.has(z1lIsoKey(d))) continue;
+    n++;
+  }
+  return n;
+}
+function z1lCalendarDays(s, e){
+  if(!s||!e||e<s) return 0;
+  return Math.round((e-s)/86400000)+1;
+}
+// Whole calendar months, start to the day after end: 01/03 to 30/06 is four.
+// A ragged period floors, which is what the editable field is for.
+function z1lCalendarMonths(s, e){
+  if(!s||!e||e<s) return 0;
+  const end=new Date(e); end.setDate(end.getDate()+1);
+  let m=(end.getFullYear()-s.getFullYear())*12+(end.getMonth()-s.getMonth());
+  if(end.getDate()<s.getDate()) m--;
+  return Math.max(m,0);
+}
+// The unit is a property of the row the type prints on, not of the leave. Get
+// this wrong and a working-day count lands under "Number of Calendar Days".
+function z1lUnitFor(type){
+  if(type==='Leave - Maternity') return 'calendar months';
+  if(type==='Leave - Unpaid')    return 'calendar days';
+  return 'working days';
+}
+function z1lAutoCount(type, s, e){
+  const u=z1lUnitFor(type);
+  if(u==='calendar months') return z1lCalendarMonths(s,e);
+  if(u==='calendar days')   return z1lCalendarDays(s,e);
+  return z1lWorkingDays(s,e);
+}
+// Special leave asks what kind; study answers for itself.
+function z1lSyncSpecify(){
+  const wrap=$('z1lSpecifyWrap'), type=$('z1lType');
+  if(!wrap||!type) return;
+  wrap.hidden = type.value!=='Leave - Special';
+}
+function z1lRecalc(){
+  const days=$('z1lDays'), hint=$('z1lDaysHint'), lbl=$('z1lDaysLabel'), type=$('z1lType');
+  if(!days||!type) return;
+  const unit=z1lUnitFor(type.value);
+  if(lbl) lbl.innerHTML='Number of '+unit+'<span class="req-star">*</span>';
+  const auto=z1lAutoCount(type.value, z1lParseDate($('z1lStart').value), z1lParseDate($('z1lEnd').value));
+  if(days.dataset.auto==='1') days.value=auto?String(auto):'';
+  if(hint) hint.textContent = !auto ? ''
+    : days.dataset.auto==='1'
+      ? ('Counted from the dates'+(unit==='working days'?', skipping weekends and public holidays.':'.'))
+      : ('Your own figure. Counted from the dates: '+auto+' — clear the box to use it.');
+}
+// One source of truth for whether Download is disabled and for the sentence
+// saying why, the same way wizBlockedReason works for the wizard.
+function z1LeaveBlockedReason(){
+  const v = id => (($(id)&&$(id).value)||'').trim();
+  if(!v('z1lFirstName')) return ['z1lFirstName','Enter your first name.'];
+  if(!v('z1lSurname'))   return ['z1lSurname','Enter your surname.'];
+  if(!v('z1lPersal'))    return ['z1lPersal','Enter your PERSAL number.'];
+  if(!v('z1lType'))      return ['z1lType','Choose a type of leave.'];
+  if(v('z1lType')==='Leave - Special'&&!v('z1lSpecify'))
+    return ['z1lSpecify','Say what kind of special leave this is.'];
+  const s=z1lParseDate(v('z1lStart')), e=z1lParseDate(v('z1lEnd'));
+  if(!s) return ['z1lStart','Enter a start date as DD/MM/YYYY.'];
+  if(!e) return ['z1lEnd','Enter an end date as DD/MM/YYYY.'];
+  if(e<s) return ['z1lEnd','The end date is before the start date.'];
+  if((e-s)/86400000>730) return ['z1lEnd','That is over two years — check the year.'];
+  const n=Number(v('z1lDays'));
+  if(!Number.isInteger(n)||n<=0)
+    return ['z1lDays','Enter a whole number of '+z1lUnitFor(v('z1lType'))+', greater than zero.'];
+  if(!v('z1lAddress')) return ['z1lAddress','Enter the address where you can be reached.'];
+  if(!readSupervisor('z1l')) return ['z1lSupervisorSel','Choose or enter your supervisor.'];
+  if(!z1lParseDate(v('z1lSigDate'))) return ['z1lSigDate','Enter the date of signature as DD/MM/YYYY.'];
+  return null;
+}
+function z1lValidate(){
+  const why=z1LeaveBlockedReason(), line=$('z1LeaveWhy'), btn=$('z1LeaveGenerate');
+  if(btn) btn.disabled=!!why;
+  const ov=$('z1LeaveOverlay');
+  if(ov) for(const el of ov.querySelectorAll('.input')) el.classList.remove('is-invalid');
+  if(line){
+    line.hidden=!why;
+    if(why) line.querySelector('.txt').textContent=why[1];
+  }
+  if(why&&$(why[0])) $(why[0]).classList.add('is-invalid');
+  return !why;
+}
+function z1LeaveOpen(){
+  const s=state.savedDetails||{};
+  const sel=$('z1lType');
+  if(sel){
+    while(sel.options.length>1) sel.remove(1);
+    for(const t of Z1_LEAVE_TYPES){
+      const o=document.createElement('option');
+      o.value=t; o.textContent=t.replace(/^Leave - /,'')+' leave';
+      sel.appendChild(o);
+    }
+    sel.value='';
+  }
+  // Written unconditionally, so re-opening after Start over shows a clean form.
+  $('z1lFirstName').value=s.firstName||'';
+  $('z1lSurname').value=s.surname||'';
+  $('z1lPersal').value=s.persal||'';
+  $('z1lAddress').value=s.address||'';
+  $('z1lSpecify').value='';
+  setSupervisorValue(s.supervisor||'', 'z1l');
+  z1lSetDate('z1lStart','z1lStartPicker','');
+  z1lSetDate('z1lEnd','z1lEndPicker','');
+  z1lSetDate('z1lSigDate','z1lSigDatePicker', s.sigDate||'');
+  const days=$('z1lDays'); days.value=''; days.dataset.auto='1';
+  $('z1lComponent').textContent=z1ComponentFor();
+  z1lSyncSpecify(); z1lRecalc(); z1lValidate();
+}
+// Only the fields this panel owns. Designation is deliberately absent — the
+// Z1(a) never prints it, so the panel does not ask for it and must not blank
+// whatever section 03 holds.
+function z1LeaveSaveShared(){
+  const s=state.savedDetails;
+  s.firstName=$('z1lFirstName').value.trim();
+  s.surname=$('z1lSurname').value.trim();
+  s.persal=$('z1lPersal').value.trim();
+  s.supervisor=readSupervisor('z1l');
+  s.sigDate=$('z1lSigDate').value.trim();
+  s.address=$('z1lAddress').value.trim();
+  const put=(id,val)=>{ const el=$(id); if(el) el.value=val; };
+  put('detailFirstName',s.firstName); put('detailSurname',s.surname);
+  put('detailPersal',s.persal); put('detailAddress',s.address);
+  z1lSetDate('detailSigDate','detailSigDatePicker',s.sigDate);
+  setSupervisorValue(s.supervisor,'detail');
+  if(typeof checkDetailsComplete==='function') checkDetailsComplete();
+}
+// The period comes from the leave itself; #monthSelect is meaningless here.
+function z1LeaveFilename(row, first, surname){
+  const safe=((first||'')+' '+(surname||'')).trim().replace(/\s+/g,'_')||'Leave';
+  const m=/^(\d{2})\/(\d{2})\/(\d{4})$/.exec((row&&row.startDate)||'');
+  return `Z1a_Leave_${safe}_${m?MONTH_NAMES[+m[2]-1]+'_'+m[3]:'Leave'}.docx`;
+}
+
+// Wired from wire(), not at load: the overlay markup sits after this script
+// in the document, so at this point none of these elements exist yet — and
+// the ?. below would silently attach nothing.
+function z1LeaveWire(){
+  // Everything in the panel re-validates on any change; the three date fields
+  // also drive the count.
+  function z1lOnDatesChanged(){ z1lRecalc(); z1lValidate(); }
+  wireDateField('z1lStart','z1lStartPicker', z1lOnDatesChanged);
+  wireDateField('z1lEnd','z1lEndPicker', z1lOnDatesChanged);
+  wireDateField('z1lSigDate','z1lSigDatePicker', z1lValidate);
+  $('z1lType')?.addEventListener('change',()=>{
+    // The unit changes with the type, so a figure counted in the old one is
+    // meaningless — hand the field back to the calculator.
+    const days=$('z1lDays'); if(days) days.dataset.auto='1';
+    z1lSyncSpecify(); z1lRecalc(); z1lValidate();
+  });
+  $('z1lDays')?.addEventListener('input',e=>{
+    // Blanking the box hands it back; anything else is the doctor's own number
+    // and has to survive a later change of dates.
+    e.target.dataset.auto = e.target.value.trim()==='' ? '1' : '0';
+    if(e.target.dataset.auto==='1') z1lRecalc();
+    z1lValidate();
+  });
+  $('z1LeaveOverlay')?.addEventListener('input',e=>{
+    if(e.target.id!=='z1lDays') z1lValidate();
+  });
+  $('z1LeaveOverlay')?.addEventListener('change',e=>{
+    if(e.target.id==='z1lSupervisorSel'){
+      const other=$('z1lSupervisorOther');
+      if(e.target.value==='other') showSupervisorBox(true, true, 'z1l');
+      else { if(other) other.value=''; showSupervisorBox(false, true, 'z1l'); }
+    }
+    z1lValidate();
+  });
+  $('z1LeaveCancel')?.addEventListener('click',()=>{ if(z1LeaveDlg) z1LeaveDlg.close(); });
+  $('z1LeaveGenerate')?.addEventListener('click',async()=>{
+    if(!z1lValidate()) return;
+    const btn=$('z1LeaveGenerate'), prev=btn.textContent;
+    btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Generating…';
+    try{
+      const type=$('z1lType').value;
+      const row={ type, startDate:$('z1lStart').value.trim(), endDate:$('z1lEnd').value.trim(),
+        count:Number($('z1lDays').value.trim()) };
+      const spec=$('z1lSpecify').value.trim();
+      if(spec) row.specify=spec;
+      const d={
+        firstName:$('z1lFirstName').value.trim(), surname:$('z1lSurname').value.trim(),
+        persal:$('z1lPersal').value.trim(), signatureDate:$('z1lSigDate').value.trim(),
+        supervisorName:readSupervisor('z1l'), addressDuringLeave:$('z1lAddress').value.trim(),
+          component:z1ComponentFor(), leaveRows:[row],
+      };
+      const blob=await generateZ1ADocx(d);
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download=z1LeaveFilename(row, d.firstName, d.surname);
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      // Carry the shared fields over so the roster route needs no retyping.
+      z1LeaveSaveShared();
+      if(z1LeaveDlg) z1LeaveDlg.close();
+    }catch(err){
+      console.error(err);
+      const line=$('z1LeaveWhy');
+      if(line){ line.hidden=false; line.querySelector('.txt').textContent='Could not build the form: '+(err&&err.message?err.message:err); }
+    }
+    btn.textContent=prev; z1lValidate();
+  });
+}
+
 // ── Confirmation ───────────────────────────────────────────────────────────
 // One panel in front of everything destructive. Nothing is cleared, removed or
 // reset until it comes back true; closing it any way at all — the x, No, the
@@ -7567,9 +7914,14 @@ document.addEventListener('click', e => {
     document.addEventListener('keydown',e=>{
       if(e.key==='Escape'&&ov.classList.contains('open')) close();
     });
+    // Handed back so a panel that validates its own form can stay open on a
+    // failure and close itself on success. Nothing else reads this.
+    return { open, close };
   }
   function wire(){
     dialog('privacyBtn','privacyOverlay','privacyCloseBtn');
+    z1LeaveDlg = dialog('z1LeaveBtn','z1LeaveOverlay','z1LeaveCloseBtn', z1LeaveOpen);
+    z1LeaveWire();
     // The bar's icon offers both; each header chip offers only its own, which
     // is what makes them read as controls for that one thing.
     dialog('wizEditBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('all'));
@@ -7674,6 +8026,75 @@ document.addEventListener('click', e => {
     </div>
     <div class="modal-body">
       <p>Rosters are read in your browser. The files you upload and the details you type are never sent anywhere and never saved. Close or reload the page and they are gone. The only thing kept between visits is your chosen department profile, so you do not have to pick it again.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- Leave form only: a Z1(a) with no roster behind it. Body level, like every
+     other overlay, so opening it makes the page inert rather than covering it. -->
+<div id="z1LeaveOverlay" class="modal-overlay is-wide" role="dialog" aria-modal="true" aria-labelledby="z1LeaveTitle">
+  <div class="modal-panel">
+    <div class="modal-head">
+      <h3 id="z1LeaveTitle">Leave form only</h3>
+      <button type="button" id="z1LeaveCloseBtn" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p>Fill in one leave period and download a completed Z1(a). This form stands on its own — you do not need a roster, and you do not need the rest of the wizard.</p>
+      <div class="z1l-grid" style="margin-top:18px;">
+        <div class="field"><label for="z1lFirstName">First name<span class="req-star">*</span></label><input type="text" id="z1lFirstName" class="input" autocomplete="off" aria-required="true"></div>
+        <div class="field"><label for="z1lSurname">Surname<span class="req-star">*</span></label><input type="text" id="z1lSurname" class="input" autocomplete="off" aria-required="true"></div>
+        <div class="field"><label for="z1lPersal">PERSAL number<span class="req-star">*</span></label><input type="text" id="z1lPersal" class="input" inputmode="numeric" autocomplete="off" aria-required="true"></div>
+        <div class="field">
+          <label for="z1lType">Type of leave<span class="req-star">*</span></label>
+          <select id="z1lType" class="input" aria-required="true"><option value="">&mdash; select &mdash;</option></select>
+        </div>
+        <div class="field z1l-full" id="z1lSpecifyWrap" hidden>
+          <label for="z1lSpecify">What kind of special leave?<span class="req-star">*</span></label>
+          <input type="text" id="z1lSpecify" class="input" autocomplete="off" placeholder="Written on the form's Specify line">
+        </div>
+          <div class="field">
+            <label for="z1lStart">Start date<span class="req-star">*</span></label>
+            <div class="date-picker-wrap">
+              <input type="text" id="z1lStart" class="input" maxlength="10" placeholder="DD / MM / YYYY" inputmode="numeric" autocomplete="off" aria-required="true">
+              <span class="date-picker-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><input type="date" id="z1lStartPicker" aria-label="Choose the start date"></span>
+            </div>
+          </div>
+          <div class="field">
+            <label for="z1lEnd">End date<span class="req-star">*</span></label>
+            <div class="date-picker-wrap">
+              <input type="text" id="z1lEnd" class="input" maxlength="10" placeholder="DD / MM / YYYY" inputmode="numeric" autocomplete="off" aria-required="true">
+              <span class="date-picker-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><input type="date" id="z1lEndPicker" aria-label="Choose the end date"></span>
+            </div>
+          </div>
+        <div class="field">
+          <label for="z1lDays" id="z1lDaysLabel">Number of working days<span class="req-star">*</span></label>
+          <input type="text" id="z1lDays" class="input" inputmode="numeric" autocomplete="off" aria-required="true" data-auto="1">
+          <span class="z1l-hint" id="z1lDaysHint"></span>
+        </div>
+        <div class="field">
+          <label for="z1lSupervisorSel">Supervisor<span class="req-star">*</span></label>
+          <select id="z1lSupervisorSel" class="input" aria-required="true"><option value="">&mdash; select &mdash;</option></select>
+          <input type="text" id="z1lSupervisorOther" class="input" placeholder="Enter supervisor name…" style="display:none;">
+        </div>
+          <div class="field">
+            <label for="z1lSigDate">Date of signature<span class="req-star">*</span></label>
+            <div class="date-picker-wrap">
+              <input type="text" id="z1lSigDate" class="input" maxlength="10" placeholder="DD / MM / YYYY" inputmode="numeric" autocomplete="off" aria-required="true">
+              <span class="date-picker-btn"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><input type="date" id="z1lSigDatePicker" aria-label="Choose the date of signature"></span>
+            </div>
+          </div>
+        <div class="field z1l-full">
+          <label for="z1lAddress">Address during leave<span class="req-star">*</span></label>
+          <textarea id="z1lAddress" class="input" rows="3" placeholder="Where you can be reached"></textarea>
+        </div>
+        <div class="field z1l-full"><label>Component</label><p class="z1l-ro" id="z1lComponent"></p></div>
+      </div>
+      <p class="z1l-why" id="z1LeaveWhy" role="status" hidden><span aria-hidden="true">&#9432;</span><span class="txt"></span></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="z1LeaveCancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="z1LeaveGenerate" aria-describedby="z1LeaveWhy" disabled>Download Z1(a)</button>
+      </div>
     </div>
   </div>
 </div>

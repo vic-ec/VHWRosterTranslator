@@ -73,6 +73,10 @@ function showEcSelected(name) {
   if(_mh) _mh.hidden=true;
   if(_wb) _wb.hidden=false;
   if(typeof wizGo==='function') wizGo(typeof wizStep==='number'?wizStep:1);
+  // An EC is now active (online selection or offline default) — reveal the
+  // upload section, which stays hidden until this point.
+  const step1 = $('step1');
+  if (step1) step1.style.display = '';
 }
 
 function showEcPicker(profiles) {
@@ -89,6 +93,9 @@ function showEcPicker(profiles) {
   for(const _s of ['sec-1','sec-2','sec-3','sec-4']){
     const _el=document.getElementById(_s); if(_el) _el.hidden=true;
   }
+  // No EC chosen yet — keep the upload section hidden until one is selected.
+  const step1 = $('step1');
+  if (step1) step1.style.display = 'none';
   const sel = $('ecSelect');
   // Clear existing options except the placeholder
   while (sel.options.length > 1) sel.remove(1);
@@ -104,14 +111,22 @@ function showEcPicker(profiles) {
 
 function showEcOffline(cachedProfile) {
   $('ecOfflineNote').style.display = '';
-  if (cachedProfile) {
-    applyProfile(cachedProfile);
-    showEcSelected(cachedProfile.ec_name || 'Saved EC');
-  } else {
-    // No cache and no network — hide spinner, show just the warning
-    $('ecLoadingRow').style.display = 'none';
-    $('ecPickerRow').style.display  = 'none';
-  }
+  // Use the cached profile if one exists; otherwise fall back to the
+  // built-in VHW default so the app works fully offline on a brand-new
+  // device that has never connected to Supabase.
+  const profileToUse = cachedProfile || VHW_FALLBACK_PROFILE;
+  applyProfile(profileToUse);
+  showEcSelected(profileToUse.ec_name || 'Saved EC');
+  // applyProfile() sets a plain header title — override it with the
+  // offline-specific wording afterward so it isn't clobbered.
+  const ecShort = profileToUse.ec_short || profileToUse.ec_name || 'VHW';
+  const modeEl = $('ecMode');
+  // Prints no department name: the only correct name is the full one, and it
+  // is already on screen in the wizard's context row.
+  if (modeEl) { modeEl.textContent = 'Offline · saved profile'; modeEl.style.display = ''; }
+  const noteText = $('ecOfflineNote').querySelector('span:last-child');
+  const fullName = profileToUse.ec_name || ecShort;
+  if (noteText) noteText.textContent = `Could not reach the profile server. Working offline with the saved profile: ${fullName}.`;
 }
 
 async function initEcSelector() {

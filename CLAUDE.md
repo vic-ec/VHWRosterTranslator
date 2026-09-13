@@ -147,6 +147,53 @@ the parts worth knowing before editing:
   number — so the standard and extended column sets share one set of rules.
   Adding a column needs no new CSS; adding a *band* does.
 
+## The leave-only route
+
+A doctor can produce a Z1(a) without a roster: **Leave form only** at the foot
+of step 1 opens `#z1LeaveOverlay`, which collects one leave period and
+downloads the form. A department must be chosen first, because that is what
+makes `z1ComponentFor()` and the supervisor list right — but nothing is
+uploaded, parsed or reviewed.
+
+- **The generator takes the rows directly.** `generateZ1ADocx` accepts an
+  optional `d.leaveRows` — `{type, startDate, endDate, count, specify}` with
+  dates already `DD/MM/YYYY` — in preference to deriving them from
+  `editedShifts`. Do not try to synthesise `editedShifts` instead: the roster
+  path builds both dates from one `d.month`, so a period crossing a month
+  boundary cannot be expressed that way at all.
+- **The unit belongs to the row, not the leave.** The form has two Section A
+  blocks: working days for most types, **calendar days** for Unpaid, and
+  **calendar months** for Maternity (the one type rendered by `calRow`). The
+  panel's count field switches label and calculation with the type; get it
+  wrong and a working-day count lands under "Number of Calendar Days".
+- **Study is a Special Leave** on the printed form, with the kind written on
+  the "Specify Type of Special Leave" line. Study and Special therefore share a
+  row, and the loop that fills `leaveMap` merges them — earliest start, latest
+  end, summed count — rather than letting the second silently win.
+- **The count auto-fills but is editable.** `data-auto` on `#z1lDays` tracks
+  whether the doctor has taken it over; blanking the box hands it back. The
+  automatic figure is often wrong for an EC, where a weekend day is a working
+  day, which is the whole reason it is editable.
+- **`z1LeaveWire()` is called from `wire()`, not at load.** The overlay markup
+  sits ~300 lines *after* the inline script, so at script-execution time none
+  of its elements exist — and the `?.` in those listeners would attach nothing,
+  silently. Section 03's listeners can be top-level only because `#sec-3`
+  precedes the script.
+- **No designation field.** `generateZ1ADocx` never reads `d.designation`
+  (Annexure C does). Asking for it would be a required field that changes
+  nothing in the output.
+- `supervisorEls`/`readSupervisor`/`showSupervisorBox`/`applySupervisorMode`/
+  `setSupervisorValue` all take an optional element prefix, defaulting to
+  `detail`, so the panel reuses section 03's dropdown-vs-free-text rule instead
+  of copying it.
+- **`state.savedDetails` now declares `address`,** the key that was always
+  written and read; the initialiser used to declare a dead `addressDuringLeave`
+  and so dropped the real one on reset. `shiftWorker` and `casualEmployee` are
+  gone from it entirely — see the note below on why the Z1(a) always says No. `fullReset()` empties the object too —
+  the panel prefills from it directly, so clearing the DOM boxes is no longer
+  enough for Start over to mean it. (`d.addressDuringLeave` remains the
+  *generator's* parameter name.)
+
 ## Output documents
 
 | Document | Format | Purpose |
@@ -246,6 +293,15 @@ key. `tests/README.md` has the whole picture, including what these tests do
   *hidden* until a file is retained rather than disabled, which needs explicit
   `.hdr-icon[hidden]` / `.wizctx-edit[hidden]` rules: both classes set
   `display: inline-flex`, which outranks the UA rule for `[hidden]`.
+- **The Z1(a) declares No for Shift Worker and Casual Employee, always.** Both
+  rows are ticked in the No box by `RIGHT_YN` in `generator-docx.js`, on every
+  route. This is policy, not a missing feature — it was once a parameter fed
+  from `#detailShiftWorker` / `#detailCasualEmployee`, two elements that never
+  existed in the DOM, so the value was always its default anyway. The leave
+  panel used to offer dropdowns for both; they were removed because the
+  generator dropped the answers on the floor, and two controls that change
+  nothing are worse than none. `tests/z1a.js` asserts the ticked row on both
+  routes, so the question cannot go unanswered again.
 - **The EC roster template has a typo the parser has to tolerate.** Its first
   time band reads `08;00 - 18:00` — a semicolon — in at least the 2023 and 2024
   exports. `TIME_TOK_SINGLE`/`TIME_TOK_RANGE` therefore accept `;` alongside
