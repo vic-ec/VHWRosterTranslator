@@ -428,31 +428,40 @@ async function generateZ1ADocx(d) {
     // path builds both dates from the single d.month below, so a period
     // crossing a month boundary cannot be expressed as editedShifts at all.
     if (Array.isArray(d.leaveRows)) return d.leaveRows;
-    const LEAVE_MAP_Z1 = {
-      'Leave - Annual':'Annual Leave','Leave - Sick':'Normal Sick Leave',
-      'Leave - Family Responsibility':'Family Responsibility Leave',
-      'Leave - Study':'Special Leave (Study purposes)',
-      'Leave - Prenatal':'Pre-natal Leave','Leave - Paternity':'Paternity Leave',
-      'Leave - Special':'Special Leave','Leave - Maternity':'Maternity Leave',
-    };
     if (!d.editedShifts) return [];
+    // Two separate blocks of the same leave are two periods, not one long one:
+    // annual leave on the 3rd and again on the 27th is two days off, not
+    // twenty-five. A block continues across a gap only when every day in that
+    // gap is one the doctor would not have worked anyway — a weekend or a
+    // public holiday — so a fortnight's leave stays one row while two separate
+    // weeks become two.
+    const phCal = buildPHCalendar(year);
+    const notWorked = dayNum => {
+      const wd = new Date(year, month, dayNum).getDay();
+      if (wd === 0 || wd === 6) return true;
+      return phCal.has(year + '-' + String(month+1).padStart(2,'0') + '-' + String(dayNum).padStart(2,'0'));
+    };
+    const joins = (prevDay, nextDay) => {
+      for (let x = prevDay + 1; x < nextDay; x++) if (!notWorked(x)) return false;
+      return true;
+    };
     const days = Object.keys(d.editedShifts).map(Number).sort((a,b)=>a-b);
-    const groups = {};
+    const runs = {};
     for (const day of days) {
       const es = d.editedShifts[day];
       // Positive test: only recognised leave types belong on a leave form.
       if (!isZ1LeaveActivity(es.typeLabel)) continue;
-      const lbl = LEAVE_MAP_Z1[es.typeLabel] || es.typeLabel;
-      if (!groups[lbl]) groups[lbl] = { type: es.typeLabel, startDay: day, endDay: day, count: 0 };
-      groups[lbl].endDay = day;
-      groups[lbl].count++;
+      const list = runs[es.typeLabel] || (runs[es.typeLabel] = []);
+      const open = list[list.length - 1];
+      if (open && joins(open.endDay, day)) { open.endDay = day; open.count++; }
+      else list.push({ type: es.typeLabel, startDay: day, endDay: day, count: 1 });
     }
-    return Object.values(groups).map(g => ({
-      type: g.type,
-      startDate: String(g.startDay).padStart(2,'0') + '/' + String(month+1).padStart(2,'0') + '/' + year,
-      endDate: String(g.endDay).padStart(2,'0') + '/' + String(month+1).padStart(2,'0') + '/' + year,
-      count: g.count,
-    }));
+    const ddmmyyyy = dayNum =>
+      String(dayNum).padStart(2,'0') + '/' + String(month+1).padStart(2,'0') + '/' + year;
+    return Object.values(runs).flat()
+      .sort((a,b) => a.startDay - b.startDay)
+      .map(g => ({ type: g.type, startDate: ddmmyyyy(g.startDay),
+                   endDate: ddmmyyyy(g.endDay), count: g.count }));
   })();
 
         const leaveMap = {};
@@ -473,24 +482,21 @@ async function generateZ1ADocx(d) {
   // What to write on the "Specify Type of Special Leave" line for a type that
   // shares the Special Leave row.
   const LEAVE_SPECIFY_Z1 = { 'Leave - Study': 'Study (preparation and examinations)' };
-  // Study and Special share one row, so a period of each has to merge rather
-  // than let the second silently replace the first. A single type is
-  // unaffected — prev is undefined and the row is stored exactly as before.
+  // Each label holds a list: one entry per period, printed as its own row.
+  // Study and Special share a label, so their periods interleave by date here
+  // rather than one silently replacing the other.
   const dsort = s => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s || ''); return m ? m[3]+m[2]+m[1] : ''; };
   let specifySpecial = '';
   for (const ld of leaveData) {
     const label = LEAVE_LABELS_Z1[ld.type];
     if (!label) continue;
-    const prev = leaveMap[label];
-    leaveMap[label] = !prev ? ld : {
-      type: prev.type,
-      startDate: dsort(ld.startDate) < dsort(prev.startDate) ? ld.startDate : prev.startDate,
-      endDate:   dsort(ld.endDate)   > dsort(prev.endDate)   ? ld.endDate   : prev.endDate,
-      count: (Number(prev.count) || 0) + (Number(ld.count) || 0),
-    };
+    (leaveMap[label] || (leaveMap[label] = [])).push(ld);
     const spec = ld.specify || LEAVE_SPECIFY_Z1[ld.type] || '';
-    if (spec) specifySpecial = specifySpecial ? specifySpecial + '; ' + spec : spec;
+    if (spec && !specifySpecial.split('; ').includes(spec))
+      specifySpecial = specifySpecial ? specifySpecial + '; ' + spec : spec;
   }
+  for (const k of Object.keys(leaveMap))
+    leaveMap[k].sort((a, b) => dsort(a.startDate) < dsort(b.startDate) ? -1 : 1);
 
 const fullSurname = surname || '';
 const initials = firstName ? firstName.trim().split(/\s+/).map(w=>w[0]+'.').join('') : '';
@@ -530,9 +536,14 @@ function sectionRow(text) {
   ]});
 }
 
-function leaveRow4(label, leaveMap) {
+// One row per period. A label with no leave keeps the single blank row the
+// printed form has, so an unused type looks exactly as it always did.
+function leaveRows4(label, leaveMap) {
+  const list = (leaveMap && leaveMap[label]) || [];
+  return list.length ? list.map(ld => leaveRow4(label, ld)) : [leaveRow4(label, null)];
+}
+function leaveRow4(label, ld) {
   const m = {top:3,bottom:3,left:40,right:40};
-  const ld = leaveMap[label];
   const shade = ld ? { type:ShadingType.CLEAR, fill:'DEEAF1' } : undefined;
   return new TableRow({ children:[
     cell([p([b(label)],S0)], 4785, { gridSpan:12, borders:allSng, shading:shade, margins:m }),
@@ -603,9 +614,13 @@ function sigRow2Col(sigValue, sigLabel, dateValue) {
 // leaveMap is optional. Without it this is the blank row it has always been,
 // which is why Maternity never filled in: it is the only leave type on the
 // form rendered by calRow rather than leaveRow4.
-function calRow(label, note, leaveMap) {
+function calRows(label, note, leaveMap) {
+  const list = (leaveMap && leaveMap[label]) || [];
+  return list.length ? list.map(ld => calRow(label, note, ld)) : [calRow(label, note, null)];
+}
+function calRow(label, note, ld) {
   const m = {top:3,bottom:3,left:40,right:40};
-  const ld = (leaveMap && leaveMap[label]) || null;
+  ld = ld || null;
   const shade = ld ? { type:ShadingType.CLEAR, fill:'DEEAF1' } : undefined;
   // Centre the value only when there is one. An empty cell keeps the plain S0
   // it has always had, so an unfilled row is byte-identical to before.
@@ -732,23 +747,23 @@ const doc = new Document({ sections:[{ properties:{
         hdrCell('Number of Working Days',2709,7),
       ]}),
 
-      leaveRow4('Annual Leave', leaveMap),
-      leaveRow4('Normal Sick Leave (Provide supporting evidence when applicable)', leaveMap),
+      ...leaveRows4('Annual Leave', leaveMap),
+      ...leaveRows4('Normal Sick Leave (Provide supporting evidence when applicable)', leaveMap),
 
       new TableRow({ children:[
         cell([p([b('Temporary Incapacity Leave')],S0)], 4785, {gridSpan:12,borders:allSng,margins:{top:3,bottom:3,left:40,right:40}}),
         cell([p([t('Temporary incapacity leave must be applied for on the application form prescribed in terms of the Policy and Procedure on Incapacity Leave and Ill-health Retirement for Public Service Employees.',{size:14,italics:true})],{spacing:{before:0,after:0,line:240,lineRule:'exact'}})], 5727, {gridSpan:15,borders:allSng,margins:{top:3,bottom:3,left:40,right:40}}),
       ]}),
 
-      leaveRow4('Leave for Occupational Injuries and Diseases', leaveMap),
-      leaveRow4('Adoption Leave (Provide supporting evidence)', leaveMap),
-      leaveRow4('Family Responsibility Leave (Provide supporting evidence)', leaveMap),
-      leaveRow4('Pre-natal Leave (Provide supporting evidence)', leaveMap),
-      leaveRow4('Paternity Leave (Provide supporting evidence)', leaveMap),
-      leaveRow4('Special Leave ((Provide supporting evidence)', leaveMap),
+      ...leaveRows4('Leave for Occupational Injuries and Diseases', leaveMap),
+      ...leaveRows4('Adoption Leave (Provide supporting evidence)', leaveMap),
+      ...leaveRows4('Family Responsibility Leave (Provide supporting evidence)', leaveMap),
+      ...leaveRows4('Pre-natal Leave (Provide supporting evidence)', leaveMap),
+      ...leaveRows4('Paternity Leave (Provide supporting evidence)', leaveMap),
+      ...leaveRows4('Special Leave ((Provide supporting evidence)', leaveMap),
       smallRow('Specify Type of Special Leave', null, specifySpecial),
-      leaveRow4('Leave for Union Office Bearers (Provide supporting evidence)', leaveMap),
-      leaveRow4('Leave for Union Shop Stewards (Provide supporting evidence)', leaveMap),
+      ...leaveRows4('Leave for Union Office Bearers (Provide supporting evidence)', leaveMap),
+      ...leaveRows4('Leave for Union Shop Stewards (Provide supporting evidence)', leaveMap),
       smallRow('Specify Union Affiliation'),
 
       new TableRow({ children:[
@@ -757,10 +772,10 @@ const doc = new Document({ sections:[{ properties:{
         hdrCell('End Date',1610,4),
         hdrCell('Number of Calendar Days',2709,7),
       ]}),
-      leaveRow4('Unpaid Leave (Provide motivation)', leaveMap),
-      calRow('Maternity Leave (Provide supporting evidence))','No. of Calendar Months', leaveMap),
-      calRow('Surrogacy Leave: Committing Parent (Provide supporting evidence)','No. of Calendar Months'),
-      calRow('Surrogacy Leave: Surrogate mother (Provide supporting evidence)','No of weeks'),
+      ...leaveRows4('Unpaid Leave (Provide motivation)', leaveMap),
+      ...calRows('Maternity Leave (Provide supporting evidence))','No. of Calendar Months', leaveMap),
+      ...calRows('Surrogacy Leave: Committing Parent (Provide supporting evidence)','No. of Calendar Months'),
+      ...calRows('Surrogacy Leave: Surrogate mother (Provide supporting evidence)','No of weeks'),
 
       sectionRow('SECTION B: For periods covering parts of a day or fractions'),
 

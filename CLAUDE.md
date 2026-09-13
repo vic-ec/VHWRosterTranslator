@@ -190,8 +190,17 @@ uploaded, parsed or reviewed.
   wrong and a working-day count lands under "Number of Calendar Days".
 - **Study is a Special Leave** on the printed form, with the kind written on
   the "Specify Type of Special Leave" line. Study and Special therefore share a
-  row, and the loop that fills `leaveMap` merges them — earliest start, latest
-  end, summed count — rather than letting the second silently win.
+  label, and their periods interleave by date under it rather than one silently
+  replacing the other.
+- **A leave type prints one row per period, not one row per type.** On the
+  roster path `leaveData` splits each type into contiguous blocks: a block
+  continues across a gap only when every day in it is one the doctor would not
+  have worked anyway — a weekend or a public holiday from `buildPHCalendar`.
+  So a fortnight stays one row while two separate weeks become two, and annual
+  leave on the 3rd and again on the 27th no longer prints as a single 25-day
+  span. `leaveMap[label]` is therefore a **list**, and `leaveRows4` /
+  `calRows` emit one row each (falling back to the form's single blank row when
+  a type is unused), which is why every call site spreads them.
 - **The count auto-fills but is editable.** `data-auto` on `#z1lDays` tracks
   whether the doctor has taken it over; blanking the box hands it back. The
   automatic figure is often wrong for an EC, where a weekend day is a working

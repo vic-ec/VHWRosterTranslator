@@ -33,6 +33,11 @@ const cellsOf = xml => xml.split('<w:tr>').slice(1).map(tr =>
   tr.split('<w:tc>').slice(1).map(tc =>
     (tc.match(/<w:t(?: [^>]*)?>[^<]*/g) || []).map(s => s.replace(/^<w:t(?: [^>]*)?>/, '')).join('')));
 const rowFor = (xml, label) => cellsOf(xml).find(c => c[0] === label);
+// A label can now carry one row per leave period, so the filled ones are what
+// matters; blanks are the printed form's own empty lines.
+const rowsFor = (xml, label) => cellsOf(xml)
+  .filter(c => c[0] === label && (c[1] || c[2] || c[3]))
+  .map(c => c.slice(1, 4));
 
 let failed = 0;
 const check = (name, got, want) => {
@@ -80,13 +85,15 @@ const check = (name, got, want) => {
   check('unpaid', (rowFor(xml,'Unpaid Leave (Provide motivation)')||[]).slice(0,4),
         ['Unpaid Leave (Provide motivation)','01/02/2027','28/02/2027','28']);
 
-  // 5. Two types sharing the Special row must merge, not overwrite.
+  // 5. Two types share the Special row, but they are still two periods: one
+  //    merged 03→12 span would claim six consecutive days that were not taken.
+  //    They come out in date order regardless of the order passed in.
   xml = await docxXml(page, { leaveRows: [
     { type:'Leave - Special', startDate:'10/05/2027', endDate:'12/05/2027', count:3, specify:'Bereavement' },
     { type:'Leave - Study',   startDate:'03/05/2027', endDate:'05/05/2027', count:3 } ] });
-  check('special + study merge into one row',
-        (rowFor(xml,'Special Leave ((Provide supporting evidence)')||[]).slice(0,4),
-        ['Special Leave ((Provide supporting evidence)','03/05/2027','12/05/2027','6']);
+  check('special and study each get their own row, in date order',
+        rowsFor(xml,'Special Leave ((Provide supporting evidence)'),
+        [['03/05/2027','05/05/2027','3'], ['10/05/2027','12/05/2027','3']]);
   check('both reasons on the Specify line',
         (rowFor(xml,'Specify Type of Special Leave')||[])[1],
         'Bereavement; Study (preparation and examinations)');
@@ -136,8 +143,25 @@ const check = (name, got, want) => {
     check('roster path unchanged (sha256 of word/document.xml)',
           hash, fs.readFileSync(SNAP,'utf8').trim());
   }
-  check('roster path still fills its row',
-        (rowFor(rosterXml,'Annual Leave')||[]).slice(1,4), ['03/07/2026','07/07/2026','3']);
+  // Separate blocks are separate periods. The fixture is leave on the 3rd and
+  // 4th and again on the 7th, with Monday the 6th worked in between — one row
+  // spanning 03→07 would read as five days off instead of three.
+  const annualRows = x => rowsFor(x, 'Annual Leave');
+  check('a worked day splits one leave into two rows', annualRows(rosterXml),
+        [['03/07/2026','04/07/2026','2'], ['07/07/2026','07/07/2026','1']]);
+
+  // ...but a gap the doctor would not have worked anyway does not split it,
+  // or every fortnight's leave would arrive as two separate applications.
+  const L = { typeLabel: 'Leave - Annual' };
+  const fortnight = await docxXml(page, { month: 6, year: 2026, editedShifts: {
+    6:L, 7:L, 8:L, 9:L, 10:L, 13:L, 14:L, 15:L, 16:L, 17:L } });
+  check('a bridged weekend keeps one row', annualRows(fortnight),
+        [['06/07/2026','17/07/2026','10']]);
+
+  // The case this was reported for.
+  const farApart = await docxXml(page, { month: 6, year: 2026, editedShifts: { 3:L, 27:L } });
+  check('the 3rd and the 27th are two single days, not a 25-day span',
+        annualRows(farApart), [['03/07/2026','03/07/2026','1'], ['27/07/2026','27/07/2026','1']]);
 
   if (errors.length) { failed++; console.log('\npage errors: ' + errors.join(' | ')); }
   await browser.close();
