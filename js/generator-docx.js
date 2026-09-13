@@ -612,16 +612,13 @@ function secBRow(label, isFirst) {
 // Total left: 1092+4330 = 5422 ✓
 // Grand total: 5422+5090 = 10512 ✓
 
-const RIGHT_YN = (label, value) => {
-  const isYes = (value||'').toLowerCase() === 'yes';
-  return [
-    cell([p([b(label)],S0)], 2381, {gridSpan:6,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
-    cell([p([b('Yes')],S0)], 851, {gridSpan:2,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
-    cell([p([t(isYes?'✓':'')],{...S0,alignment:AlignmentType.CENTER})], 585, {gridSpan:3,borders:allSng}),
-    cell([p([b('No')],S0)], 522, {borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
-    cell([p([t(isYes?'':'✓')],{...S0,alignment:AlignmentType.CENTER})], 751, {borders:allSng}),
-  ];
-};
+const RIGHT_YN = (label) => [
+  cell([p([b(label)],S0)], 2381, {gridSpan:6,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
+  cell([p([b('Yes')],S0)], 851, {gridSpan:2,borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
+  cell([p([t('')],{...S0,alignment:AlignmentType.CENTER})], 585, {gridSpan:3,borders:allSng}),
+  cell([p([b('No')],S0)], 522, {borders:allSng,margins:{top:4,bottom:4,left:50,right:50}}),
+  cell([p([t('✓')],{...S0,alignment:AlignmentType.CENTER})], 751, {borders:allSng}),
+];
 
 const doc = new Document({ sections:[{ properties:{
   page:{
@@ -652,7 +649,7 @@ const doc = new Document({ sections:[{ properties:{
       new TableRow({ children:[
         // PERSAL label + value in one merged cell (avoids label wrapping)
         cell([p([b('PERSAL Number:  '),t(persal||'')],S0)], 5422, {gridSpan:14,borders:allSng}),
-        ...RIGHT_YN('Shift Worker', shiftWorker),
+        ...RIGHT_YN('Shift Worker'),
       ]}),
 
       // Casual Employee — same right layout as Shift Worker above
@@ -665,7 +662,7 @@ const doc = new Document({ sections:[{ properties:{
           borders:{top:NONE_B,bottom:NONE_B,left:SNG,right:NONE_B},
           margins:{top:2,bottom:2,left:40,right:40},
         }),
-        ...RIGHT_YN('Casual Employee', casualEmployee),
+        ...RIGHT_YN('Casual Employee'),
       ]}),
 
       // Department
@@ -796,7 +793,7 @@ const doc = new Document({ sections:[{ properties:{
       new TableRow({ children:[
         cell([
           p([t('REMARKS (If approved with a change in condition of payment or not approved, please provide motivation):',{size:14,italics:true})],{spacing:{before:0,after:0,line:240,lineRule:'exact'}}),
-          ...sigRow2Col(supervisorName, 'SIGNATURE OF HOD OR DESIGNEE', ''),
+          ...sigRow2Col('', 'SIGNATURE OF HOD OR DESIGNEE', ''),
         ], 10512, {gridSpan:27,borders:allSng,margins:{top:3,bottom:3,left:55,right:55}}),
       ]}),
 

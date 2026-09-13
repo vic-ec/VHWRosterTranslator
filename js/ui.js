@@ -686,8 +686,14 @@ function buildPreview(doctorName,targetMonth,targetYear){
 
   if (!isConsultantMode) {
     // Standard shift roster path
-    const rawShifts=getDoctorShifts(state.rosterData,doctorName,targetMonth);
+    const rawShifts=getDoctorShifts(state.rosterData,doctorName,targetMonth,targetYear,holidays);
     for(const [d,shift] of Object.entries(rawShifts)){
+      if(shift.isLeave){
+        // Leave-column entry (weekday only — weekend/PH leave produces no
+        // entry at all, see getDoctorShifts): blank times, leave label.
+        state.editedShifts[parseInt(d)]={nf:'',nt:'',of:'',ot:'',label:shift.label,typeLabel:shift.label,isWE:shift.isWeekend};
+        continue;
+      }
       const {nf,nt,of:otF,ot:otT}=splitShift(shift.start,shift.end);
       let typeLabel='WD Shift - 08H00';
       if(shift.isWeekend){
@@ -819,6 +825,7 @@ function buildPreview(doctorName,targetMonth,targetYear){
   }
   $('previewArea').innerHTML=html;
   attachEditHandlers();
+  updateLeaveFields();
 }
 
 function makeRowInner(d,isWE,phName,dayName,es){
@@ -927,9 +934,30 @@ function attachEditHandlers(){
         if(!state.editedShifts[d]) state.editedShifts[d]={nf:'',nt:'',of:null,ot:null,label:'Custom',typeLabel:'WD Shift - 08H00',isWE:false};
         if(state.editedShifts[d][field]!==normalised){
           state.editedShifts[d][field]=normalised;
+          // Auto-adjust norm-to and OT-from when norm-from changes on a non-special weekday
+          if(field==='nf'){
+            const _dateObj=new Date(state.previewYear,state.previewMonth,d);
+            const _isWE=_dateObj.getDay()===0||_dateObj.getDay()===6;
+            const _isPH=state.phMap&&state.phMap.has(d);
+            if(!_isWE&&!_isPH){
+              const hm=normalised.match(/^(\d{2})H(\d{2})$/);
+              if(hm){
+                const totalMins=parseInt(hm[1])*60+parseInt(hm[2])+480;
+                const newNt=String(Math.floor(totalMins/60)%24).padStart(2,'0')+'H'+String(totalMins%60).padStart(2,'0');
+                state.editedShifts[d].nt=newNt;
+                const isConsMode=isExtendedRosterMode();
+                const otFromField=isConsMode?'ot1f':'of';
+                state.editedShifts[d][otFromField]=newNt;
+                const row=document.querySelector('[data-day="'+d+'"]');
+                if(row) row.querySelectorAll('.time-edit').forEach(inp=>{
+                  if(inp.dataset.field==='nt'){inp.value=newNt;inp.style.borderColor='';}
+                  if(inp.dataset.field===otFromField){inp.value=newNt;inp.style.borderColor='';}
+                });
+              }
+            }
+          }
           applyBandSync(d,syncFollowingBand(d,field,normalised),normalised);
-          markDirty(d);
-        }
+          markDirty(d);}
       } else if(val===''){
         fresh.style.borderColor='';
         if(state.editedShifts[d]&&state.editedShifts[d][field]!==null){state.editedShifts[d][field]=null;markDirty(d);}

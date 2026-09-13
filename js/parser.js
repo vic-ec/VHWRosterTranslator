@@ -189,6 +189,17 @@ function extractNamesWithAnchors(rowWords, anchorXs, maxDist) {
       i++; continue;
     }
 
+    // Handle initial-prefixed names returned as a single token: "J. Naidoo",
+    // "P. Naidoo", etc. — distinguishes doctors who share a surname.
+    const INITIAL_RE = /^([A-Z]\.)\s+([A-Z][a-zA-Z\-]{1,20})$/;
+    const initialMatch = raw.match(INITIAL_RE);
+    if (initialMatch) {
+      const name = initialMatch[1] + ' ' + initialMatch[2];
+      const col = nearestCol(w.x, anchorXs, maxDist);
+      if (col >= 0) out.push({ name, col });
+      i++; continue;
+    }
+
     if (isNoise(raw) || !isNameTok(raw)) { i++; continue; }
     let name = raw;
     if (NAME_PREFIXES.has(raw) && i+1 < sorted.length) {
@@ -226,15 +237,32 @@ async function parseRosterPDF(arrayBuffer) {
 
     // ── Column anchors ───────────────────────────────────────────────────
     const wdAnchors = findAnchors(words, 3);
-    const weToken = words.find(w => /^13[h:]00$/i.test(w.text));
+    const weToken = words.find(w => /^13[h:]00(\s*[-–]\s*\d{2}[h:]\d{2})?$/i.test(w.text));
     const weY = weToken ? weToken.y : -1;
     let weAnchors = null;
-    if (weY > 0) weAnchors = findAnchors(words.filter(w => w.y <= weY+20), 3);
+    // Restrict to a tight band around the weekend header row itself (±20px), not
+    // every row from the top of the page down to it. Without this, the weekday
+    // header (which has more time-tokens: 4 bands vs the weekend's 3) wins the
+    // "most tokens" tie-break inside findAnchors() and gets used for weekend rows
+    // too — causing weekend-only columns (e.g. a shifted LEAVE column) to be
+    // misread using weekday column positions.
+    if (weY > 0) weAnchors = findAnchors(words.filter(w => Math.abs(w.y - weY) <= 20), 3);
 
     const wdAnchorXs = wdAnchors?.xs ?? (weAnchors?.xs ?? [285,360,437,515]);
     const weAnchorXs = weAnchors?.xs ?? (wdAnchors?.xs.slice(0,3) ?? [285,360,437]);
     const wdMaxDist = wdAnchors ? Math.round((wdAnchorXs[1]-wdAnchorXs[0])*0.75) : 60;
     const weMaxDist = weAnchors ? Math.round((weAnchorXs[1]-weAnchorXs[0])*0.75) : 60;
+
+    // ── LEAVE column anchor ────────────────────────────────────────────────
+    // The LEAVE column header's x-position differs between the weekday section
+    // (4 shift bands) and weekend section (3 bands, narrower layout), so detect
+    // each independently from the literal "LEAVE" text. Names in this column
+    // sit a small, consistent distance to the left of the header label itself.
+    const wdLeaveHeader = words.find(w => w.text === 'LEAVE' && Math.abs(w.y - (wdAnchors?.y ?? -9999)) <= 20);
+    const weLeaveHeader = words.find(w => w.text === 'LEAVE' && weY > 0 && Math.abs(w.y - weY) <= 20);
+    const wdLeaveX = wdLeaveHeader ? wdLeaveHeader.x - 19 : null;
+    const weLeaveX = weLeaveHeader ? weLeaveHeader.x - 19 : null;
+    const LEAVE_MATCH_DIST = 15;
 
     // ── Group words into y-rows ──────────────────────────────────────────
     const rowMap = new Map();
@@ -346,6 +374,7 @@ async function parseRosterPDF(arrayBuffer) {
         lowerY: mid_dn - buf_dn,   // extend downward into next zone
         shifts: [[], [], [], []],
         allNames: [],
+        leaveNames: [],
       };
     });
 
@@ -370,6 +399,27 @@ async function parseRosterPDF(arrayBuffer) {
         zone.allNames.push(name);
         if (!/psy/i.test(name)) doctors.add(name);
       }
+
+      // ── Capture names sitting in the LEAVE column ──────────────────────
+      // These are intentionally excluded from extractNamesWithAnchors above
+      // (they're too far from any shift-column anchor), but we still want to
+      // know who's on leave so getDoctorShifts can label their day correctly.
+      const leaveX = isWERow ? weLeaveX : wdLeaveX;
+      if (leaveX != null) {
+        for (const w of row) {
+          if (Math.abs(w.x - leaveX) > LEAVE_MATCH_DIST) continue;
+          const raw = w.text.replace(/\(T\)/gi,'').replace(/\(Psy\)/gi,'').replace(/\[|\]/g,'').trim();
+          if (!raw || isNoise(raw)) continue;
+          let name = raw;
+          const compoundMatch = raw.match(/^(Van|De|Du|Von|Le)\s+([A-Z][a-zA-Z\-]{1,20})$/);
+          const initialMatch = raw.match(/^([A-Z]\.)\s+([A-Z][a-zA-Z\-]{1,20})$/);
+          if (compoundMatch) name = compoundMatch[1] + ' ' + compoundMatch[2];
+          else if (initialMatch) name = initialMatch[1] + ' ' + initialMatch[2];
+          else if (!isNameTok(raw)) continue;
+          zone.leaveNames.push(name);
+          if (!/psy/i.test(name)) doctors.add(name);
+        }
+      }
     }
 
     for (const zone of zones) {
@@ -387,6 +437,7 @@ async function parseRosterPDF(arrayBuffer) {
         date:zone.date, month:zone.month, monthName:zone.monthName,
         dayName:zone.dayName, isWeekend:zone.isWE, shiftType:zone.isWE?'weekend':'weekday',
         shifts:zone.shifts, consultant:zone.consultant, allNames:zone.allNames,
+        leaveNames:zone.leaveNames,
       });
     }
   }
@@ -445,11 +496,31 @@ async function parseRosterExcel(arrayBuffer) {
 }
 
 // ── getDoctorShifts ─────────────────────────────────────────────────────────
-function getDoctorShifts(rosterData, doctorName, targetMonth) {
+function getDoctorShifts(rosterData, doctorName, targetMonth, targetYear, holidays) {
   if (!rosterData) return {};
   const result = {}, nl = doctorName.toLowerCase();
+  const isExcludedFromLeave = LEAVE_LABEL_EXCLUDED.has(nl);
   for (const day of rosterData.days) {
     if (day.month !== targetMonth) continue;
+
+    // ── Leave-column check (takes priority over shift assignment) ────────
+    const onLeave = !isExcludedFromLeave &&
+      (day.leaveNames||[]).some(n => n.toLowerCase() === nl);
+    if (onLeave) {
+      const dateKeyStr = (targetYear && day.date != null)
+        ? `${targetYear}-${String(targetMonth+1).padStart(2,'0')}-${String(day.date).padStart(2,'0')}`
+        : null;
+      const isPH = holidays && dateKeyStr ? holidays.has(dateKeyStr) : false;
+      if (day.isWeekend && !isPH) {
+        // Weekend (non-PH) leave: leave the shift type blank (no entry at all)
+        continue;
+      }
+      // Weekday or public holiday leave: "Leave - Annual" with blank times
+      result[day.date] = { start:null, end:null, label:'Leave - Annual',
+        dayName:day.dayName, isWeekend:day.isWeekend, isLeave:true };
+      continue;
+    }
+
     const allNames = [...(day.allNames||[]), ...(day.shifts?.flat()||[])];
     if (!allNames.some(n => n.toLowerCase() === nl)) continue;
     let shiftDef = null;
