@@ -91,7 +91,18 @@ moves. `--update` re-records it; only do that deliberately.
 period back out of it, then checks the scroll lock and `inert` are released and
 that the shared details reached step 03.
 
-Both need Playwright's Chromium, same as `run.js`.
+```
+node tests/wizjump.js    # the phone step-jump panel and the step-1 leave button
+```
+
+`wizjump.js` checks the counter is a control, that the jump panel greys the
+steps you cannot reach and says why, that choosing one navigates and closes,
+and that the desktop tabs are untouched. Its step-2 half needs a real roster to
+parse, which this repo deliberately does not hold — pass `ROSTER=/path/to/a
+/roster.pdf` to run those checks; without it they are skipped and the rest
+still runs.
+
+All of these need Playwright's Chromium, same as `run.js`.
 
 ## Adding a fixture
 
