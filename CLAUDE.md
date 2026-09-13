@@ -221,9 +221,20 @@ uploaded, parsed or reviewed.
   written and read; the initialiser used to declare a dead `addressDuringLeave`
   and so dropped the real one on reset. `shiftWorker` and `casualEmployee` are
   gone from it entirely — see the note below on why the Z1(a) always says No. `fullReset()` empties the object too —
-  the panel prefills from it directly, so clearing the DOM boxes is no longer
-  enough for Start over to mean it. (`d.addressDuringLeave` remains the
+  both forms prefill from state directly, so clearing the DOM boxes is no
+  longer enough for Start over to mean it. (`d.addressDuringLeave` remains the
   *generator's* parameter name.)
+- **The panel stores itself in `state.leaveDetails`, never in
+  `state.savedDetails`.** `z1LeaveOpen()` reads the one and `z1LeaveSaveOwn()`
+  writes it; nothing in the panel touches section 03's boxes. Section 03
+  belongs to the doctor whose roster is on screen and this belongs to whoever
+  is applying — the panel used to copy its fields across "so the roster route
+  needs no retyping", and the result was that filling in a leave form and then
+  previewing a colleague put the applicant's name, PERSAL, supervisor and
+  address on *their* Annexure C, with only `detailSurname` even hinting at it
+  (it falls back to `state.selectedDoctor` only when the saved surname is
+  empty). `fullReset()` clears both objects. `tests/leave-ui.js` asserts the
+  separation in both directions.
 
 ## Output documents
 
