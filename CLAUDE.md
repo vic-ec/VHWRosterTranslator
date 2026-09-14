@@ -12,6 +12,16 @@ There is no build step, package manager, or test suite — this is a static site
 
 - Open `index.html` directly in a browser (Chrome/Edge recommended for PDF parsing; Firefox also supported), or serve the folder with any static file server.
 - Deployed via GitHub Pages directly from `index.html`.
+- **Every change to the app bumps the version string to that day's date**, as
+  `vDD.MM.YYYY` — so an edit made on 14 September 2026 ships as `v14.09.2026`.
+  It appears in exactly two places in `index.html`, the header `.brand-ver` and
+  the footer `.copy`, and they must always agree; `grep -c 'v[0-9][0-9]\.' index.html`
+  should return 2. Bump it for anything that changes what the app does or looks
+  like — `index.html` or a `js/` module — and leave it alone for
+  documentation, `CLAUDE.md`, `tests/` and `profiles/`, which ship nothing to
+  the user. Treat it as part of the change, not a follow-up: the version is how
+  the user tells, on their phone, whether the page they are looking at is the
+  one that was just deployed.
 - Verify changes manually in-browser: upload a roster PDF, walk through doctor/month/year selection, edit the preview table, and download each output document (Excel, Annexure C, Z1(a)).
 
 ## Architecture — the critical thing to understand
