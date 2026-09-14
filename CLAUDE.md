@@ -257,6 +257,40 @@ uploaded, parsed or reviewed.
   empty). `fullReset()` clears both objects. `tests/leave-ui.js` asserts the
   separation in both directions.
 
+## Names on the roster vs names on the form
+
+A roster tells two doctors of the same surname apart by prefixing a first
+initial — `M. Willemse` beside `J. Willemse`. `splitRosterName()` sends that
+initial to the first-name box and the rest to the surname box, so section 03
+reads as a name rather than putting `M. Willemse` under Surname.
+
+- **Only a single letter followed by a full stop is an initial**
+  (`/^((?:[A-Z]\.[ \t]*){1,3})([A-Za-z].*)$/`, so up to three of them). That is
+  what leaves every other shape alone: `Van Schalkwyk`, `Du Toit`, `Le Roux`
+  and `Gordon-Forbes` carry no full stop, and `St.` is two letters. A looser
+  rule — splitting on the first space, say — would corrupt every compound
+  surname in the department.
+- **`state.selectedDoctor` is never rewritten.** It is the key the schedule is
+  looked up by and the label that tells the two Willemses apart in the staff
+  list; only the details boxes get the split. Dropping the initial instead
+  would have made the two indistinguishable on their own paperwork.
+- **The `isNewDoctor` branch of `restoreDetailsToForm` is not the one that
+  seeds a fresh doctor.** Clicking a chip restores only while `#detailsSection`
+  is already visible, which it is not the first time, so Preview's
+  `restoreDetailsToForm(false)` is what fills the boxes — both branches
+  therefore fall back to the split, and a name the doctor has typed still wins.
+- `tests/names.js` pins all of this, the compound surnames especially.
+
+**Not fixed, and worth knowing:** an initial only survives the shift parser
+when the PDF puts it in the *same* text item as the surname (`M. Willemse`).
+When PDF.js splits it into its own item, `isNameTok` rejects `M.` — a full stop
+is outside `[A-Z][a-zA-Z\-]{1,14}` — the initial is dropped, and the two
+doctors silently merge into one `Willemse` carrying both their shifts.
+Demonstrated by replaying a fixture with each layout: same-item gives 29 staff
+where one surname was shared, separate-item gives 28. Fixing it means touching
+`isNameTok`, which is the layout-sensitive core of the parser, so it wants its
+own change and its own A/B against real rosters.
+
 ## Output documents
 
 | Document | Format | Purpose |
@@ -283,7 +317,10 @@ they are — see `profiles/README.md`.
 ## Tests
 
 `tests/` holds replay fixtures for the shift parser and a runner —
-`node tests/run.js`, Playwright's Chromium the only requirement. It is a
+`node tests/run.js`, Playwright's Chromium the only requirement. Beside it:
+`tests/z1a.js` (the leave form's rows), `tests/leave-ui.js` (the leave-only
+panel end to end), `tests/names.js` (roster initials) and `tests/wizjump.js`
+(the phone step jump). It is a
 dev-only tool: the app still has no build step and no dependencies.
 
 A fixture is not a PDF. The parser reads nothing from one but `numPages` and,

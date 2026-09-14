@@ -255,14 +255,31 @@ function saveDetailsToState() {
   state.savedDetails.designationOther=desSel==='other'?$('detailDesignationOther').value.trim():'';
   state.savedDetails.address=$('detailAddress')?.value.trim()||'';
 }
+// A roster tells two doctors of the same surname apart by prefixing a first
+// initial — "M. Willemse" beside "J. Willemse" — and that initial is a first
+// name, so it belongs in the first-name box rather than on the front of the
+// surname. Only a single letter followed by a full stop counts, which is what
+// keeps every other shape of name intact: Van Schalkwyk, Du Toit and
+// Gordon-Forbes have no full stop, and St. John's "St." is two letters.
+// state.selectedDoctor itself is never rewritten — it is the key the roster is
+// read by, and it is what tells the two Willemses apart in the staff list.
+const ROSTER_INITIALS_RE=/^((?:[A-Z]\.[ \t]*){1,3})([A-Za-z].*)$/;
+function splitRosterName(name){
+  const s=(name||'').trim(), m=ROSTER_INITIALS_RE.exec(s);
+  return m ? { first:m[1].replace(/\s+/g,''), surname:m[2].trim() } : { first:'', surname:s };
+}
 function restoreDetailsToForm(isNewDoctor) {
+  const rn=splitRosterName(state.selectedDoctor||'');
   if(isNewDoctor) {
-    $('detailFirstName').value=''; $('detailSurname').value=state.selectedDoctor||'';
+    $('detailFirstName').value=rn.first; $('detailSurname').value=rn.surname;
     $('detailPersal').value=''; setSupervisorValue(''); $('detailSigDate').value=''; $('detailDesignationSel').value=''; $('detailDesignationOther').value=''; $('detailDesignationOther').style.display='none';
-    state.savedDetails={firstName:'',surname:state.selectedDoctor||'',persal:'',supervisor:'',sigDate:''};
+    state.savedDetails={firstName:rn.first,surname:rn.surname,persal:'',supervisor:'',sigDate:''};
   } else {
-    $('detailFirstName').value=state.savedDetails.firstName||'';
-    $('detailSurname').value=state.savedDetails.surname||state.selectedDoctor||'';
+    // This branch, not the one above, is where a freshly picked doctor's boxes
+    // are first filled: the chip click skips restoring while section 03 is
+    // still hidden, so Preview is what seeds them.
+    $('detailFirstName').value=state.savedDetails.firstName||rn.first;
+    $('detailSurname').value=state.savedDetails.surname||rn.surname;
     $('detailPersal').value=state.savedDetails.persal||'';
     // The known names are the ones this profile offers, not a fixed EC list.
     setSupervisorValue(state.savedDetails.supervisor||'');
