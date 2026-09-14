@@ -38,6 +38,17 @@ Only two vendor bundles are loaded via `<script src>` in `index.html`: `js/pdf.m
 
 If you only edit one, the app's real behavior (driven by `index.html`) won't change, and/or the module source will drift out of sync. When asked to fix or add functionality, check whether the same logic block exists in both places and update both — don't assume editing `js/` alone is sufficient.
 
+**Never edit `index.html` in GitHub's web editor.** The bundle is over 1 MB, and
+a web edit on 2026-09-14 (`2ee6814`, changing only the two version strings)
+saved it back at exactly 1,048,576 bytes — 1 MiB precisely — cut mid-statement
+inside a `$('detailSigDate')` listener, taking 2,460 lines with it: the whole
+wizard shell, every overlay's handlers and both generators. It committed
+cleanly and the diff read as an ordinary two-line change, so nothing announced
+it; the app simply loaded as a much older version. A one-character change to
+this file still has to go through a clone, or through a `js/` module plus the
+matching inline block. If the file is ever a round power of two in size, it has
+been truncated — check the last line is `</html>`.
+
 ## Design system — "Modernist"
 
 The interface is built on the Modernist design system: flat and architectural, headings and label-as-object in Inter Tight 800, prose in IBM Plex Sans 400, near-mono ink (`#201e1d`) on bone (`#f3f2f2`) with a single royal-blue accent (`--color-accent-500`, `#3560db`), **zero corner radius**, and 2px rules between major sections instead of cards or shadows. Error state is the one thing outside the accent: a three-step `--color-danger-*` ramp, used for nothing else.
