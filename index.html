@@ -2044,6 +2044,13 @@ const NOISE_RE = /^(WEEK|CONSULTANT|REGISTRAR|COSMO|INTERN|PERSAL|MDHS|Shifts|Ho
 
 const isNoise = s => !s || s.length<2 || /^\d+$/.test(s) || /\d{2}[h:]\d{2}/i.test(s) || NOISE_RE.test(s);
 const isNameTok = s => /^[A-Z][a-zA-Z\-]{1,14}$/.test(s);
+// A first initial standing alone as its own text item. Whether an export sets
+// "M. Willemse" as one item or as "M." followed by "Willemse" is up to the
+// PDF; the single-item spelling is read by INITIAL_RE below, and this is the
+// other one. Deliberately one letter and a full stop only — "St." is two, and
+// a prefix like "Van" carries no stop, so neither can be mistaken for this.
+const INITIAL_TOK_RE = /^[A-Z]\.$/;
+const nameClean = s => (s||'').replace(/\(T\)/gi,'').replace(/\(Psy\)/gi,'').replace(/\[|\]/g,'').trim();
 
 function extractNamesWithAnchors(rowWords, anchorXs, maxDist) {
   const out = [];
@@ -2081,6 +2088,20 @@ function extractNamesWithAnchors(rowWords, anchorXs, maxDist) {
       const col = nearestCol(w.x, anchorXs, maxDist);
       if (col >= 0) out.push({ name, col });
       i++; continue;
+    }
+
+    // The same name split across two text items: "M." and then "Willemse".
+    // Without this the lone initial fails isNameTok, is skipped, and the two
+    // doctors who share that surname merge into one carrying both their
+    // shifts — a silent doubling of one person's hours and the loss of the
+    // other. The 120px gap is the one the compound-name join already uses.
+    if (INITIAL_TOK_RE.test(raw) && i+1 < sorted.length) {
+      const nw = sorted[i+1], nraw = nameClean(nw.text);
+      if (isNameTok(nraw) && nw.x - w.x < 120) {
+        const col = nearestCol(w.x, anchorXs, maxDist);
+        if (col >= 0) out.push({ name: raw + ' ' + nraw, col });
+        i += 2; continue;
+      }
     }
 
     if (isNoise(raw) || !isNameTok(raw)) { i++; continue; }
@@ -2289,15 +2310,23 @@ async function parseRosterPDF(arrayBuffer) {
       // know who's on leave so getDoctorShifts can label their day correctly.
       const leaveX = isWERow ? weLeaveX : wdLeaveX;
       if (leaveX != null) {
-        for (const w of row) {
-          if (Math.abs(w.x - leaveX) > LEAVE_MATCH_DIST) continue;
-          const raw = w.text.replace(/\(T\)/gi,'').replace(/\(Psy\)/gi,'').replace(/\[|\]/g,'').trim();
+        // Sorted by x so a split initial can see the surname that follows it,
+        // the same join extractNamesWithAnchors does. An export that splits
+        // them in the shift columns splits them here too.
+        const lw = row.filter(w => Math.abs(w.x - leaveX) <= LEAVE_MATCH_DIST)
+                      .sort((a,b) => a.x - b.x);
+        for (let k = 0; k < lw.length; k++) {
+          const raw = nameClean(lw[k].text);
           if (!raw || isNoise(raw)) continue;
           let name = raw;
           const compoundMatch = raw.match(/^(Van|De|Du|Von|Le)\s+([A-Z][a-zA-Z\-]{1,20})$/);
           const initialMatch = raw.match(/^([A-Z]\.)\s+([A-Z][a-zA-Z\-]{1,20})$/);
+          const nraw = k+1 < lw.length ? nameClean(lw[k+1].text) : '';
           if (compoundMatch) name = compoundMatch[1] + ' ' + compoundMatch[2];
           else if (initialMatch) name = initialMatch[1] + ' ' + initialMatch[2];
+          else if (INITIAL_TOK_RE.test(raw) && isNameTok(nraw) && lw[k+1].x - lw[k].x < 120) {
+            name = raw + ' ' + nraw; k++;
+          }
           else if (!isNameTok(raw)) continue;
           zone.leaveNames.push(name);
           if (!/psy/i.test(name)) doctors.add(name);
@@ -4978,14 +5007,31 @@ function saveDetailsToState() {
   state.savedDetails.designationOther=desSel==='other'?$('detailDesignationOther').value.trim():'';
   state.savedDetails.address=$('detailAddress')?.value.trim()||'';
 }
+// A roster tells two doctors of the same surname apart by prefixing a first
+// initial — "M. Willemse" beside "J. Willemse" — and that initial is a first
+// name, so it belongs in the first-name box rather than on the front of the
+// surname. Only a single letter followed by a full stop counts, which is what
+// keeps every other shape of name intact: Van Schalkwyk, Du Toit and
+// Gordon-Forbes have no full stop, and St. John's "St." is two letters.
+// state.selectedDoctor itself is never rewritten — it is the key the roster is
+// read by, and it is what tells the two Willemses apart in the staff list.
+const ROSTER_INITIALS_RE=/^((?:[A-Z]\.[ \t]*){1,3})([A-Za-z].*)$/;
+function splitRosterName(name){
+  const s=(name||'').trim(), m=ROSTER_INITIALS_RE.exec(s);
+  return m ? { first:m[1].replace(/\s+/g,''), surname:m[2].trim() } : { first:'', surname:s };
+}
 function restoreDetailsToForm(isNewDoctor) {
+  const rn=splitRosterName(state.selectedDoctor||'');
   if(isNewDoctor) {
-    $('detailFirstName').value=''; $('detailSurname').value=state.selectedDoctor||'';
+    $('detailFirstName').value=rn.first; $('detailSurname').value=rn.surname;
     $('detailPersal').value=''; setSupervisorValue(''); $('detailSigDate').value=''; $('detailDesignationSel').value=''; $('detailDesignationOther').value=''; $('detailDesignationOther').style.display='none';
-    state.savedDetails={firstName:'',surname:state.selectedDoctor||'',persal:'',supervisor:'',sigDate:''};
+    state.savedDetails={firstName:rn.first,surname:rn.surname,persal:'',supervisor:'',sigDate:''};
   } else {
-    $('detailFirstName').value=state.savedDetails.firstName||'';
-    $('detailSurname').value=state.savedDetails.surname||state.selectedDoctor||'';
+    // This branch, not the one above, is where a freshly picked doctor's boxes
+    // are first filled: the chip click skips restoring while section 03 is
+    // still hidden, so Preview is what seeds them.
+    $('detailFirstName').value=state.savedDetails.firstName||rn.first;
+    $('detailSurname').value=state.savedDetails.surname||rn.surname;
     $('detailPersal').value=state.savedDetails.persal||'';
     // The known names are the ones this profile offers, not a fixed EC list.
     setSupervisorValue(state.savedDetails.supervisor||'');
