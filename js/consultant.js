@@ -22,6 +22,10 @@ function updateConsultantZoneVisibility() {
   if (!wrap) return;
   const isConsultant = activeProfile && activeProfile.roster_type === 'consultant';
   wrap.style.display = isConsultant ? 'block' : 'none';
+  // The leave button's grid mirrors this one, and only stays half-width while
+  // there is a second cell to hold the track open.
+  const spacer = $('altRouteSpacer');
+  if (spacer) spacer.style.display = isConsultant ? 'block' : 'none';
 }
 
 

@@ -13,8 +13,11 @@ const ROSTER = process.env.ROSTER || '';
 let failed=0;
 const check=(n,g,w)=>{const ok=JSON.stringify(g)===JSON.stringify(w); if(!ok)failed++;
   console.log(`${ok?'ok  ':'FAIL'}  ${n}`); if(!ok)console.log(`        want ${JSON.stringify(w)}\n        got  ${JSON.stringify(g)}`);};
+// The number is its own span now — the step's name sits beside it in the
+// button, so textContent alone would read "1Upload".
 const states = p => p.evaluate(()=>[...document.querySelectorAll('#wizJumpList .btn')]
-  .map(b=>({n:b.textContent.trim(), off:b.disabled, cur:b.getAttribute('aria-current')==='step'})));
+  .map(b=>({n:b.querySelector('.n').textContent.trim(), off:b.disabled,
+            cur:b.getAttribute('aria-current')==='step'})));
 (async()=>{
  const b=await chromium.launch(process.env.CHROME?{executablePath:process.env.CHROME}:{});
 
@@ -38,6 +41,12 @@ const states = p => p.evaluate(()=>[...document.querySelectorAll('#wizJumpList .
  check('nothing extracted: only step 1 is open', await states(p),
    [{n:'1',off:false,cur:true},{n:'2',off:true,cur:false},{n:'3',off:true,cur:false},{n:'4',off:true,cur:false}]);
  check('and it says why', (await p.textContent('#wizJumpNote')).includes('Extract data'), true);
+ check('each button names its step', await p.evaluate(()=>
+   [...document.querySelectorAll('#wizJumpList .btn .t')].map(t=>t.textContent.trim())),
+   ['Upload','Review','Details','Generate']);
+ check('and the run-together list underneath is gone', await p.evaluate(()=>{
+   const n=document.getElementById('wizJumpNote');
+   return /Upload roster files.*Review schedule/.test(n.textContent);}), false);
  await p.keyboard.press('Escape'); await p.waitForTimeout(300);
 
  // Reaching step 2 the long way needs a real roster; skip if none was given.
@@ -75,6 +84,29 @@ const states = p => p.evaluate(()=>[...document.querySelectorAll('#wizJumpList .
  check('the jump button is hidden on desktop', await d.isHidden('#wizJumpBtn'), true);
  check('the four tabs are shown instead',
    await d.evaluate(()=>document.querySelectorAll('#wizSteps .wizstep').length), 4);
+ // The leave button is exactly as wide as the department upload zone beneath
+ // it, not the full page. Measured, because the grid that makes it so has to
+ // survive every reflow.
+ // Guard: a display:none element measures 0x0, and 0-0 would satisfy the
+ // comparison below without either box existing.
+ check('the leave button is actually on screen', await d.evaluate(()=>
+   document.getElementById('z1LeaveBtn').getBoundingClientRect().width > 100), true);
+ check('the leave button matches the left upload zone', await d.evaluate(()=>{
+   const b=document.getElementById('z1LeaveBtn').getBoundingClientRect();
+   const z=document.querySelector('#sec-1 .two > .upload-zone-col').getBoundingClientRect();
+   return [Math.round(b.width-z.width), Math.round(b.left-z.left)];}), [0,0]);
+ check('and it is not the full width of the page', await d.evaluate(()=>{
+   const b=document.getElementById('z1LeaveBtn').getBoundingClientRect();
+   const w=document.querySelector('#sec-1').getBoundingClientRect();
+   return b.width < w.width*0.75;}), true);
+ // With no consultant zone the upload grid goes to one column, and the button
+ // has to follow it rather than staying half-width beside nothing.
+ check('with no consultant roster both go full width', await d.evaluate(()=>{
+   document.getElementById('altRouteSpacer').style.display='none';
+   document.getElementById('consultantZoneWrap').style.display='none';
+   const b=document.getElementById('z1LeaveBtn').getBoundingClientRect();
+   const z=document.querySelector('#sec-1 .two > .upload-zone-col').getBoundingClientRect();
+   return Math.round(b.width-z.width);}), 0);
  console.log('desktop errors:', e2.length?e2.join(' | '):'none');
 
  await b.close();

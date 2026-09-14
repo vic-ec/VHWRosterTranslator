@@ -1265,10 +1265,12 @@ $('yearInput').value=new Date().getFullYear();
 // so closing the tab genuinely discards the roster, the edits and the details.
 // ═══════════════════════════════════════════════════════════════════════════
 const WIZ_STEPS_DEF = [
-  { n: 1, sec: 'sec-1', title: 'Upload roster files' },
-  { n: 2, sec: 'sec-2', title: 'Review schedule' },
-  { n: 3, sec: 'sec-3', title: 'Your details' },
-  { n: 4, sec: 'sec-4', title: 'Generate documents' },
+  // short is what fits inside a jump button beside the number; title is the
+  // full name, still used for the tabs and for each button's aria-label.
+  { n: 1, sec: 'sec-1', title: 'Upload roster files',  short: 'Upload' },
+  { n: 2, sec: 'sec-2', title: 'Review schedule',      short: 'Review' },
+  { n: 3, sec: 'sec-3', title: 'Your details',         short: 'Details' },
+  { n: 4, sec: 'sec-4', title: 'Generate documents',   short: 'Generate' },
 ];
 // Session-only: deliberately not persisted, and reset by fullReset().
 let wizStep = 1;
@@ -1329,18 +1331,26 @@ function wizJumpOpen(){
   if (host) host.innerHTML = WIZ_STEPS_DEF.map(s => {
     const current = s.n === wizStep;
     const can = current || wizCanEnter(s.n);
+    // The name sits inside the button with the number. It used to run along
+    // underneath as one paragraph — "1. Upload roster files 2. Review
+    // schedule ..." — which wrapped wherever the panel happened to end and so
+    // lined up with nothing.
     return `<button type="button" class="btn btn-secondary" data-go="${s.n}"`
       + (current ? ' aria-current="step"' : '')
       + (can ? '' : ' disabled')
-      + ` aria-label="Step ${s.n}: ${s.title}">${s.n}</button>`;
+      + ` aria-label="Step ${s.n}: ${s.title}">`
+      + `<span class="n">${s.n}</span><span class="t">${s.short}</span></button>`;
   }).join('');
   // Say why the greyed-out ones are greyed out, rather than leaving the user
-  // to guess — the first unmet precondition is the honest answer.
+  // to guess — the first unmet precondition is the honest answer. With the
+  // names now on the buttons there is nothing to say when none is blocked, so
+  // the line goes rather than repeating them.
   const note = $('wizJumpNote');
   if (note) {
     let why = null;
     for (let s = 1; s <= 4 && !why; s++) if (!wizCanEnter(s)) why = wizBlockedReason(s - 1);
-    note.textContent = why || WIZ_STEPS_DEF.map(s => s.n + '. ' + s.title).join('   ');
+    note.textContent = why || '';
+    note.hidden = !why;
   }
 }
 
