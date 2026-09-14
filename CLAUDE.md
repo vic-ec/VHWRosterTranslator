@@ -138,12 +138,33 @@ the parts worth knowing before editing:
   as the tabs and the Continue buttons; no "visited" state exists or should be
   added. The panel also prints the first unmet precondition, which the desktop
   tabs still do not.
+- **Each jump button carries its own name**, `WIZ_STEPS_DEF[].short` in a
+  `.t` span under the number's `.n` span — Upload, Review, Details, Generate,
+  with the full `title` still on the button's `aria-label`. The names used to
+  run underneath as one paragraph, which wrapped wherever the panel ended and
+  so lined up with no button in particular. `#wizJumpNote` is now *only* the
+  blocked reason and is `hidden` when there is none; it needs its own
+  `[hidden]` rule, and `tests/wizjump.js` reads the number from `.n` rather
+  than the button's `textContent`, which now says "1Upload".
 - **`#wizJumpBtn` is static markup, not rendered.** `wizRenderSteps()` runs on
   every `wizRefresh()`; it writes `textContent` into `#wizStepCount`. If the
   button were part of that string it would be destroyed and re-created, and the
   listener `dialog()` bound to it would be lost. (The old
   `<span class="t">` in that paragraph was already dead for the same reason —
   the first render removed it and nothing rebuilt it.)
+- **The leave button is a cell of a grid that copies `.two`.** `.alt-route`
+  declares the same `repeat(auto-fit, minmax(300px, 1fr))` and 24px gap as the
+  upload row below it, with the button in `grid-column: 1` and an empty
+  `.alt-route-spacer` holding the second track open, so the button is exactly
+  as wide as the department upload zone at every width. A fixed width or a
+  breakpoint gets two cases wrong that this one handles for free: a wide
+  window, where `auto-fit` collapses its empty tracks so two cells stay half
+  each however much room there is (`auto-fill` would have kept splitting and
+  left the button a quarter wide), and a profile with no consultant roster,
+  where `updateConsultantZoneVisibility()` hides the spacer alongside
+  `#consultantZoneWrap` and both grids fall to one full-width column. The
+  spacer has to be an element: `auto-fit` collapses a track with nothing in it,
+  which would stretch the button back across the page.
 - **The leave button is the first thing in `#sec-1`**, above the section head,
   and `#altRoute` is toggled alongside `#step1` in `showEcSelected` /
   `showEcPicker` / `reopenEcPicker` — a Z1(a) needs a department for its
