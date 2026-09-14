@@ -106,6 +106,10 @@ const state={
   previewMonth:null,previewYear:null,
   availableMonths:new Set(),
   savedDetails:{firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',address:''},
+  // The leave-only panel's own store. It is deliberately separate from
+  // savedDetails: section 03 belongs to the selected doctor, this belongs to
+  // whoever is applying for leave, and one must never prefill the other.
+  leaveDetails:{firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',address:''},
   phMap:null,
   // Consultant roster
   consultantFile:null, consultantFiles:[], consultantData:null,

@@ -365,10 +365,11 @@ function fullReset(){
   others.forEach(id=>{const el=$(id);if(el){el.value='';el.style.display='none';}});
   applySupervisorMode();
   const addr=$('detailAddress');if(addr)addr.value='';
-  // The leave panel prefills from savedDetails rather than from these boxes,
-  // so clearing the boxes is no longer enough for Start over to mean it.
+  // Both forms prefill from state rather than from these boxes, so clearing
+  // the boxes is no longer enough for Start over to mean it.
   state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',
     designation:'',designationOther:'',address:''};
+  state.leaveDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',address:''};
   $('detailsSection').style.display='none';
   $('leaveFieldsSection').style.display='none';
   ['proceedDownloadBtn','annexureCBtn','z1aBtn'].forEach(id=>{const el=$(id);if(el)el.disabled=true;});
@@ -1946,7 +1947,7 @@ function z1lValidate(){
   return !why;
 }
 function z1LeaveOpen(){
-  const s=state.savedDetails||{};
+  const s=state.leaveDetails||{};
   const sel=$('z1lType');
   if(sel){
     while(sel.options.length>1) sel.remove(1);
@@ -1971,23 +1972,20 @@ function z1LeaveOpen(){
   $('z1lComponent').textContent=z1ComponentFor();
   z1lSyncSpecify(); z1lRecalc(); z1lValidate();
 }
-// Only the fields this panel owns. Designation is deliberately absent — the
-// Z1(a) never prints it, so the panel does not ask for it and must not blank
-// whatever section 03 holds.
-function z1LeaveSaveShared(){
-  const s=state.savedDetails;
-  s.firstName=$('z1lFirstName').value.trim();
-  s.surname=$('z1lSurname').value.trim();
-  s.persal=$('z1lPersal').value.trim();
-  s.supervisor=readSupervisor('z1l');
-  s.sigDate=$('z1lSigDate').value.trim();
-  s.address=$('z1lAddress').value.trim();
-  const put=(id,val)=>{ const el=$(id); if(el) el.value=val; };
-  put('detailFirstName',s.firstName); put('detailSurname',s.surname);
-  put('detailPersal',s.persal); put('detailAddress',s.address);
-  z1lSetDate('detailSigDate','detailSigDatePicker',s.sigDate);
-  setSupervisorValue(s.supervisor,'detail');
-  if(typeof checkDetailsComplete==='function') checkDetailsComplete();
+// Remembers what was typed so re-opening the panel in the same session does
+// not start from nothing. It writes to state.leaveDetails and to nothing else:
+// section 03 is the selected doctor's form and this is the applicant's, and
+// carrying one into the other put the applicant's name, PERSAL and supervisor
+// on a colleague's Annexure C.
+function z1LeaveSaveOwn(){
+  state.leaveDetails={
+    firstName:$('z1lFirstName').value.trim(),
+    surname:$('z1lSurname').value.trim(),
+    persal:$('z1lPersal').value.trim(),
+    supervisor:readSupervisor('z1l'),
+    sigDate:$('z1lSigDate').value.trim(),
+    address:$('z1lAddress').value.trim(),
+  };
 }
 // The period comes from the leave itself; #monthSelect is meaningless here.
 function z1LeaveFilename(row, first, surname){
@@ -2052,8 +2050,8 @@ function z1LeaveWire(){
       const a=document.createElement('a');
       a.href=url; a.download=z1LeaveFilename(row, d.firstName, d.surname);
       document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-      // Carry the shared fields over so the roster route needs no retyping.
-      z1LeaveSaveShared();
+      // Kept for this panel only — never pushed into section 03.
+      z1LeaveSaveOwn();
       if(z1LeaveDlg) z1LeaveDlg.close();
     }catch(err){
       console.error(err);

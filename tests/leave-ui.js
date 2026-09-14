@@ -104,14 +104,42 @@ const check = (name, got, want) => {
         await page.evaluate(() => document.documentElement.style.overflow), '');
   check('the page is live again',
         await page.evaluate(() => document.querySelector('.shell').inert), false);
-  check('and step 03 picked up the shared details',
-        await page.inputValue('#detailFirstName'), 'Anna');
+  // The two forms are independent. Section 03 belongs to the doctor whose
+  // roster is on screen; nothing typed here may reach it, or the applicant's
+  // name and PERSAL end up on a colleague's Annexure C.
+  check('section 03 is untouched',
+        await page.inputValue('#detailFirstName'), '');
+  check('and savedDetails with it',
+        await page.evaluate(() => state.savedDetails.firstName), '');
+  check('but the panel remembers its own entry',
+        await page.evaluate(() => state.leaveDetails.firstName), 'Anna');
+  // The reported path: previewing a colleague's roster runs exactly this, and
+  // it used to repaint the applicant's name over theirs.
+  await page.evaluate(() => {
+    state.selectedDoctor = 'Abrahams';
+    document.getElementById('detailsSection').style.display = '';
+    restoreDetailsToForm(false);
+  });
+  check('previewing a colleague shows the colleague',
+        await page.inputValue('#detailSurname'), 'Abrahams');
+  check('and no PERSAL of the applicant\'s',
+        await page.inputValue('#detailPersal'), '');
+  await page.click('#z1LeaveBtn');
+  await page.waitForTimeout(300);
+  check('so re-opening prefills the applicant, not the doctor',
+        await page.inputValue('#z1lFirstName'), 'Anna');
+  check('and the period starts blank again',
+        await page.inputValue('#z1lStart'), '');
+  await page.click('#z1LeaveCancel');
+  await page.waitForTimeout(300);
 
   // Start over must not leave a name behind for the next person.
   await page.evaluate(() => { if (typeof fullReset === 'function') fullReset(); });
   await page.waitForTimeout(600);
   check('Start over empties savedDetails',
         await page.evaluate(() => state.savedDetails.firstName), '');
+  check('and leaveDetails too',
+        await page.evaluate(() => state.leaveDetails.firstName), '');
 
   if (errors.length) { failed++; console.log('\npage errors: ' + errors.join(' | ')); }
   await browser.close();
