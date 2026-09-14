@@ -152,6 +152,13 @@ the parts worth knowing before editing:
   listener `dialog()` bound to it would be lost. (The old
   `<span class="t">` in that paragraph was already dead for the same reason —
   the first render removed it and nothing rebuilt it.)
+- **The leave button is laid out like a `.dl` download card** — the app's other
+  big block button with a right-hand icon: `justify-content: space-between`,
+  a 16px gap, the two text lines in their own `.alt-route-text` column, and a
+  22px Lucide external-link `.alt-route-ico` with `flex: none` so a wrapping
+  note cannot squeeze it out of square. Its right inset measures 21px, not the
+  20px of a `.dl`: `.btn` carries a 1px border and `.dl` does not, the same
+  offset-by-one the nav chevrons' 19px already accounts for.
 - **The leave button is a cell of a grid that copies `.two`.** `.alt-route`
   declares the same `repeat(auto-fit, minmax(300px, 1fr))` and 24px gap as the
   upload row below it, with the button in `grid-column: 1` and an empty
