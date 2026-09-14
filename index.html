@@ -403,10 +403,17 @@ mark.rv-hit.is-current { background: var(--color-accent-400); }
 .alt-route-spacer { min-width: 0; }
 /* .btn is inline-flex, so the width has to be said. The doubled class beats
    the phone-wide `.btn.btn { padding-block: 0 }` floor, which would otherwise
-   crush a two-line button — the same trap .actions-row fell into. */
-.alt-route .btn.btn { display: flex; width: 100%; flex-direction: column;
-  align-items: flex-start; gap: 3px; text-align: left;
+   crush a two-line button — the same trap .actions-row fell into.
+   The row is laid out like a .dl download card, the app's other big block
+   button with a right-hand icon: text block one side, icon the other,
+   space-between and the same 16px gap. The two text lines are a column of
+   their own now, because the button itself is the row. */
+.alt-route .btn.btn { display: flex; width: 100%; flex-direction: row;
+  align-items: center; justify-content: space-between; gap: 16px; text-align: left;
   padding: 16px 20px; min-height: 0; grid-column: 1; }
+.alt-route-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+/* flex: none, or a long note squeezes the icon out of square. */
+.alt-route-ico { width: 22px; height: 22px; flex: none; opacity: .9; }
 .alt-route-title { font-family: var(--font-heading); font-weight: 800;
   font-size: 17px; letter-spacing: -0.015em; }
 .alt-route-note { font-size: 13px; font-family: var(--font-body);
@@ -1303,8 +1310,11 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     <section class="sec" id="sec-1">
       <div class="alt-route" id="altRoute" style="display:none;">
         <button type="button" class="btn btn-primary" id="z1LeaveBtn" aria-haspopup="dialog" aria-expanded="false">
-          <span class="alt-route-title">Applying for leave only?</span>
-          <span class="alt-route-note">Fill in a Z1(a) leave form on its own — no roster needed.</span>
+          <span class="alt-route-text">
+            <span class="alt-route-title">Applying for leave only?</span>
+            <span class="alt-route-note">Fill in a Z1(a) leave form on its own — no roster needed.</span>
+          </span>
+          <svg class="alt-route-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
         </button>
         <div class="alt-route-spacer" id="altRouteSpacer" aria-hidden="true"></div>
       </div>

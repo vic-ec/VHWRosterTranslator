@@ -91,6 +91,18 @@ const states = p => p.evaluate(()=>[...document.querySelectorAll('#wizJumpList .
  // comparison below without either box existing.
  check('the leave button is actually on screen', await d.evaluate(()=>
    document.getElementById('z1LeaveBtn').getBoundingClientRect().width > 100), true);
+ // The icon sits at the right-hand end, square, like a .dl download card's.
+ check('it carries the external-link icon on the right', await d.evaluate(()=>{
+   const b=document.getElementById('z1LeaveBtn').getBoundingClientRect();
+   const i=document.querySelector('#z1LeaveBtn .alt-route-ico');
+   if(!i) return 'no icon';
+   const r=i.getBoundingClientRect();
+   return [Math.round(r.width), Math.round(r.height),
+           // nearer the right edge than the left, and inset by the button's
+           // 20px padding plus its 1px border — a .dl card has no border and
+           // so sits at a flat 20, the same offset-by-one the nav chevrons hit
+           r.left - b.left > b.width/2, Math.round(b.right - r.right)];}),
+   [22,22,true,21]);
  check('the leave button matches the left upload zone', await d.evaluate(()=>{
    const b=document.getElementById('z1LeaveBtn').getBoundingClientRect();
    const z=document.querySelector('#sec-1 .two > .upload-zone-col').getBoundingClientRect();
