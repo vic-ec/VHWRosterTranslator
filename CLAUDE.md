@@ -281,15 +281,24 @@ reads as a name rather than putting `M. Willemse` under Surname.
   therefore fall back to the split, and a name the doctor has typed still wins.
 - `tests/names.js` pins all of this, the compound surnames especially.
 
-**Not fixed, and worth knowing:** an initial only survives the shift parser
-when the PDF puts it in the *same* text item as the surname (`M. Willemse`).
-When PDF.js splits it into its own item, `isNameTok` rejects `M.` — a full stop
-is outside `[A-Z][a-zA-Z\-]{1,14}` — the initial is dropped, and the two
-doctors silently merge into one `Willemse` carrying both their shifts.
-Demonstrated by replaying a fixture with each layout: same-item gives 29 staff
-where one surname was shared, separate-item gives 28. Fixing it means touching
-`isNameTok`, which is the layout-sensitive core of the parser, so it wants its
-own change and its own A/B against real rosters.
+**The parser reads an initial in either of the two layouts a PDF can produce.**
+`M. Willemse` may arrive as one text item or as `M.` followed by `Willemse`,
+depending on the export. `INITIAL_RE` has always read the single-item
+spelling; `INITIAL_TOK_RE` reads the other, joining a lone initial to the name
+token on its right within the same 120px the compound-name join uses. Both
+name paths do it — the shift columns in `extractNamesWithAnchors`, and the
+leave column, which had to be sorted by x first so a lookahead means anything.
+
+Before that join the lone `M.` failed `isNameTok` (a full stop is outside
+`[A-Z][a-zA-Z\-]{1,14}`), was skipped, and the two doctors **merged into one
+`Willemse` carrying both their shifts** — one person's hours silently doubled
+and the other gone from the roster entirely. This follows the rule the
+semicolon fix set: accept one more spelling of something the parser already
+understands, never loosen what a match means. `isNameTok` is unchanged, and
+all three real rosters parse byte-identically before and after, so a roster
+without initials cannot have been affected. `tests/initials.js` replays a real
+fixture in both layouts; it fails on the pre-fix bundle for the split layout
+only, which is exactly the shape of the bug.
 
 ## Output documents
 
@@ -319,8 +328,9 @@ they are — see `profiles/README.md`.
 `tests/` holds replay fixtures for the shift parser and a runner —
 `node tests/run.js`, Playwright's Chromium the only requirement. Beside it:
 `tests/z1a.js` (the leave form's rows), `tests/leave-ui.js` (the leave-only
-panel end to end), `tests/names.js` (roster initials) and `tests/wizjump.js`
-(the phone step jump). It is a
+panel end to end), `tests/names.js` (splitting a roster initial off a surname),
+`tests/initials.js` (the parser reading one in either PDF layout) and
+`tests/wizjump.js` (the phone step jump). It is a
 dev-only tool: the app still has no build step and no dependencies.
 
 A fixture is not a PDF. The parser reads nothing from one but `numPages` and,
