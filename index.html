@@ -338,6 +338,23 @@ header {
 .modal-overlay.is-wide .modal-panel { max-width: 1100px; width: 100%;
   display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
 .modal-overlay.is-wide .modal-body { overflow: auto; flex: 1 1 auto; }
+/* The File picker and the find row stay on screen while the pages scroll
+   under them. Stepping through matches is exactly when the next-match button
+   is wanted, and it used to scroll out of the panel with the first page.
+   .modal-body is the scroller. Sticky offsets pin the *margin* box, so a
+   negative top margin here does not pull the bar up — it pushes the visible
+   box down by that much and leaves a strip of the body's top padding above it
+   for pages to show through. The body's top padding is zeroed for this panel
+   instead and the bar supplies its own, which puts it flush with the
+   scrollport. The negative side margins are still wanted: without them a page
+   slides through the 22px gap beside it. Opaque background for the same
+   reason — pages pass behind this. */
+#rosterViewOverlay .modal-body { padding-top: 0; }
+.rv-tools { position: sticky; top: 0; z-index: 2;
+  background: var(--color-bg);
+  margin: 0 -22px 14px; padding: 14px 22px 12px;
+  border-bottom: 1px solid var(--color-divider); }
+.rv-tools .rv-find { margin-bottom: 0; }
 .rv-pick { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .rv-pick label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--color-neutral-700); }
@@ -492,6 +509,16 @@ main { padding: 40px 32px 0; }
 /* In the upload grid it is a cell, so it lines up under the department zone
    and inherits the grid's own gap — its margin would double that. */
 .two > .actions-row { grid-column: 1; margin-top: 0; }
+/* ...and under the consultant zone instead when that is the one holding the
+   files. .two is made its own query container so the move can be gated on the
+   grid really having two tracks: auto-fit gives the second at 624px of
+   container width (2 x 300 + 24), and grid-column: 2 in a one-column grid
+   invents a track rather than failing, which would wreck the phone layout.
+   The two tracks are equal, so the buttons keep their width exactly. */
+.two { container-type: inline-size; }
+@container (min-width: 624px) {
+  .two.acts-right > .actions-row { grid-column: 2; }
+}
 
 /* ── 02 preview ─────────────────────────────────────────────── */
 .split { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 0; border: 1px solid var(--color-divider); }
@@ -1206,7 +1233,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   <div class="brand">
     <span class="brand-mark"></span>
     <span class="brand-name" id="headerTitle">Hospital Roster Translator</span>
-    <span class="brand-ver">v14.09.2026</span>
+    <span class="brand-ver">v15.09.2026</span>
   </div>
   <span class="ec-mode" id="ecMode" style="display:none;"></span>
   <span class="hdr-ctx" id="hdrCtx" hidden>
@@ -1585,7 +1612,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
 <footer>
   <div class="wrap footer-inner">
-    <span class="copy">&copy; vic-ec &middot; v14.09.2026</span>
+    <span class="copy">&copy; vic-ec &middot; v15.09.2026</span>
     <a href="#" id="openWizardLink">Set up a new profile</a>
     <a href="mailto:Paul.Xafis&#64;westerncape.gov.za?subject=EC%20Roster%20Translator%20%E2%80%94%20Feedback">Send feedback</a>
   </div>
@@ -5100,7 +5127,21 @@ function removeFile(name){
     rosterList.style.display='none';
   }
 }
+// Extract data and Clear all sit under whichever upload zone holds the files.
+// The department roster is the primary one and wins when both have something;
+// a consultant-only upload moves the row under the right-hand zone. Called
+// from both list renderers, so it tracks every add, remove and clear.
+function syncActionsSide(){
+  const two = document.querySelector('.two');
+  if (!two) return;
+  const wrap = $('consultantZoneWrap');
+  const consultantShown = !!wrap && wrap.style.display !== 'none';
+  const dept = (state.pendingFiles||[]).length + (state.parsedFiles||[]).length;
+  const cons = (state.consultantFiles||[]).length;
+  two.classList.toggle('acts-right', consultantShown && cons > 0 && dept === 0);
+}
 function renderFileList(){
+  syncActionsSide();
   const all=[...state.parsedFiles.map(f=>({name:f.name,days:f.days.length,parsed:true})),
              ...state.pendingFiles.map(f=>({name:f.name,days:null,parsed:false}))];
   if(!all.length){rosterList.style.display='none';return;}
@@ -6909,10 +6950,13 @@ function updateConsultantZoneVisibility() {
   // there is a second cell to hold the track open.
   const spacer = $('altRouteSpacer');
   if (spacer) spacer.style.display = isConsultant ? 'block' : 'none';
+  // Hiding the zone has to take the buttons back with it.
+  if (typeof syncActionsSide === 'function') syncActionsSide();
 }
 
 
 function renderConsultantList() {
+  if (typeof syncActionsSide === 'function') syncActionsSide();
   const list = $('consultantBadgeList');
   if (!list) return;
   const files = state.consultantFiles || [];
@@ -8124,6 +8168,7 @@ document.addEventListener('click', e => {
       <button type="button" id="rosterViewCloseBtn" class="modal-close" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
+      <div class="rv-tools">
       <div class="rv-pick"><label for="rosterViewPick">File</label>
         <select id="rosterViewPick" class="input"></select></div>
       <div class="rv-find">
@@ -8133,6 +8178,7 @@ document.addEventListener('click', e => {
         <span class="rv-count" id="rosterViewCount" role="status" aria-live="polite"></span>
         <button type="button" class="btn btn-secondary rv-step" id="rosterViewPrev" title="Previous match" aria-label="Previous match" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
         <button type="button" class="btn btn-secondary rv-step" id="rosterViewNext" title="Next match" aria-label="Next match" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      </div>
       </div>
       <p class="rv-note" id="rosterViewNote"></p>
       <div class="rv-body" id="rosterViewBody"></div>

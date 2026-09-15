@@ -26,10 +26,13 @@ function updateConsultantZoneVisibility() {
   // there is a second cell to hold the track open.
   const spacer = $('altRouteSpacer');
   if (spacer) spacer.style.display = isConsultant ? 'block' : 'none';
+  // Hiding the zone has to take the buttons back with it.
+  if (typeof syncActionsSide === 'function') syncActionsSide();
 }
 
 
 function renderConsultantList() {
+  if (typeof syncActionsSide === 'function') syncActionsSide();
   const list = $('consultantBadgeList');
   if (!list) return;
   const files = state.consultantFiles || [];
