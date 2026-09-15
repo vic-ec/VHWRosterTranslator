@@ -350,6 +350,35 @@ without initials cannot have been affected. `tests/initials.js` replays a real
 fixture in both layouts; it fails on the pre-fix bundle for the split layout
 only, which is exactly the shape of the bug.
 
+## A consultant roster on its own
+
+A consultant on-call PDF is a complete roster, not only a supplement to a
+department one. `parseAndStoreConsultantRoster()` has always had the branch
+for it: with no department file it builds `rosterData` from the consultant
+days, fills the staff list, sets the month and year, unlocks step 2 and
+rebuilds the month dropdown — and `buildPreview` reads consultant days rather
+than `rosterData` whenever `isExtendedRosterMode()` is true. Everything
+downstream worked.
+
+- **Two gates were all that blocked it.** `wizExtracted()` counted only
+  `state.parsedFiles` and `state.tableData`, so step 1 never completed; and
+  the `wizRefresh()` after extraction ran *before* the consultant parse, so
+  even once the first was fixed Continue stayed disabled over a staff list the
+  app had already drawn. `wizRefresh()` now runs after both branches of the
+  parse. Verified end to end on three real consultant rosters.
+- **The month and year come from the file name**, in
+  `parseAndStoreConsultantRoster()` — the grid itself carries no month, and
+  `getConsultantShifts` skips every day whose `month` does not equal the target
+  (`day.month !== targetMonth`). A file renamed without its month name falls
+  back to *today's* month and silently matches nothing. Worth remembering when
+  testing: `c-jul2026.pdf` parses as September.
+- **Cells naming an event and two consultants become one junk name.** The May
+  2026 roster yields `Cloete & Els`, `SAPA Cloete & Els`, `Clin Gov Cloete &
+  Els` and `Retreat Cloete & Els` beside the four real consultants; each
+  matches no day, so picking one gives an empty month. Splitting on `&` would
+  credit both consultants with those days, which changes hours and is a policy
+  question, not a parsing one — so nothing splits them yet.
+
 ## Output documents
 
 | Document | Format | Purpose |
@@ -381,8 +410,11 @@ they are — see `profiles/README.md`.
 panel end to end), `tests/names.js` (splitting a roster initial off a surname),
 `tests/initials.js` (the parser reading one in either PDF layout) and
 `tests/wizjump.js` (the phone step jump), `tests/actionsrow.js` (which zone
-Extract data sits under) and `tests/rosterview.js` (the viewer's sticky find
-row — needs `ROSTER=/path/to/a/roster.pdf`, and skips without it). It is a
+Extract data sits under), `tests/rosterview.js` (the viewer's sticky find
+row — needs `ROSTER=/path/to/a/roster.pdf`, and skips without it) and
+`tests/consultant.js` (a consultant roster standing alone — its first half
+drives the gate with no file at all, the rest runs a real upload when
+`CONSULTANT_ROSTER` points at one). It is a
 dev-only tool: the app still has no build step and no dependencies.
 
 A fixture is not a PDF. The parser reads nothing from one but `numPages` and,

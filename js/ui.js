@@ -480,8 +480,6 @@ $('parseBtn').addEventListener('click',async()=>{
       state.pendingFiles=state.pendingFiles.filter(f=>f.name!==file.name);}
   }
   if(state.parsedFiles.length) { mergeAndRefresh();renderFileList(); }
-  // Extraction is done — the wizard can now judge whether step 1 is complete.
-  if(typeof wizRefresh==='function') wizRefresh();
   // Parse consultant roster if one is queued
   if(state.consultantFile){
     try{
@@ -508,6 +506,12 @@ $('parseBtn').addEventListener('click',async()=>{
       :`\u2713 ${total} days \u00b7 ${docs} staff across ${state.parsedFiles.length} file(s)`
       ,errors?'error':'success');
   }
+  // Extraction is done — the wizard can now judge whether step 1 is complete.
+  // This has to come after the consultant parse, not before it: that parse is
+  // what fills state.consultantData, and for a consultant-only upload it is
+  // the whole of what makes step 1 complete. Refreshing first left Continue
+  // disabled over a staff list the app had already built.
+  if(typeof wizRefresh==='function') wizRefresh();
   btn.disabled=state.pendingFiles.length>0?false:true;
   btn.textContent='Extract Data';
 });
@@ -1291,7 +1295,13 @@ let wizStep = 1;
 let wizReviewed = false;
 
 function wizExtracted(){
-  return !!(state.parsedFiles && state.parsedFiles.length) || !!state.tableData;
+  // A consultant on-call roster counts on its own. parseAndStoreConsultantRoster()
+  // already builds the staff list, sets the month and year from the filename and
+  // unlocks step 2 when it is the only file, and buildPreview reads consultant
+  // days rather than rosterData in that mode — so everything downstream worked
+  // and this gate was the one thing still saying no.
+  return !!(state.parsedFiles && state.parsedFiles.length) || !!state.tableData
+      || !!state.consultantData;
 }
 function wizPreviewed(){
   const { month, year } = getMonthYear();
