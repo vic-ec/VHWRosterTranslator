@@ -169,17 +169,31 @@ const ITEMS = [
   check('a last date written "3-Jun" is the 3rd', awk.dates.includes(3), true);
   check('and the scrap row under it makes no fourth day', awk.dates.length, 3);
   check('labels a column right of their data still line up',
-        [atype('Alpha', 1), atype('Bravo', 1)],
-        ['On Call - Weekday', 'Consultant Day - 07H30']);
+        [atype('Alpha', 1), atype('Delta', 1)],
+        ['On Call - Weekday', 'Leave - Annual']);
   check('leave is still leave', atype('Delta', 1), 'Leave - Annual');
   check('a shared cell still credits both',
         [atype('Alpha', 2), atype('Bravo', 2)],
         ['Consultant Day - 07H30', 'Consultant Day - 07H30']);
-  // Bravo sits in the unlabelled column after Call on day 1. Nothing is
-  // labelled for it, so nothing is read out of it — Bravo's day 1 comes from
-  // slot 2 alone, with no overnight OT.
-  check('an unlabelled column past Call is not read as Call',
-        (awk.per['Bravo'][1] || {}).ot2f || '', '');
+  // Bravo sits in the unlabelled column after Call on day 1 — second on call,
+  // supervising Alpha who is first. Both claim the off-site overtime, and
+  // Bravo's duty slot that day is 2, not 1, so the band cannot be tied to
+  // slot 1.
+  check('second on call is on call', atype('Bravo', 1), 'On Call - Weekday');
+  check('and claims the same overnight band as first on call',
+        [(awk.per['Bravo'][1] || {}).ot2f, (awk.per['Bravo'][1] || {}).ot2t,
+         (awk.per['Alpha'][1] || {}).ot2f, (awk.per['Alpha'][1] || {}).ot2t],
+        ['16H30', '07H30', '16H30', '07H30']);
+  check('while keeping its own normal hours and on-site OT',
+        [(awk.per['Bravo'][1] || {}).nf, (awk.per['Bravo'][1] || {}).nt,
+         (awk.per['Bravo'][1] || {}).ot1f, (awk.per['Bravo'][1] || {}).ot1t],
+        ['07H30', '15H30', '15H30', '16H30']);
+  // Alpha shares slot 2 on day 2 and nobody is second that day, so there is no
+  // overnight band for either of them — the rule still turns on being on call,
+  // not on working a duty slot.
+  check('a duty day with no call keeps no overnight band',
+        [(awk.per['Alpha'][2] || {}).ot2f || '', (awk.per['Bravo'][2] || {}).ot2f || ''],
+        ['', '']);
   check('the staff list is still only the people on duty',
         awk.doctors, ['Alpha', 'Bravo', 'Charlie']);
 
