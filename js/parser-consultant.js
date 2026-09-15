@@ -78,7 +78,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   // six and eight days of those months were dropped before anything looked at
   // them — a timesheet quietly missing its first week. The header row is the
   // real boundary, and it is already being located for the columns.
-  const header = findHeaderRow(allRows);
+  const header = findHeaderLabels(allRows);
   const DATA_Y = header ? header.y + 4 : (profile.data_start_y || 188);
   const dataWords = words.filter(w => w.y >= DATA_Y);
 
@@ -106,38 +106,115 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     return null;
   }
 
-  // Every consultant export carries a header row naming all six columns —
-  // Day | Weekday | 1 | 2 | 3 | Meetings etc. | Leave | Call — but at a
-  // different x in each file: the May 2026 export sits some 35px left of
-  // July's, far enough that the profile's fixed pdf_columns read its Meetings
-  // column as slot 3 and its Leave column as Meetings. Reading each file's own
-  // header is the same move findAnchors() makes for the shift roster, and it
-  // costs nothing when the coordinates already agree. The profile's numbers
-  // stay as the fallback for an export with no header row.
-  // The one row carrying all six column names. Both the column boundaries and
-  // the start of the data are taken from it.
-  function findHeaderRow(allRows) {
+  // ── Finding the columns ─────────────────────────────────────────────────
+  // Seven real exports, and nothing about the geometry is constant. A column
+  // label may sit over its data (May), a whole column to the right of it
+  // (January's spreadsheet export), or on a different row from the other
+  // labels (February). The profile's fixed pdf_columns fit two of the seven.
+  //
+  // Two things do hold: the columns are always in the order slot 1, 2, 3,
+  // Meetings, Leave, Call from left to right, and the data itself forms
+  // columns. So the labels are located, the data is clustered into columns of
+  // its own, and the two are matched in that order — which needs no assumption
+  // about how far a label sits from what it heads, and lets a label with
+  // nothing beneath it match nothing at all.
+
+  // Meetings, Leave and Call share a row in every export seen; the slot
+  // numbers may be on that row or the one above. "1" is far too common a token
+  // to hunt for on its own — dates and printed spreadsheet row numbers are the
+  // same string — so they are read right to left from a band around that row,
+  // each one left of the column that follows it.
+  function findHeaderLabels(allRows) {
     for (const row of allRows) {
-      const at = {};
-      for (const [key, re] of HEADER_WANT) {
-        const hit = row.ws.find(w => re.test(w.text.trim()));
-        if (hit) at[key] = hit.x;
-      }
-      if (Object.keys(at).length === HEADER_WANT.length) return { y: row.y, at, ws: row.ws };
+      const m = row.ws.find(w => /^meetings/i.test(w.text));
+      const l = row.ws.find(w => /^leave$/i.test(w.text));
+      const c = row.ws.find(w => /^call$/i.test(w.text));
+      if (!m || !l || !c || !(m.x < l.x && l.x < c.x)) continue;
+      const band = allRows.filter(r => Math.abs(r.y - row.y) <= 20);
+      const rightmost = (label, limit) => {
+        let best = null;
+        for (const r of band) for (const w of r.ws)
+          if (w.text.trim() === label && w.x < limit && (!best || w.x > best.x)) best = w;
+        return best;
+      };
+      const s3 = rightmost('3', m.x);
+      const s2 = s3 && rightmost('2', s3.x);
+      const s1 = s2 && rightmost('1', s2.x);
+      if (!s1) continue;
+      return { at: [s1.x, s2.x, s3.x, m.x, l.x, c.x],
+               y: Math.max(row.y, s1.y, s2.y, s3.y) };
     }
     return null;
   }
-  // Bound each column by the midpoint to its neighbours on the header row,
-  // using every header present — so a column this profile knows nothing about
-  // (May's "2nd" on-call) still closes off the one before it.
-  function columnsFromHeader(head) {
-    const xs = [...new Set(head.ws.map(w => w.x))].sort((a, b) => a - b);
-    const out = {};
-    for (const [key] of HEADER_WANT) {
-      const x = head.at[key], i = xs.indexOf(x);
-      out[key] = { x_min: i > 0 ? (xs[i-1] + x) / 2 : x - 40,
-                   x_max: i < xs.length - 1 ? (x + xs[i+1]) / 2 : Infinity };
+
+  // Where the data actually sits. A column is a run of x values within tol of
+  // where the run started; a single stray word does not make one.
+  function clusterColumns(xs, tol) {
+    const sorted = [...xs].sort((a, b) => a - b);
+    const runs = [];
+    for (const x of sorted) {
+      const last = runs[runs.length - 1];
+      if (last && x - last.start <= tol) last.xs.push(x);
+      else runs.push({ start: x, xs: [x] });
     }
+    // Every distinct position counts, even one used once. July writes a single
+    // "Retreat" in its Meetings column and May a single "PH" left of slot 1;
+    // dropping those as noise left no column there, and the neighbouring
+    // column's range — which runs to the midpoint of the next column along —
+    // reached over and swallowed them into the duty slots.
+    return runs.map(r => r.xs.reduce((a, b) => a + b, 0) / r.xs.length);
+  }
+
+  // Match labels to columns in order, left to right, allowing a label to match
+  // nothing. Plain edit-distance shape: the cost of a match is how far apart
+  // the two are, an unmatched label costs skipCost, and a column no label
+  // wants is free — the date, the weekday, January's row numbers and the
+  // trailing totals are all columns nothing should be read out of.
+  function alignLabelsToColumns(labels, columns, skipCost) {
+    const L = labels.length, C = columns.length, INF = Infinity;
+    const best = [], back = [];
+    for (let i = 0; i <= L; i++) { best.push(new Array(C + 1).fill(INF)); back.push(new Array(C + 1).fill(null)); }
+    for (let j = 0; j <= C; j++) best[0][j] = 0;
+    for (let i = 1; i <= L; i++) {
+      for (let j = 0; j <= C; j++) {
+        let b = best[i-1][j] + skipCost, f = 'skipLabel';
+        if (j > 0) {
+          const drop = best[i][j-1];
+          if (drop < b) { b = drop; f = 'dropColumn'; }
+          const take = best[i-1][j-1] + Math.abs(labels[i-1] - columns[j-1]);
+          if (take < b) { b = take; f = 'match'; }
+        }
+        best[i][j] = b; back[i][j] = f;
+      }
+    }
+    const pick = new Array(L).fill(-1);
+    let i = L, j = C;
+    while (i > 0) {
+      const f = back[i][j];
+      if (f === 'dropColumn') j--;
+      else if (f === 'skipLabel') i--;
+      else { pick[i-1] = j-1; i--; j--; }
+    }
+    return pick;
+  }
+
+  // Each matched column is bounded by the midpoints to its neighbouring
+  // columns — its own neighbours, not the labels' — so a column nothing was
+  // matched to cannot bleed into the one beside it.
+  function columnsFromLabels(head, dataRows) {
+    const columns = clusterColumns(dataRows.flatMap(r => r.ws.map(w => w.x)), 10);
+    if (columns.length < 3) return null;
+    const gaps = columns.slice(1).map((x, k) => x - columns[k]).sort((a, b) => a - b);
+    const skipCost = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 70;
+    const pick = alignLabelsToColumns(head.at, columns, skipCost);
+    const out = {};
+    HEADER_WANT.forEach(([key], n) => {
+      const k = pick[n];
+      if (k < 0) { out[key] = { x_min: 0, x_max: 0 }; return; }   // no data under this label
+      out[key] = { x_min: k > 0 ? (columns[k-1] + columns[k]) / 2 : columns[k] - 30,
+                   x_max: k < columns.length - 1 ? (columns[k] + columns[k+1]) / 2 : Infinity };
+    });
+    out.__first = Math.min(...HEADER_WANT.map(([key]) => out[key].x_max > 0 ? out[key].x_min : Infinity));
     return out;
   }
 
@@ -167,7 +244,13 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     return result;
   }
 
-  if (header) cols = columnsFromHeader(header);
+  if (header) {
+    const fromLabels = columnsFromLabels(header, byRow(dataWords));
+    if (fromLabels) cols = fromLabels;
+  }
+  // Everything left of the first real column is the date and weekday.
+  const leftBound = (cols.__first != null && isFinite(cols.__first))
+    ? cols.__first : cols.slot1.x_min;
 
   // ── Parse each row ──
   const days = [];
@@ -180,21 +263,57 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     let dateNum = null, weekdayName = null;
 
     for (const w of rowWords) {
+      if (w.x < leftBound) continue;               // date/weekday, read below
       const c = colFor(w.x);
-      // Date column (x < slot1.x_min)
-      if (w.x < cols.slot1.x_min) {
-        if (/^\d{1,2}$/.test(w.text)) dateNum = parseInt(w.text);
-        else if (WEEKDAYS.has(w.text) || WEEKENDS.has(w.text)) weekdayName = w.text;
-      } else if (c && c in buckets) {
-        buckets[c].push(w.text);
-      }
+      if (c && c in buckets) buckets[c].push(w.text);
     }
 
-    if (dateNum !== null && weekdayName) {
+    // The date is the number immediately to the left of the weekday name.
+    // January's export prints the spreadsheet's own row numbers in a column
+    // further left again, and taking the first number on the row made those
+    // the dates — which is how that file reported a 34th of the month.
+    const leftWords = rowWords.filter(w => w.x < leftBound);
+    const wd = leftWords.find(w => WEEKDAYS.has(w.text) || WEEKENDS.has(w.text));
+    if (wd) {
+      weekdayName = wd.text;
+      // The last cell of January's grid reads "31-Jan" rather than "31".
+      // Without the month suffix it is not a date, the nearest number left of
+      // the weekday becomes the printed spreadsheet row number, and that file
+      // reported a 34th of the month with the 31st missing.
+      const DATE_CELL = /^(\d{1,2})(?:[-\s][A-Za-z]{3,9})?$/;
+      let nearest = null, nearestNum = null;
+      for (const w of leftWords) {
+        const m = DATE_CELL.exec(w.text);
+        if (m && w.x < wd.x && (!nearest || w.x > nearest.x)) { nearest = w; nearestNum = m[1]; }
+      }
+      if (nearest) dateNum = parseInt(nearestNum);
+    }
+
+    const startsDay = dateNum !== null && !!weekdayName;
+    if (startsDay) {
       currentDate    = dateNum;
       currentDayName = weekdayName;
     }
     if (currentDate === null) continue;
+    // A row with no date and no weekday of its own is a continuation of the
+    // day above — or, at the foot of January's grid, a stray left by the
+    // spreadsheet. Either way its names belong to that day. Pushing a second
+    // day object for the same date instead was double-counting the last day
+    // of the month in every staff-list tally.
+    if (!startsDay && days.length) {
+      const prev = days[days.length - 1];
+      const add = (arr, more) => { for (const n of more) if (!arr.includes(n)) arr.push(n); };
+      add(prev.slot1, joinTokens(buckets.slot1));
+      add(prev.slot2, joinTokens(buckets.slot2));
+      add(prev.slot3, joinTokens(buckets.slot3));
+      add(prev.callNames, joinTokens(buckets.call.filter(t => !/^\d+$/.test(t))));
+      add(prev.leaveNames, joinTokens(buckets.leave.filter(t => t !== 'Leave')));
+      for (const n of [...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames])
+        for (const one of n.split(PAIR_SEP)) if (one.trim().length > 1) doctors.add(one.trim());
+      prev.allNames = [...new Set([...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames]
+        .flatMap(n => n.split(PAIR_SEP)).map(n => n.trim()))];
+      continue;
+    }
 
     // Parse slot names
     const slot1Names = joinTokens(buckets.slot1);
