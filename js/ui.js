@@ -1627,8 +1627,9 @@ async function renderRosterView(){
     const ext = String(entry.name).split('.').pop().toLowerCase();
     if (ext === 'pdf') {
       await drawPdfInto(body, buf);
+      rvApplyZoom();
       rvApplyFind();
-      if (note) note.textContent = 'The file as uploaded. Compare it with the schedule behind this panel.';
+      if (note) note.textContent = '';   // the page speaks for itself
     } else {
       const { rows, tables } = await gridRowsFor(buf, entry.name);
       rvGridRows = rows;
@@ -1816,9 +1817,37 @@ function rvSetHit(i){
   rvHitIdx = i;
   if (i < 0 || !rvHits[i]) return;
   rvHits[i].forEach(el => el.classList.add('is-current'));
-  rvHits[i][0].scrollIntoView({ block: 'center' });
+  rvHits[i][0].scrollIntoView({ block: 'center', inline: 'center' });
 }
 
+// ── Zoom ───────────────────────────────────────────────────────────────────
+// A month of a consultant roster is a wide, dense table, and at the width of a
+// phone it is unreadable. Zoom widens the page box past the panel and lets the
+// body scroll sideways; the canvas is painted once at twice its natural size
+// and the highlight layer is positioned in percentages, so both stay sharp and
+// aligned without re-rendering a page. It is deliberately not reset when the
+// panel closes: the whole point is to check the file against the schedule
+// behind it, which means opening and closing repeatedly at one magnification.
+const RV_ZOOMS = [1, 1.25, 1.5, 2, 2.5, 3, 4];
+let rvZoomIdx = 0;
+function rvApplyZoom(){
+  const body = $('rosterViewBody');
+  if (body) body.style.setProperty('--rv-zoom', String(RV_ZOOMS[rvZoomIdx]));
+  const pct = $('rosterViewZoomPct');
+  if (pct) pct.textContent = Math.round(RV_ZOOMS[rvZoomIdx] * 100) + '%';
+  const out = $('rosterViewOut'), zin = $('rosterViewIn');
+  if (out) out.disabled = rvZoomIdx === 0;
+  if (zin) zin.disabled = rvZoomIdx === RV_ZOOMS.length - 1;
+}
+function rvZoomBy(d){
+  const next = Math.min(RV_ZOOMS.length - 1, Math.max(0, rvZoomIdx + d));
+  if (next === rvZoomIdx) return;
+  rvZoomIdx = next;
+  rvApplyZoom();
+  // Keep whatever match is current in view, since the page just changed size.
+  if (rvHitIdx >= 0 && rvHits[rvHitIdx])
+    rvHits[rvHitIdx][0].scrollIntoView({ block: 'center', inline: 'center' });
+}
 function rvStep(d){
   if (!rvHits.length) return;
   const n = rvHits.length;
@@ -1855,6 +1884,9 @@ document.addEventListener('click', e => {
   if (!e.target || !e.target.closest) return;
   if (e.target.closest('#rosterViewPrev')) rvStep(-1);
   else if (e.target.closest('#rosterViewNext')) rvStep(1);
+  else if (e.target.closest('#rosterViewOut')) rvZoomBy(-1);
+  else if (e.target.closest('#rosterViewIn')) rvZoomBy(1);
+  else if (e.target.closest('#rosterViewFit')) { rvZoomIdx = 0; rvApplyZoom(); }
 });
 
 document.addEventListener('change', e => {

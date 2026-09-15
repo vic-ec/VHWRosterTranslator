@@ -370,7 +370,21 @@ header {
   font-variant-numeric: tabular-nums; margin-left: auto; }
 .rv-step { width: var(--control-h); height: var(--control-h); padding: 0; flex: none; }
 .rv-step svg { width: 16px; height: 16px; }
-.rv-page { position: relative; margin-bottom: 14px; border: 1px solid var(--color-divider); }
+/* Zoom widens the page box past the panel and .rv-body scrolls sideways under
+   it. The canvas is width:100% of this box and the highlight layer is in
+   percentages, so one variable moves both and neither needs repainting. */
+.rv-page { position: relative; margin-bottom: 14px; border: 1px solid var(--color-divider);
+  width: calc(100% * var(--rv-zoom, 1)); max-width: none; }
+.rv-body { overflow-x: auto; }
+.rv-zoom { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.rv-zoom-label { font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--color-neutral-700); }
+.rv-pct { font-size: 12px; color: var(--color-neutral-700); min-width: 46px;
+  text-align: center; font-variant-numeric: tabular-nums; }
+.rv-fit { height: var(--control-h); padding: 0 14px; font-size: 13px; }
+/* The note carries an error or the grid reader's tally; over a PDF page there
+   is nothing to say, and an empty paragraph should not hold the space. */
+.rv-note:empty { display: none; }
 .rv-body canvas { display: block; width: 100%; height: auto; }
 /* The highlight layer sits over the painted page; boxes are percentages of
    the viewport, so they hold as the canvas scales to the panel width. */
@@ -389,6 +403,9 @@ mark.rv-hit.is-current { background: var(--color-accent-400); }
   .rv-find label { display: none; }
   .rv-find input { max-width: none; flex: 1 1 140px; }
   .rv-count { order: 3; width: 100%; margin-left: 0; }
+  /* Same reasoning as the find label: the magnifiers and the percentage say
+     what the row is, and a 320px screen has no width to spare. */
+  .rv-zoom-label { display: none; }
 }
 .rv-grid { border-collapse: collapse; font-size: 12px; width: 100%; }
 .rv-grid th, .rv-grid td { border: 1px solid var(--color-divider); padding: 4px 7px;
@@ -7718,8 +7735,9 @@ async function renderRosterView(){
     const ext = String(entry.name).split('.').pop().toLowerCase();
     if (ext === 'pdf') {
       await drawPdfInto(body, buf);
+      rvApplyZoom();
       rvApplyFind();
-      if (note) note.textContent = 'The file as uploaded. Compare it with the schedule behind this panel.';
+      if (note) note.textContent = '';   // the page speaks for itself
     } else {
       const { rows, tables } = await gridRowsFor(buf, entry.name);
       rvGridRows = rows;
@@ -7907,9 +7925,37 @@ function rvSetHit(i){
   rvHitIdx = i;
   if (i < 0 || !rvHits[i]) return;
   rvHits[i].forEach(el => el.classList.add('is-current'));
-  rvHits[i][0].scrollIntoView({ block: 'center' });
+  rvHits[i][0].scrollIntoView({ block: 'center', inline: 'center' });
 }
 
+// ── Zoom ───────────────────────────────────────────────────────────────────
+// A month of a consultant roster is a wide, dense table, and at the width of a
+// phone it is unreadable. Zoom widens the page box past the panel and lets the
+// body scroll sideways; the canvas is painted once at twice its natural size
+// and the highlight layer is positioned in percentages, so both stay sharp and
+// aligned without re-rendering a page. It is deliberately not reset when the
+// panel closes: the whole point is to check the file against the schedule
+// behind it, which means opening and closing repeatedly at one magnification.
+const RV_ZOOMS = [1, 1.25, 1.5, 2, 2.5, 3, 4];
+let rvZoomIdx = 0;
+function rvApplyZoom(){
+  const body = $('rosterViewBody');
+  if (body) body.style.setProperty('--rv-zoom', String(RV_ZOOMS[rvZoomIdx]));
+  const pct = $('rosterViewZoomPct');
+  if (pct) pct.textContent = Math.round(RV_ZOOMS[rvZoomIdx] * 100) + '%';
+  const out = $('rosterViewOut'), zin = $('rosterViewIn');
+  if (out) out.disabled = rvZoomIdx === 0;
+  if (zin) zin.disabled = rvZoomIdx === RV_ZOOMS.length - 1;
+}
+function rvZoomBy(d){
+  const next = Math.min(RV_ZOOMS.length - 1, Math.max(0, rvZoomIdx + d));
+  if (next === rvZoomIdx) return;
+  rvZoomIdx = next;
+  rvApplyZoom();
+  // Keep whatever match is current in view, since the page just changed size.
+  if (rvHitIdx >= 0 && rvHits[rvHitIdx])
+    rvHits[rvHitIdx][0].scrollIntoView({ block: 'center', inline: 'center' });
+}
 function rvStep(d){
   if (!rvHits.length) return;
   const n = rvHits.length;
@@ -7946,6 +7992,9 @@ document.addEventListener('click', e => {
   if (!e.target || !e.target.closest) return;
   if (e.target.closest('#rosterViewPrev')) rvStep(-1);
   else if (e.target.closest('#rosterViewNext')) rvStep(1);
+  else if (e.target.closest('#rosterViewOut')) rvZoomBy(-1);
+  else if (e.target.closest('#rosterViewIn')) rvZoomBy(1);
+  else if (e.target.closest('#rosterViewFit')) { rvZoomIdx = 0; rvApplyZoom(); }
 });
 
 document.addEventListener('change', e => {
@@ -8410,6 +8459,13 @@ document.addEventListener('click', e => {
         <span class="rv-count" id="rosterViewCount" role="status" aria-live="polite"></span>
         <button type="button" class="btn btn-secondary rv-step" id="rosterViewPrev" title="Previous match" aria-label="Previous match" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
         <button type="button" class="btn btn-secondary rv-step" id="rosterViewNext" title="Next match" aria-label="Next match" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
+      </div>
+      <div class="rv-zoom">
+        <span class="rv-zoom-label">Zoom</span>
+        <button type="button" class="btn btn-secondary rv-step" id="rosterViewOut" title="Zoom out" aria-label="Zoom out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></svg></button>
+        <span class="rv-pct" id="rosterViewZoomPct" role="status" aria-live="polite">100%</span>
+        <button type="button" class="btn btn-secondary rv-step" id="rosterViewIn" title="Zoom in" aria-label="Zoom in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/><path d="M11 8v6"/></svg></button>
+        <button type="button" class="btn btn-secondary rv-fit" id="rosterViewFit">Fit</button>
       </div>
       </div>
       <p class="rv-note" id="rosterViewNote"></p>

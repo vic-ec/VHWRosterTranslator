@@ -44,10 +44,19 @@ const check = (name, got, want) => {
   check('the viewer opened', await page.isVisible('#rosterViewOverlay'), true);
 
   const body = '#rosterViewOverlay .modal-body';
-  const scrollHeight = await page.evaluate(s => document.querySelector(s).scrollHeight, body);
-  const clientHeight = await page.evaluate(s => document.querySelector(s).clientHeight, body);
-  check('there is more than a panel-full of pages to scroll',
-        scrollHeight > clientHeight + 200, true);
+  const overflows = () => page.evaluate(s => {
+    const b = document.querySelector(s);
+    return b.scrollHeight > b.clientHeight + 200;
+  }, body);
+
+  // A one-page consultant roster fits the panel, so there is nothing to scroll
+  // until it is zoomed — which is a fair way to reach the state either way,
+  // since zooming is exactly when the find row matters most.
+  for (let i = 0; i < 4 && !(await overflows()); i++) {
+    await page.evaluate(() => document.getElementById('rosterViewIn').click());
+    await page.waitForTimeout(250);
+  }
+  check('there is more than a panel-full to scroll', await overflows(), true);
 
   // Where the find row sits relative to the scrolling box, before and after.
   const offset = () => page.evaluate(s => {
@@ -92,6 +101,63 @@ const check = (name, got, want) => {
   } else {
     console.log('note  no matches for the probe query; skipped the step check');
   }
+
+  // ── Zoom ────────────────────────────────────────────────────────────────
+  // A month of roster at the width of a phone is unreadable, so the page box
+  // widens past the panel and the body scrolls sideways under it.
+  const pageW = () => page.evaluate(() => {
+    const pg = document.querySelector('#rosterViewBody .rv-page');
+    const bd = document.getElementById('rosterViewBody');
+    return { page: Math.round(pg.getBoundingClientRect().width),
+             scroll: bd.scrollWidth,
+             pct: document.getElementById('rosterViewZoomPct').textContent };
+  });
+
+  await page.evaluate(() => document.getElementById('rosterViewFit').click());
+  await page.waitForTimeout(250);
+  const atFit = await pageW();
+  check('Fit is 100%', atFit.pct, '100%');
+  check('and the page fits the panel', atFit.page <= atFit.scroll + 1, true);
+  check('zoom out is disabled at the bottom',
+        await page.evaluate(() => document.getElementById('rosterViewOut').disabled), true);
+
+  await page.evaluate(() => document.getElementById('rosterViewIn').click());
+  await page.evaluate(() => document.getElementById('rosterViewIn').click());
+  await page.waitForTimeout(300);
+  const zoomed = await pageW();
+  check('zooming in widens the page', zoomed.page > atFit.page * 1.4, true);
+  check('and the body scrolls sideways to reach it', zoomed.scroll > atFit.scroll, true);
+  check('the percentage says so', zoomed.pct, '150%');
+
+  // The highlight layer is positioned in percentages, so it has to travel with
+  // the page rather than staying where it was painted.
+  await page.fill('#rosterViewFind', 'a');
+  await page.waitForTimeout(500);
+  check('highlights still sit over the page they mark', await page.evaluate(() => {
+    const m = document.querySelector('#rosterViewBody .rv-marks i');
+    if (!m) return 'no highlight';
+    const p = document.querySelector('#rosterViewBody .rv-page').getBoundingClientRect();
+    const r = m.getBoundingClientRect();
+    return r.left >= p.left - 1 && r.right <= p.right + 1;
+  }), true);
+
+  await page.evaluate(() => document.getElementById('rosterViewFit').click());
+  await page.waitForTimeout(300);
+  check('Fit puts it back', (await pageW()).pct, '100%');
+
+  for (let i = 0; i < 9; i++) await page.evaluate(() => document.getElementById('rosterViewIn').click());
+  await page.waitForTimeout(300);
+  check('zoom in stops at the top',
+        await page.evaluate(() => [document.getElementById('rosterViewZoomPct').textContent,
+                                   document.getElementById('rosterViewIn').disabled]),
+        ['400%', true]);
+  await page.evaluate(() => document.getElementById('rosterViewFit').click());
+
+  // Nothing to say over a page of the file itself.
+  check('no note over a PDF page',
+        (await page.textContent('#rosterViewNote') || '').trim(), '');
+  check('and the empty note takes no space',
+        await page.isVisible('#rosterViewNote'), false);
 
   if (errors.length) { failed++; console.log('\npage errors: ' + errors.join(' | ')); }
   await browser.close();
