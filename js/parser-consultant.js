@@ -208,12 +208,20 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     const skipCost = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 70;
     const pick = alignLabelsToColumns(head.at, columns, skipCost);
     const out = {};
+    const bound = k => ({ x_min: k > 0 ? (columns[k-1] + columns[k]) / 2 : columns[k] - 30,
+                          x_max: k < columns.length - 1 ? (columns[k] + columns[k+1]) / 2 : Infinity });
     HEADER_WANT.forEach(([key], n) => {
       const k = pick[n];
-      if (k < 0) { out[key] = { x_min: 0, x_max: 0 }; return; }   // no data under this label
-      out[key] = { x_min: k > 0 ? (columns[k-1] + columns[k]) / 2 : columns[k] - 30,
-                   x_max: k < columns.length - 1 ? (columns[k] + columns[k+1]) / 2 : Infinity };
+      out[key] = k < 0 ? { x_min: 0, x_max: 0 } : bound(k);       // no data under this label
     });
+    // Second on call is the column immediately right of Call. May labels it
+    // "2nd"; April prints the same column with no label at all, so position is
+    // the only thing both have. Where that column holds the month's running
+    // totals instead — January, February, September — its contents are numbers
+    // and the same filter that keeps them out of Call keeps them out of here.
+    const callAt = pick[HEADER_WANT.length - 1];
+    out.second = (callAt >= 0 && callAt + 1 < columns.length) ? bound(callAt + 1)
+                                                             : { x_min: 0, x_max: 0 };
     out.__first = Math.min(...HEADER_WANT.map(([key]) => out[key].x_max > 0 ? out[key].x_min : Infinity));
     return out;
   }
@@ -259,7 +267,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
 
   for (const rowWords of rows) {
     // Bucket words by column
-    const buckets = { slot1:[], slot2:[], slot3:[], meetings:[], leave:[], call:[] };
+    const buckets = { slot1:[], slot2:[], slot3:[], meetings:[], leave:[], call:[], second:[] };
     let dateNum = null, weekdayName = null;
 
     for (const w of rowWords) {
@@ -307,8 +315,9 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       add(prev.slot2, joinTokens(buckets.slot2));
       add(prev.slot3, joinTokens(buckets.slot3));
       add(prev.callNames, joinTokens(buckets.call.filter(t => !/^\d+$/.test(t))));
+      add(prev.secondNames, joinTokens(buckets.second.filter(t => !/^\d+$/.test(t))));
       add(prev.leaveNames, joinTokens(buckets.leave.filter(t => t !== 'Leave')));
-      for (const n of [...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames])
+      for (const n of [...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames, ...prev.secondNames])
         for (const one of n.split(PAIR_SEP)) if (one.trim().length > 1) doctors.add(one.trim());
       prev.allNames = [...new Set([...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames]
         .flatMap(n => n.split(PAIR_SEP)).map(n => n.trim()))];
@@ -328,6 +337,9 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     // Parse call: names + optional trailing number
     const callRaw   = buckets.call.filter(t => !/^\d+$/.test(t));
     const callNames = joinTokens(callRaw);
+    // Second on call — the consultant supervising the junior who is first —
+    // is on call too, and claims the same off-site overtime.
+    const secondNames = joinTokens(buckets.second.filter(t => !/^\d+$/.test(t)));
 
     // Collect all names on this day for the doctors set
     const allSlotNames = [...slot1Names, ...slot2Names, ...slot3Names];
@@ -340,7 +352,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
         if (trimmed.length > 1) doctors.add(trimmed);
       }
     }
-    for (const name of callNames) {
+    for (const name of [...callNames, ...secondNames]) {
       for (const n of name.split(PAIR_SEP)) {
         const trimmed = n.trim();
         if (trimmed.length > 1) doctors.add(trimmed);
@@ -359,6 +371,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       slot2: slot2Names,
       slot3: slot3Names,
       callNames,
+      secondNames,
       leaveNames,
       isLeave: isLeave && leaveNames.length > 0,
       // Keep month from filename/year detection — set post-parse
@@ -366,7 +379,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       monthName: null,
       // Standard fields for compatibility
       allNames: [...new Set([...allSlotNames.flatMap(n=>n.split(PAIR_SEP)).map(n=>n.trim()),
-                             ...callNames.flatMap(n=>n.split(PAIR_SEP)).map(n=>n.trim())])],
+                             ...[...callNames, ...secondNames].flatMap(n=>n.split(PAIR_SEP)).map(n=>n.trim())])],
       shifts: [slot1Names, slot2Names, slot3Names, callNames],
       shiftType: isWeekend ? 'weekend' : 'weekday',
       consultant: null,
@@ -425,7 +438,10 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
     const inSlot1 = day.slot1.some(nameMatches);
     const inSlot2 = day.slot2.some(nameMatches);
     const inSlot3 = day.slot3.some(nameMatches);
-    const inCall  = day.callNames.some(nameMatches);
+    // Second on call is on call: the supervising consultant claims the same
+    // off-site overtime as the junior who is first.
+    const inCall  = day.callNames.some(nameMatches)
+                 || (day.secondNames || []).some(nameMatches);
     const onLeave = day.leaveNames.some(nameMatches);
 
     if (onLeave) {
@@ -445,8 +461,10 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
       // Weekends and public holidays: OT on-site 07h30-11h30, OT off-site 11h30-07h30
       // No normal hours — this is not a standard shift
       rule = rules.weekend_ph;
-    } else if (inSlot1 && inCall) {
-      // On-call day: normal day shift + OT1 (15h30-16h30) + OT2 off-site (16h30-07h30)
+    } else if (inCall && (inSlot1 || inSlot2 || inSlot3)) {
+      // A worked day plus call: normal 07h30-15h30, OT on-site 15h30-16h30 and
+      // OT off-site 16h30-07h30. Which duty slot it was does not change that,
+      // and second on call is usually in slot 2 or 3 rather than slot 1.
       rule = rules.weekday_slot1_oncall;
     } else if (inSlot1) {
       rule = rules.weekday_slot1_no_oncall;

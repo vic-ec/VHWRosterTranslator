@@ -416,12 +416,23 @@ downstream worked.
 - **A row with no date and no weekday belongs to the day above it.** January's
   grid ends with a stray. Pushing a second day object for the same date was
   double-counting the last day of the month in every staff-list tally.
-- **Open question, not decided here:** April and May carry a column *after*
-  Call — labelled `2nd` in May, unlabelled in April — naming the supervising
-  consultant. Nothing is read out of it, so a second-on-call day currently
-  gives that consultant only their ordinary duty day. Whether it should also
-  carry the off-site overtime is a payroll question; the stated rule says the
-  off-site band belongs to first on call.
+- **Second on call is on call.** The column immediately right of Call names the
+  consultant supervising the junior who is first, and they claim the same
+  off-site overtime. May labels it `2nd`; April prints the same column with no
+  label at all, so its *position* is the only thing both files have — hence
+  `columnsFromLabels()` takes the column after whichever one Call matched,
+  rather than looking for a seventh label. Where that position holds the
+  month's running totals instead (January, February, September) its contents
+  are numbers, and the same filter that keeps them out of Call keeps them out
+  of here; July has no column there at all.
+
+  The weekday rule widened with it: **a worked day plus call earns the off-site
+  band whichever duty slot it was**, not slot 1 only. Second on call is usually
+  in slot 2 or 3, and `weekday_slot1_no_oncall` and `weekday_slot2_3` carry
+  identical bands anyway, so nothing else shifts. On 8 April the roster reads
+  slot1 Els, slot2 Cloete, Call Els, second Cloete: Els and Cloete both get
+  07h30–15h30, 15h30–16h30 and 16h30–07h30, while Xafis in slot 3 gets the
+  first two only.
 - **Two names in one duty cell are two consultants on duty.** `PAIR_SEP`
   (`/\s*[/&]\s*/`) splits them wherever a name is matched or collected. The
   junior is first on call and the next consultant supervises, and HR needs each
