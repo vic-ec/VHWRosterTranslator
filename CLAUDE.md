@@ -561,6 +561,22 @@ key. `tests/README.md` has the whole picture, including what these tests do
   *hidden* until a file is retained rather than disabled, which needs explicit
   `.hdr-icon[hidden]` / `.wizctx-edit[hidden]` rules: both classes set
   `display: inline-flex`, which outranks the UA rule for `[hidden]`.
+
+  **Zoom is one CSS variable.** A month of consultant roster at the width of a
+  phone is unreadable, so `--rv-zoom` on `#rosterViewBody` widens `.rv-page`
+  past the panel and `.rv-body` scrolls sideways under it. Nothing repaints:
+  the canvas is rendered once at `scale: 2` — so a phone stays inside the
+  canvas's own resolution all the way to 400% — and the highlight layer is
+  positioned in percentages, so it travels with the page for free. `rvStep`
+  scrolls `inline: 'center'` as well as `block`, or a match found off to the
+  right of a zoomed page never comes into view. The zoom deliberately survives
+  closing the panel: checking the file against the schedule behind it means
+  opening and closing repeatedly, and re-setting the magnification each time
+  would be the whole cost of the feature.
+
+  There is **no note over a PDF page** — `.rv-note` carries the grid reader's
+  tally or an error, and `.rv-note:empty` collapses it so an empty paragraph
+  does not hold the space.
 - **The Z1(a) declares No for Shift Worker and Casual Employee, always.** Both
   rows are ticked in the No box by `RIGHT_YN` in `generator-docx.js`, on every
   route. This is policy, not a missing feature — it was once a parameter fed
