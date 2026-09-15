@@ -90,10 +90,18 @@ the parts worth knowing before editing:
   looking at the whole month.
 - **Anything that changes what the user is looking at calls `wizRefresh()`.**
   Extraction and preview already do.
-- **`--control-h` is the one height** for every row and control in a list or
-  form on a phone. Do not reintroduce a per-component `min-height` — a
+- **`--control-h` is the one height**, at every width — not only on a phone.
+  `.btn` and `.input` both carry `min-height: var(--control-h)`. Before that
+  the header's buttons and icons stood at 38px while `.input` was pinned to a
+  hard-coded 36 and a `.btn` sized by its padding alone came out about 35, so
+  the month dropdown, the year box, Preview schedule and View roster file were
+  all two or three pixels short of the header above them. (`select.input`'s
+  arrow is drawn with a background gradient, so its vertical offset had to move
+  with the height.) Do not reintroduce a per-component `min-height` — a
   component that sets its own `padding` (as `.actions-row` did) outranks a
-  plain `.btn` rule and silently opts out of it.
+  plain `.btn` rule and silently opts out of it, which is why
+  `.alt-route .btn.btn` still says `min-height: 0` for the two-line leave
+  button.
 - **The date-of-signature icon is a real `<input type="date">`** sitting under
   the glyph at full size, not a button calling `showPicker()` on a hidden one
   — a browser will not open a picker for an input that is 0x0 and
@@ -576,7 +584,10 @@ key. `tests/README.md` has the whole picture, including what these tests do
 
   There is **no note over a PDF page** — `.rv-note` carries the grid reader's
   tally or an error, and `.rv-note:empty` collapses it so an empty paragraph
-  does not hold the space.
+  does not hold the space. The zoom buttons keep `--control-h` so they line up
+  with the step arrows beside them, but their glyphs are 14px where the
+  chevrons are 16: a magnifier is a denser shape and reads heavier at the same
+  size.
 - **The Z1(a) declares No for Shift Worker and Casual Employee, always.** Both
   rows are ticked in the No box by `RIGHT_YN` in `generator-docx.js`, on every
   route. This is policy, not a missing feature — it was once a parameter fed
