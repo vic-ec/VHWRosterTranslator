@@ -137,6 +137,10 @@ img { display: block; max-width: 100%; }
   padding: var(--space-2) calc(var(--space-3) * 1.2); border-radius: var(--radius-md);
 }
 .btn svg { display: block; }
+/* The same floor, at every width rather than only on a phone: without it a
+   .btn sized by its padding alone came out ~35px while the header's buttons
+   and every .input stood at 38. */
+.btn { min-height: var(--control-h); }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn-primary { background: var(--color-accent); color: var(--color-bg); }
 .btn-primary:hover:not(:disabled) { background: var(--color-accent-600); }
@@ -157,8 +161,11 @@ img { display: block; max-width: 100%; }
 
 /* ── forms ──────────────────────────────────────────────────── */
 .field > label { display: block; font-size: 12px; margin-bottom: 5px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
+/* --control-h is the one height, and it is the header's too: a hard-coded 36
+   here left every dropdown and text box two pixels short of the buttons beside
+   them in the header bar. */
 .input, .field select, .field input[type=text], .field textarea {
-  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit; font-size: 14px;
+  width: 100%; min-height: var(--control-h); padding: 6px 10px; font: inherit; font-size: 14px;
   color: var(--color-text); caret-color: var(--color-accent);
   background: var(--color-surface); border: 1px solid var(--color-divider); border-radius: 0;
 }
@@ -168,7 +175,7 @@ textarea.input, .field textarea { min-height: 90px; resize: vertical; }
 select.input, .field select {
   appearance: none;
   background-image: linear-gradient(45deg, transparent 50%, #201e1d 50%), linear-gradient(135deg, #201e1d 50%, transparent 50%);
-  background-position: calc(100% - 16px) 15px, calc(100% - 11px) 15px;
+  background-position: calc(100% - 16px) 16px, calc(100% - 11px) 16px;
   background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; padding-right: 32px;
 }
 .req-star::after { content: " required"; position: absolute; width: 1px;
@@ -370,6 +377,10 @@ header {
   font-variant-numeric: tabular-nums; margin-left: auto; }
 .rv-step { width: var(--control-h); height: var(--control-h); padding: 0; flex: none; }
 .rv-step svg { width: 16px; height: 16px; }
+/* A magnifier is a denser glyph than a chevron and reads heavier at the same
+   size, so it is drawn a little smaller. The button keeps --control-h, or it
+   would fall out of line with the step arrows beside it. */
+.rv-zoom .rv-step svg { width: 14px; height: 14px; }
 /* Zoom widens the page box past the panel and .rv-body scrolls sideways under
    it. The canvas is width:100% of this box and the highlight layer is in
    percentages, so one variable moves both and neither needs repainting. */
@@ -381,7 +392,7 @@ header {
   color: var(--color-neutral-700); }
 .rv-pct { font-size: 12px; color: var(--color-neutral-700); min-width: 46px;
   text-align: center; font-variant-numeric: tabular-nums; }
-.rv-fit { height: var(--control-h); padding: 0 14px; font-size: 13px; }
+.rv-fit { height: var(--control-h); padding: 0 10px; font-size: 12px; }
 /* The note carries an error or the grid reader's tally; over a PDF page there
    is nothing to say, and an empty paragraph should not hold the space. */
 .rv-note:empty { display: none; }
@@ -8455,7 +8466,7 @@ document.addEventListener('click', e => {
       <div class="rv-find">
         <label for="rosterViewFind">Find</label>
         <input type="search" id="rosterViewFind" class="input" autocomplete="off" spellcheck="false"
-          placeholder="Highlight a name — e.g. a surname on the roster">
+          placeholder="Surname…">
         <span class="rv-count" id="rosterViewCount" role="status" aria-live="polite"></span>
         <button type="button" class="btn btn-secondary rv-step" id="rosterViewPrev" title="Previous match" aria-label="Previous match" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg></button>
         <button type="button" class="btn btn-secondary rv-step" id="rosterViewNext" title="Next match" aria-label="Next match" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
