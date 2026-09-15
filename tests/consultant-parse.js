@@ -119,6 +119,70 @@ const ITEMS = [
         [type('Alpha', 5), type('Bravo', 5)],
         ['Consultant Day - 07H30', 'Consultant Day - 07H30']);
 
+  // ── A second grid, in the awkward shapes the other exports actually use ──
+  // Labels split over two rows and sitting a whole column right of the data
+  // they head; printed spreadsheet row numbers down the left; a last date
+  // cell carrying its month; a trailing scrap row; and an unlabelled column
+  // after Call. Every one of these is taken from a real file.
+  const AWKWARD = [
+    ['Consultant duty Roster June 2027', 56, 68],
+    // Meetings/Leave/Call one row above the slot numbers.
+    ['Meetings etc.', 500, 84], ['Leave', 572, 84], ['Call', 645, 84],
+    ['1', 349, 100], ['2', 421, 100], ['3', 493, 100],
+    // ...and the data a full column to the LEFT of those numbers.
+    ['1', 57, 108], ['1', 100, 108], ['Tuesday', 140, 108],
+    ['Alpha', 284, 108], ['Bravo', 356, 108], ['Delta Leave', 572, 108], ['Alpha', 645, 108],
+    ['Bravo', 782, 108],                                   // unlabelled 2nd on call
+    ['2', 57, 120], ['2', 100, 120], ['Wednesday', 140, 120],
+    ['Charlie', 284, 120], ['Alpha & Bravo', 356, 120], ['Charlie', 645, 120],
+    // The month's last day, written with its month, and a scrap row under it.
+    ['3', 57, 132], ['3-Jun', 96, 132], ['Thursday', 140, 132],
+    ['Bravo', 284, 132], ['Bravo', 645, 132],
+    ['4', 57, 144], ['Alpha', 284, 144],
+  ];
+
+  const awk = await page.evaluate(async items => {
+    const H = 842;
+    const real = window.pdfjsLib;
+    window.pdfjsLib = { __proto__: real, getDocument: () => ({ promise: Promise.resolve({
+      numPages: 1,
+      getPage: () => Promise.resolve({
+        getViewport: () => ({ height: H, width: 1190 }),
+        getTextContent: () => Promise.resolve({
+          items: items.map(([s, x, y]) => ({ str: s, transform: [0,0,0,0, x, H - y] })) }),
+      })
+    })})};
+    try {
+      const d = await parseConsultantRosterPDF(new ArrayBuffer(0), VHW_FALLBACK_PROFILE);
+      for (const day of d.days) day.month = 5;            // June
+      const per = {};
+      for (const n of ['Alpha','Bravo','Charlie','Delta'])
+        per[n] = getConsultantShifts(d, n, 5, VHW_FALLBACK_PROFILE, 2027);
+      return { doctors: [...d.doctors].sort(), dates: d.days.map(x => x.date), per };
+    } finally { window.pdfjsLib = real; }
+  }, AWKWARD);
+
+  const atype = (who, day) => (awk.per[who][day] || {}).typeLabel || null;
+
+  check('a header split over two rows is still found', awk.dates.slice(0, 2), [1, 2]);
+  check('the printed row numbers are not mistaken for dates', awk.dates, [1, 2, 3]);
+  check('a last date written "3-Jun" is the 3rd', awk.dates.includes(3), true);
+  check('and the scrap row under it makes no fourth day', awk.dates.length, 3);
+  check('labels a column right of their data still line up',
+        [atype('Alpha', 1), atype('Bravo', 1)],
+        ['On Call - Weekday', 'Consultant Day - 07H30']);
+  check('leave is still leave', atype('Delta', 1), 'Leave - Annual');
+  check('a shared cell still credits both',
+        [atype('Alpha', 2), atype('Bravo', 2)],
+        ['Consultant Day - 07H30', 'Consultant Day - 07H30']);
+  // Bravo sits in the unlabelled column after Call on day 1. Nothing is
+  // labelled for it, so nothing is read out of it — Bravo's day 1 comes from
+  // slot 2 alone, with no overnight OT.
+  check('an unlabelled column past Call is not read as Call',
+        (awk.per['Bravo'][1] || {}).ot2f || '', '');
+  check('the staff list is still only the people on duty',
+        awk.doctors, ['Alpha', 'Bravo', 'Charlie']);
+
   if (errors.length) { failed++; console.log('\npage errors: ' + errors.join(' | ')); }
   await browser.close();
   console.log(failed ? `\n${failed} failing` : '\nthe consultant grid is read by its own header');

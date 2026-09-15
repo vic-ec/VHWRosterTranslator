@@ -372,15 +372,29 @@ downstream worked.
   (`day.month !== targetMonth`). A file renamed without its month name falls
   back to *today's* month and silently matches nothing. Worth remembering when
   testing: `c-jul2026.pdf` parses as September.
-- **The grid is read from its own header row, not from fixed coordinates.**
-  Every export prints `Day | Weekday | 1 | 2 | 3 | Meetings etc. | Leave |
-  Call` above the data, but at a different x in each file — the May 2026 export
-  sits some 35px left of July's. `findHeaderRow()` locates that row and
-  `columnsFromHeader()` bounds each column by the midpoint to its neighbours,
-  using *every* header on the row so a column the profile knows nothing about
-  (May's `2nd` on-call) still closes off the one before it. This is the same
-  move `findAnchors()` makes for the shift roster. `profile.pdf_columns`
-  remains the fallback for an export with no header row.
+- **The labels are matched to the data's own columns, in order.** Seven real
+  exports, and nothing about the geometry is constant: a label may sit over its
+  column (May), a whole column to the *right* of it (January's spreadsheet
+  export), or on a different row from the other labels (February, which puts
+  `1 2 3` a row below `Meetings etc. | Leave | Call`). The profile's fixed
+  `pdf_columns` fit two of the seven.
+
+  Two things do hold — the order is always slot 1, 2, 3, Meetings, Leave, Call
+  left to right, and the data forms columns of its own. So
+  `findHeaderLabels()` locates the labels (reading `1 2 3` right-to-left from a
+  band around the Meetings/Leave/Call row, since `1` is also every date and
+  every printed row number), `clusterColumns()` groups the data x values, and
+  `alignLabelsToColumns()` matches the two in order by edit distance —
+  a label with nothing beneath it matches nothing, and a column no label wants
+  is free. That last part is what keeps the date, the weekday, January's
+  printed row numbers and the trailing totals out of the roster.
+  `profile.pdf_columns` remains the fallback when no labels are found.
+
+  **A column of one entry is still a column.** July writes a single `Retreat`
+  in Meetings and May a single `PH` left of slot 1; while those were discarded
+  as noise there was no column there, and the neighbouring column's range —
+  which runs to the midpoint of the next column along — reached over and read
+  them as duty.
 
   What the fixed coordinates were doing, on files that look fine:
   July's Call column content sits at x=616 and the profile's `leave` range ends
@@ -394,6 +408,20 @@ downstream worked.
   May's at y=124, so **the first six and eight days of those months were
   dropped** before anything looked at them. `DATA_Y` now comes from the header
   row's own y.
+- **The date is the number nearest the left of the weekday**, not the first
+  number on the row: January prints the spreadsheet's own row numbers in a
+  column further left again. Its last cell also reads `31-Jan` rather than
+  `31`, so a date cell may carry a month — without that the row number won,
+  and the file reported a 34th of the month with the 31st missing.
+- **A row with no date and no weekday belongs to the day above it.** January's
+  grid ends with a stray. Pushing a second day object for the same date was
+  double-counting the last day of the month in every staff-list tally.
+- **Open question, not decided here:** April and May carry a column *after*
+  Call — labelled `2nd` in May, unlabelled in April — naming the supervising
+  consultant. Nothing is read out of it, so a second-on-call day currently
+  gives that consultant only their ordinary duty day. Whether it should also
+  carry the off-site overtime is a payroll question; the stated rule says the
+  off-site band belongs to first on call.
 - **Two names in one duty cell are two consultants on duty.** `PAIR_SEP`
   (`/\s*[/&]\s*/`) splits them wherever a name is matched or collected. The
   junior is first on call and the next consultant supervises, and HR needs each
