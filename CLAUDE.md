@@ -108,6 +108,28 @@ the parts worth knowing before editing:
   the same 19px inset and one `--control-h`. `#wizBackBtn`/`#wizNextBtn` need a
   `min-width` for that: the step nav keeps a short label clear of its chevron
   via its 264px, which will not fit two-up inside a modal on a phone.
+- **The viewer's find row is sticky, and the panel's top padding is zeroed for
+  it.** Stepping through matches is exactly when the next-match button is
+  wanted, and it used to scroll out of the panel with the first page. Sticky
+  offsets pin the **margin** box, so a negative top margin does not pull the
+  bar up to the scrollport — it pushes the visible box *down* by that much and
+  leaves a strip of `.modal-body`'s padding above it for pages to show
+  through. `#rosterViewOverlay .modal-body { padding-top: 0 }` and `.rv-tools`
+  supplies its own instead. The negative *side* margins are still wanted, or a
+  page slides through the 22px gap beside it, and the bar needs an opaque
+  background because pages pass behind it. `rvStep` already scrolls a match
+  with `block: 'center'`, so nothing lands underneath the bar.
+- **Extract data and Clear all follow the files.** `syncActionsSide()` puts the
+  row under whichever upload zone holds something — the department roster wins
+  when both do, a consultant-only upload moves it under the right-hand zone —
+  and it is called from both list renderers and from
+  `updateConsultantZoneVisibility()`, since hiding the zone has to bring the
+  buttons back. The move is gated by a **container query** on `.two` at 624px
+  (`2 x 300 + 24`, the width at which `auto-fit` grants a second track): a
+  fixed breakpoint would only approximate it because the threshold is the
+  grid's own width, and `grid-column: 2` in a one-column grid invents a track
+  rather than failing, which would wreck the phone layout. Both tracks are
+  equal, so the buttons keep their width exactly.
 - **Extract data and Clear all are a cell of the upload grid.** The row used
   to sit outside `.two`, so it was as wide as both upload zones; as a grid item
   with `grid-column: 1` it tracks the department zone through every reflow,
@@ -358,7 +380,9 @@ they are — see `profiles/README.md`.
 `tests/z1a.js` (the leave form's rows), `tests/leave-ui.js` (the leave-only
 panel end to end), `tests/names.js` (splitting a roster initial off a surname),
 `tests/initials.js` (the parser reading one in either PDF layout) and
-`tests/wizjump.js` (the phone step jump). It is a
+`tests/wizjump.js` (the phone step jump), `tests/actionsrow.js` (which zone
+Extract data sits under) and `tests/rosterview.js` (the viewer's sticky find
+row — needs `ROSTER=/path/to/a/roster.pdf`, and skips without it). It is a
 dev-only tool: the app still has no build step and no dependencies.
 
 A fixture is not a PDF. The parser reads nothing from one but `numPages` and,

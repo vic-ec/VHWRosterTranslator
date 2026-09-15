@@ -321,7 +321,21 @@ function removeFile(name){
     rosterList.style.display='none';
   }
 }
+// Extract data and Clear all sit under whichever upload zone holds the files.
+// The department roster is the primary one and wins when both have something;
+// a consultant-only upload moves the row under the right-hand zone. Called
+// from both list renderers, so it tracks every add, remove and clear.
+function syncActionsSide(){
+  const two = document.querySelector('.two');
+  if (!two) return;
+  const wrap = $('consultantZoneWrap');
+  const consultantShown = !!wrap && wrap.style.display !== 'none';
+  const dept = (state.pendingFiles||[]).length + (state.parsedFiles||[]).length;
+  const cons = (state.consultantFiles||[]).length;
+  two.classList.toggle('acts-right', consultantShown && cons > 0 && dept === 0);
+}
 function renderFileList(){
+  syncActionsSide();
   const all=[...state.parsedFiles.map(f=>({name:f.name,days:f.days.length,parsed:true})),
              ...state.pendingFiles.map(f=>({name:f.name,days:null,parsed:false}))];
   if(!all.length){rosterList.style.display='none';return;}
