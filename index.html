@@ -3287,8 +3287,21 @@ async function detectWordTable(arrayBuffer, fileName) {
   return { rows: norm, columns: width, isDocx };
 }
 
+// Two consultants in one duty cell — "Cloete & Els", "Cloete / Els" — are two
+// people on duty together, not one name: the junior is first on call and the
+// next consultant supervises, and HR needs each of them to have claimed the
+// day. Both separators appear in the real exports. This never applies to the
+// Meetings column, which is not a duty column at all.
+const PAIR_SEP = /\s*[/&]\s*/;
+
+// The six column names every consultant export prints above its grid. Declared
+// out here because findHeaderRow runs near the top of the parse, before a const
+// inside the function body would have been initialised.
+const HEADER_WANT = [['slot1',/^1$/], ['slot2',/^2$/], ['slot3',/^3$/],
+                     ['meetings',/^meetings/i], ['leave',/^leave$/i], ['call',/^call$/i]];
+
 async function parseConsultantRosterPDF(arrayBuffer, profile) {
-  const cols  = profile.pdf_columns;   // {slot1,slot2,slot3,meetings,leave,call}
+  let   cols  = profile.pdf_columns;   // {slot1,slot2,slot3,meetings,leave,call}
   const rules = profile.time_rules;    // weekday/weekend time bands
   const knownNames = new Set((profile.known_names || []).map(n => n.toLowerCase()));
 
@@ -3314,8 +3327,27 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     }
   }
 
-  // ── Find data start row: first row whose y >= profile.data_start_y ──
-  const DATA_Y = profile.data_start_y || 188;
+  // ── Group every word into rows first, so the header can be found ──
+  const byRow = ws => {
+    const m = new Map();
+    for (const w of ws) {
+      const ry = Math.round(w.y / 4) * 4;
+      if (!m.has(ry)) m.set(ry, []);
+      m.get(ry).push(w);
+    }
+    return [...m.entries()].sort((a, b) => a[0] - b[0])
+      .map(([y, g]) => ({ y, ws: g.sort((a, b) => a.x - b.x) }));
+  };
+  const allRows = byRow(words);
+
+  // ── Where the data starts ──
+  // profile.data_start_y is a fixed 188, and none of the real exports agree
+  // with it: July's first row sits at y=132 and May's at y=124, so the first
+  // six and eight days of those months were dropped before anything looked at
+  // them — a timesheet quietly missing its first week. The header row is the
+  // real boundary, and it is already being located for the columns.
+  const header = findHeaderRow(allRows);
+  const DATA_Y = header ? header.y + 4 : (profile.data_start_y || 188);
   const dataWords = words.filter(w => w.y >= DATA_Y);
 
   // ── Group words into rows by y (±4px tolerance) ──
@@ -3342,6 +3374,41 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     return null;
   }
 
+  // Every consultant export carries a header row naming all six columns —
+  // Day | Weekday | 1 | 2 | 3 | Meetings etc. | Leave | Call — but at a
+  // different x in each file: the May 2026 export sits some 35px left of
+  // July's, far enough that the profile's fixed pdf_columns read its Meetings
+  // column as slot 3 and its Leave column as Meetings. Reading each file's own
+  // header is the same move findAnchors() makes for the shift roster, and it
+  // costs nothing when the coordinates already agree. The profile's numbers
+  // stay as the fallback for an export with no header row.
+  // The one row carrying all six column names. Both the column boundaries and
+  // the start of the data are taken from it.
+  function findHeaderRow(allRows) {
+    for (const row of allRows) {
+      const at = {};
+      for (const [key, re] of HEADER_WANT) {
+        const hit = row.ws.find(w => re.test(w.text.trim()));
+        if (hit) at[key] = hit.x;
+      }
+      if (Object.keys(at).length === HEADER_WANT.length) return { y: row.y, at, ws: row.ws };
+    }
+    return null;
+  }
+  // Bound each column by the midpoint to its neighbours on the header row,
+  // using every header present — so a column this profile knows nothing about
+  // (May's "2nd" on-call) still closes off the one before it.
+  function columnsFromHeader(head) {
+    const xs = [...new Set(head.ws.map(w => w.x))].sort((a, b) => a - b);
+    const out = {};
+    for (const [key] of HEADER_WANT) {
+      const x = head.at[key], i = xs.indexOf(x);
+      out[key] = { x_min: i > 0 ? (xs[i-1] + x) / 2 : x - 40,
+                   x_max: i < xs.length - 1 ? (x + xs[i+1]) / 2 : Infinity };
+    }
+    return out;
+  }
+
   // Join compound surnames: "De" + "Haan" → "De Haan"
   // Also handles slash pairs: "Cloete" + "/" + "Els" → "Cloete/Els"
   function joinTokens(tokens) {
@@ -3349,8 +3416,8 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     let i = 0;
     while (i < tokens.length) {
       const t = tokens[i];
-      // Check if next token is "/" then a name (slash pair)
-      if (i + 2 < tokens.length && tokens[i+1] === '/') {
+      // Check if next token is "/" or "&" then a name (a pair)
+      if (i + 2 < tokens.length && (tokens[i+1] === '/' || tokens[i+1] === '&')) {
         result.push(t + '/' + tokens[i+2]);
         i += 3;
         continue;
@@ -3367,6 +3434,8 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     }
     return result;
   }
+
+  if (header) cols = columnsFromHeader(header);
 
   // ── Parse each row ──
   const days = [];
@@ -3412,14 +3481,16 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     // Collect all names on this day for the doctors set
     const allSlotNames = [...slot1Names, ...slot2Names, ...slot3Names];
     for (const name of allSlotNames) {
-      // Expand slash pairs
-      for (const n of name.split('/')) {
+      // Expand pairs. Two names in one duty cell are two consultants on duty
+      // together — the junior is first on call and the next supervises, and
+      // HR needs both to have claimed the day — so both are credited.
+      for (const n of name.split(PAIR_SEP)) {
         const trimmed = n.trim();
         if (trimmed.length > 1) doctors.add(trimmed);
       }
     }
     for (const name of callNames) {
-      for (const n of name.split('/')) {
+      for (const n of name.split(PAIR_SEP)) {
         const trimmed = n.trim();
         if (trimmed.length > 1) doctors.add(trimmed);
       }
@@ -3443,8 +3514,8 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       month: null,
       monthName: null,
       // Standard fields for compatibility
-      allNames: [...new Set([...allSlotNames.flatMap(n=>n.split('/')).map(n=>n.trim()),
-                             ...callNames.flatMap(n=>n.split('/')).map(n=>n.trim())])],
+      allNames: [...new Set([...allSlotNames.flatMap(n=>n.split(PAIR_SEP)).map(n=>n.trim()),
+                             ...callNames.flatMap(n=>n.split(PAIR_SEP)).map(n=>n.trim())])],
       shifts: [slot1Names, slot2Names, slot3Names, callNames],
       shiftType: isWeekend ? 'weekend' : 'weekday',
       consultant: null,
@@ -3469,7 +3540,7 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
   // Also handles cases where call column has extra text like "(2nd)" appended
   const nameMatches = (name) => {
     if (!name) return false;
-    return name.split('/').some(n => {
+    return name.split(PAIR_SEP).some(n => {
       const clean = n.trim().toLowerCase().replace(/[^a-z\s]/g,'').trim();
       // Exact match, or compound-surname containment (e.g. 'de haan' within 'de haan')
       if (clean === nl) return true;

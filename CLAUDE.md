@@ -372,12 +372,44 @@ downstream worked.
   (`day.month !== targetMonth`). A file renamed without its month name falls
   back to *today's* month and silently matches nothing. Worth remembering when
   testing: `c-jul2026.pdf` parses as September.
-- **Cells naming an event and two consultants become one junk name.** The May
-  2026 roster yields `Cloete & Els`, `SAPA Cloete & Els`, `Clin Gov Cloete &
-  Els` and `Retreat Cloete & Els` beside the four real consultants; each
-  matches no day, so picking one gives an empty month. Splitting on `&` would
-  credit both consultants with those days, which changes hours and is a policy
-  question, not a parsing one — so nothing splits them yet.
+- **The grid is read from its own header row, not from fixed coordinates.**
+  Every export prints `Day | Weekday | 1 | 2 | 3 | Meetings etc. | Leave |
+  Call` above the data, but at a different x in each file — the May 2026 export
+  sits some 35px left of July's. `findHeaderRow()` locates that row and
+  `columnsFromHeader()` bounds each column by the midpoint to its neighbours,
+  using *every* header on the row so a column the profile knows nothing about
+  (May's `2nd` on-call) still closes off the one before it. This is the same
+  move `findAnchors()` makes for the shift roster. `profile.pdf_columns`
+  remains the fallback for an export with no header row.
+
+  What the fixed coordinates were doing, on files that look fine:
+  July's Call column content sits at x=616 and the profile's `leave` range ends
+  at 618 — so **every on-call day was being recorded as annual leave**, and the
+  off-site overtime that goes with it was never claimed. Its Leave column was
+  read as Meetings, so real leave vanished. September happened to fall inside
+  the ranges and was correct, which is why the fault looked like "the May file
+  is odd" rather than what it was.
+- **The data starts below the header row, not at `data_start_y`.** That profile
+  value is 188 and no real export agrees: July's first data row is at y=132 and
+  May's at y=124, so **the first six and eight days of those months were
+  dropped** before anything looked at them. `DATA_Y` now comes from the header
+  row's own y.
+- **Two names in one duty cell are two consultants on duty.** `PAIR_SEP`
+  (`/\s*[/&]\s*/`) splits them wherever a name is matched or collected. The
+  junior is first on call and the next consultant supervises, and HR needs each
+  of them to have claimed the day, so both are credited. This never reaches the
+  Meetings column: `Clin Gov`, `Retreat`, `SAPA` and `FBH` are meetings — Clinical
+  Governance, teaching outreach, a conference, and False Bay Hospital outreach —
+  and none of them belongs on a duty roster. Only the column a name appears in
+  decides what is populated.
+- **The hours, for reference.** A working day is normal 07h30–15h30 with OT
+  on-site 15h30–16h30; first on call adds OT off-site 16h30–07h30 the next
+  morning. These live in `profile.time_rules` and `tests/consultant-parse.js`
+  asserts the bands, so a profile edit that breaks them is caught.
+- **Known gap:** the staff list is built from the duty and call columns only, so
+  a consultant who appears nowhere but the Leave column for a whole month
+  cannot be picked. Their leave parses correctly once selected — it is a gap in
+  the list, not in the parse.
 
 ## Output documents
 
@@ -414,7 +446,10 @@ Extract data sits under), `tests/rosterview.js` (the viewer's sticky find
 row — needs `ROSTER=/path/to/a/roster.pdf`, and skips without it) and
 `tests/consultant.js` (a consultant roster standing alone — its first half
 drives the gate with no file at all, the rest runs a real upload when
-`CONSULTANT_ROSTER` points at one). It is a
+`CONSULTANT_ROSTER` points at one) and `tests/consultant-parse.js` (the
+consultant grid itself, on a synthetic list of `{str, x, y}` whose columns
+deliberately do *not* match `pdf_columns`, so it fails on the pre-header-anchor
+parser in 11 of its 12 checks). It is a
 dev-only tool: the app still has no build step and no dependencies.
 
 A fixture is not a PDF. The parser reads nothing from one but `numPages` and,
