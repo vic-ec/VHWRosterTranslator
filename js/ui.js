@@ -1596,7 +1596,17 @@ function unlockPageScroll(){
 // The file is read again from the handle held in state — nothing is copied and
 // nothing leaves the browser.
 function rosterViewFiles(){
-  return (state.parsedFiles || []).filter(f => f && f.file);
+  // A department roster keeps its File on the parsed record; a consultant
+  // roster is only ever a File in its own list. Both are the file the schedule
+  // came from, and on a consultant-only upload the consultant file is the one
+  // and only — which is why View roster file sat disabled over a roster the
+  // app had just parsed and drawn a month from. With more than one, the
+  // picker at the top of the panel already lets you choose between them, and
+  // a consultant roster is named by its month.
+  const dept = (state.parsedFiles || []).filter(f => f && f.file);
+  const cons = (state.consultantFiles || []).filter(Boolean)
+    .map(f => ({ name: f.name, file: f }));
+  return [...dept, ...cons];
 }
 async function renderRosterView(){
   const body = $('rosterViewBody'), note = $('rosterViewNote'), pick = $('rosterViewPick');

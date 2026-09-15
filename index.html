@@ -3316,7 +3316,11 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   for (const item of tc.items) {
     if (!item.str.trim()) continue;
     // Split fused tokens like "1Wednesday" into date+weekday
-    const fused = item.str.match(/^(\d{1,2})([A-Z][a-z]+)$/);
+    // "1Wednesday" and "1 Wednesday" are both used. Without the optional
+    // space the whole cell fails both the date test and the weekday test, so
+    // the row has no date, currentDate never advances and every row of the
+    // file is skipped — the April export parsed as zero days because of it.
+    const fused = item.str.match(/^(\d{1,2})\s*([A-Z][a-z]+)$/);
     if (fused) {
       const x = item.transform[4];
       const y = H - item.transform[5];
@@ -7546,7 +7550,17 @@ function unlockPageScroll(){
 // The file is read again from the handle held in state — nothing is copied and
 // nothing leaves the browser.
 function rosterViewFiles(){
-  return (state.parsedFiles || []).filter(f => f && f.file);
+  // A department roster keeps its File on the parsed record; a consultant
+  // roster is only ever a File in its own list. Both are the file the schedule
+  // came from, and on a consultant-only upload the consultant file is the one
+  // and only — which is why View roster file sat disabled over a roster the
+  // app had just parsed and drawn a month from. With more than one, the
+  // picker at the top of the panel already lets you choose between them, and
+  // a consultant roster is named by its month.
+  const dept = (state.parsedFiles || []).filter(f => f && f.file);
+  const cons = (state.consultantFiles || []).filter(Boolean)
+    .map(f => ({ name: f.name, file: f }));
+  return [...dept, ...cons];
 }
 async function renderRosterView(){
   const body = $('rosterViewBody'), note = $('rosterViewNote'), pick = $('rosterViewPick');

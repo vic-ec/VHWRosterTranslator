@@ -73,6 +73,17 @@ const check = (name, got, want) => {
       return b ? b.disabled : 'no button';
     }), false);
 
+    // The file the schedule came from must be viewable. On a consultant-only
+    // upload it is the only file there is, and View roster file used to sit
+    // disabled over a roster the app had just drawn a month from.
+    check('the uploaded roster can be viewed back',
+          await page.evaluate(() => rosterViewFiles().length > 0), true);
+    check('and the View roster file button is enabled',
+          await page.evaluate(() => {
+            const b = document.getElementById('viewRosterBtn');
+            return b ? b.disabled : 'missing';
+          }), false);
+
     // And the schedule it leads to is real.
     const first = await page.evaluate(() => {
       const c = [...document.querySelectorAll('.doctor-chip')]

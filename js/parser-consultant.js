@@ -44,7 +44,11 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   for (const item of tc.items) {
     if (!item.str.trim()) continue;
     // Split fused tokens like "1Wednesday" into date+weekday
-    const fused = item.str.match(/^(\d{1,2})([A-Z][a-z]+)$/);
+    // "1Wednesday" and "1 Wednesday" are both used. Without the optional
+    // space the whole cell fails both the date test and the weekday test, so
+    // the row has no date, currentDate never advances and every row of the
+    // file is skipped — the April export parsed as zero days because of it.
+    const fused = item.str.match(/^(\d{1,2})\s*([A-Z][a-z]+)$/);
     if (fused) {
       const x = item.transform[4];
       const y = H - item.transform[5];
