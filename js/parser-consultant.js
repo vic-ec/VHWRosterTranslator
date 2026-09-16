@@ -99,6 +99,24 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   const MONTHS_IDX = {January:0,February:1,March:2,April:3,May:4,June:5,
     July:6,August:7,September:8,October:9,November:10,December:11};
 
+  // ── The month this roster is for ────────────────────────────────────────
+  // It is printed at the top of the sheet — "Consultant duty Roster April
+  // 2026" — and the grid itself never repeats it. The caller used to take it
+  // from the file name alone, so "Consultant Duty Roster 2026 Shared.pdf"
+  // fell through to *today's* month: April's roster was filed as September,
+  // and getConsultantShifts drops every day whose month is not the selected
+  // one, so the preview showed April's duties against September's dates.
+  // Everything above the header row is title rather than grid, so no date
+  // cell and no weekday can be mistaken for the month.
+  const titleText = words.filter(w => w.y < DATA_Y)
+    .sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.text).join(' ');
+  const titleHit = titleText.match(new RegExp(
+    '\\b(' + Object.keys(MONTHS_IDX).join('|') + ')\\b[^0-9]{0,12}(20\\d{2})?', 'i'));
+  const titleMonthName = titleHit
+    ? titleHit[1][0].toUpperCase() + titleHit[1].slice(1).toLowerCase() : null;
+  const titleMonth = titleMonthName !== null ? MONTHS_IDX[titleMonthName] : null;
+  const titleYear  = titleHit && titleHit[2] ? parseInt(titleHit[2], 10) : null;
+
   function colFor(x) {
     for (const [name, {x_min, x_max}] of Object.entries(cols)) {
       if (x >= x_min && x < x_max) return name;
@@ -387,7 +405,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     });
   }
 
-  return { days, doctors };
+  return { days, doctors, month: titleMonth, monthName: titleMonthName, year: titleYear };
 }
 
 // ── getConsultantShifts ──────────────────────────────────────────────────────

@@ -78,7 +78,14 @@ the parts worth knowing before editing:
 
 - **`wizBlockedReason(step)` is the single source of truth** for whether the
   step's Continue button is disabled *and* for the sentence saying why. Add a
-  new precondition there, not in two places.
+  new precondition there, not in two places. It returns three things, not two:
+  `null` for a step that is done, a **string** for one blocked by something the
+  user has to go and find, and **`true`** for one blocked by a control they are
+  already looking at — Extract data in step 1, the review tickbox in step 2 —
+  where the sentence only read the screen back to them. `true` still disables
+  Continue and still greys the later steps; it just says nothing, in the step
+  panel and in the phone's jump panel alike. Anything printing a reason must
+  therefore check it is a string first.
 - **Only two variables belong to the wizard**, `wizStep` and `wizReviewed`,
   both session-only. Nothing about position, roster or details is persisted;
   `localStorage` still holds only `ec_roster_profile` and
@@ -374,12 +381,22 @@ downstream worked.
   even once the first was fixed Continue stayed disabled over a staff list the
   app had already drawn. `wizRefresh()` now runs after both branches of the
   parse. Verified end to end on three real consultant rosters.
-- **The month and year come from the file name**, in
-  `parseAndStoreConsultantRoster()` — the grid itself carries no month, and
+- **The month and year come off the sheet's own title line** — "Consultant duty
+  Roster April 2026", printed above the header row, which the grid itself never
+  repeats. `parseConsultantRosterPDF` reads it out of everything above `DATA_Y`
+  (so no date cell and no weekday can be mistaken for it) and returns
+  `{month, monthName, year}`; `parseAndStoreConsultantRoster()` prefers that,
+  falls back to the file name, and only then to today's date.
+
+  It used to be the file name alone, and that is a trap with teeth:
   `getConsultantShifts` skips every day whose `month` does not equal the target
-  (`day.month !== targetMonth`). A file renamed without its month name falls
-  back to *today's* month and silently matches nothing. Worth remembering when
-  testing: `c-jul2026.pdf` parses as September.
+  (`day.month !== targetMonth`), so a file saved as
+  `Consultant Duty Roster 2026 Shared.pdf` — an April roster with no month in
+  its name — was filed under whatever month it happened to be opened in, and
+  the preview then showed April's duties against September's dates, with no
+  way to correct the month in the app. `tests/consultant.js` replays exactly
+  that file name against a synthetic April grid; it fails on the pre-fix
+  bundle with September.
 - **The labels are matched to the data's own columns, in order.** Seven real
   exports, and nothing about the geometry is constant: a label may sit over its
   column (May), a whole column to the *right* of it (January's spreadsheet

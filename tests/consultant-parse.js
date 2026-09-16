@@ -68,13 +68,23 @@ const ITEMS = [
     })})};
     try {
       const d = await parseConsultantRosterPDF(new ArrayBuffer(0), VHW_FALLBACK_PROFILE);
-      for (const day of d.days) day.month = 2;           // March
+      // Stamp with the month the parser read, not a constant — so the month
+      // the title row gives has to be the right one for anything below to pass.
+      for (const day of d.days) day.month = d.month;
       const per = {};
       for (const n of ['Alpha','Bravo','Charlie','Delta'])
-        per[n] = getConsultantShifts(d, n, 2, VHW_FALLBACK_PROFILE, 2027);
-      return { doctors: [...d.doctors].sort(), dates: d.days.map(x => x.date), per };
+        per[n] = getConsultantShifts(d, n, d.month, VHW_FALLBACK_PROFILE, d.year);
+      return { doctors: [...d.doctors].sort(), dates: d.days.map(x => x.date), per,
+               month: d.month, monthName: d.monthName, year: d.year };
     } finally { window.pdfjsLib = real; }
   }, ITEMS);
+
+  // The month comes off the sheet's own title line. The file name is only a
+  // fallback now: a roster saved without its month in the name used to be
+  // filed under whatever month it was opened in, and every day of it was then
+  // filtered out of the month the app said it was showing.
+  check('the month is read from the title row',
+        [parsed.month, parsed.monthName, parsed.year], [2, 'March', 2027]);
 
   // The row directly under the header is data, not chrome.
   check('every row is read, starting with the one under the header',
@@ -154,16 +164,19 @@ const ITEMS = [
     })})};
     try {
       const d = await parseConsultantRosterPDF(new ArrayBuffer(0), VHW_FALLBACK_PROFILE);
-      for (const day of d.days) day.month = 5;            // June
+      for (const day of d.days) day.month = d.month;
       const per = {};
       for (const n of ['Alpha','Bravo','Charlie','Delta'])
-        per[n] = getConsultantShifts(d, n, 5, VHW_FALLBACK_PROFILE, 2027);
-      return { doctors: [...d.doctors].sort(), dates: d.days.map(x => x.date), per };
+        per[n] = getConsultantShifts(d, n, d.month, VHW_FALLBACK_PROFILE, d.year);
+      return { doctors: [...d.doctors].sort(), dates: d.days.map(x => x.date), per,
+               month: d.month, monthName: d.monthName, year: d.year };
     } finally { window.pdfjsLib = real; }
   }, AWKWARD);
 
   const atype = (who, day) => (awk.per[who][day] || {}).typeLabel || null;
 
+  check('the title row is found above a two-row header too',
+        [awk.month, awk.monthName, awk.year], [5, 'June', 2027]);
   check('a header split over two rows is still found', awk.dates.slice(0, 2), [1, 2]);
   check('the printed row numbers are not mistaken for dates', awk.dates, [1, 2, 3]);
   check('a last date written "3-Jun" is the 3rd', awk.dates.includes(3), true);

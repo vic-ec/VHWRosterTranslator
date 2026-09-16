@@ -1261,7 +1261,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
   <div class="brand">
     <span class="brand-mark"></span>
     <span class="brand-name" id="headerTitle">Hospital Roster Translator</span>
-    <span class="brand-ver">v15.09.2026</span>
+    <span class="brand-ver">v16.09.2026</span>
   </div>
   <span class="ec-mode" id="ecMode" style="display:none;"></span>
   <span class="hdr-ctx" id="hdrCtx" hidden>
@@ -1640,7 +1640,7 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
 
 <footer>
   <div class="wrap footer-inner">
-    <span class="copy">&copy; vic-ec &middot; v15.09.2026</span>
+    <span class="copy">&copy; vic-ec &middot; v16.09.2026</span>
     <a href="#" id="openWizardLink">Set up a new profile</a>
     <a href="mailto:Paul.Xafis&#64;westerncape.gov.za?subject=EC%20Roster%20Translator%20%E2%80%94%20Feedback">Send feedback</a>
   </div>
@@ -3399,6 +3399,24 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   const MONTHS_IDX = {January:0,February:1,March:2,April:3,May:4,June:5,
     July:6,August:7,September:8,October:9,November:10,December:11};
 
+  // ── The month this roster is for ────────────────────────────────────────
+  // It is printed at the top of the sheet — "Consultant duty Roster April
+  // 2026" — and the grid itself never repeats it. The caller used to take it
+  // from the file name alone, so "Consultant Duty Roster 2026 Shared.pdf"
+  // fell through to *today's* month: April's roster was filed as September,
+  // and getConsultantShifts drops every day whose month is not the selected
+  // one, so the preview showed April's duties against September's dates.
+  // Everything above the header row is title rather than grid, so no date
+  // cell and no weekday can be mistaken for the month.
+  const titleText = words.filter(w => w.y < DATA_Y)
+    .sort((a, b) => a.y - b.y || a.x - b.x).map(w => w.text).join(' ');
+  const titleHit = titleText.match(new RegExp(
+    '\\b(' + Object.keys(MONTHS_IDX).join('|') + ')\\b[^0-9]{0,12}(20\\d{2})?', 'i'));
+  const titleMonthName = titleHit
+    ? titleHit[1][0].toUpperCase() + titleHit[1].slice(1).toLowerCase() : null;
+  const titleMonth = titleMonthName !== null ? MONTHS_IDX[titleMonthName] : null;
+  const titleYear  = titleHit && titleHit[2] ? parseInt(titleHit[2], 10) : null;
+
   function colFor(x) {
     for (const [name, {x_min, x_max}] of Object.entries(cols)) {
       if (x >= x_min && x < x_max) return name;
@@ -3687,7 +3705,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     });
   }
 
-  return { days, doctors };
+  return { days, doctors, month: titleMonth, monthName: titleMonthName, year: titleYear };
 }
 
 // ── getConsultantShifts ──────────────────────────────────────────────────────
@@ -7277,18 +7295,27 @@ async function parseAndStoreConsultantRoster() {
       const buf = await readFile(cFile);
       const result = await parseConsultantRosterPDF(buf, activeProfile);
 
-      const fnYearMatch = cFile.name.match(/20\d{2}/);
-      const year = fnYearMatch ? parseInt(fnYearMatch[0]) : new Date().getFullYear();
-      const monthMatch = cFile.name.match(
+      // The sheet's own title line wins, the file name is the fallback, and
+      // today's date is the last resort. It used to be the file name alone —
+      // so "Consultant Duty Roster 2026 Shared.pdf", an April roster with no
+      // month in its name, was filed under whatever month it happened to be
+      // opened in, and every one of its days was then filtered out of the
+      // month the app said it was showing.
+      const fnYearMatch  = cFile.name.match(/20\d{2}/);
+      const fnMonthMatch = cFile.name.match(
         /January|February|March|April|May|June|July|August|September|October|November|December/i
       );
-      const detectedMonth = monthMatch
-        ? MONTHS_IDX[monthMatch[0].toLowerCase()]
-        : new Date().getMonth();
+      const detectedMonth = result.month != null ? result.month
+        : (fnMonthMatch ? MONTHS_IDX[fnMonthMatch[0].toLowerCase()]
+                        : new Date().getMonth());
+      const detectedName = result.month != null ? result.monthName
+        : (fnMonthMatch ? fnMonthMatch[0] : '');
+      const year = result.year != null ? result.year
+        : (fnYearMatch ? parseInt(fnYearMatch[0]) : new Date().getFullYear());
 
       for (const d of result.days) {
         d.month = detectedMonth;
-        d.monthName = monthMatch ? monthMatch[0] : '';
+        d.monthName = detectedName;
       }
       allDays.push(...result.days);
       result.doctors.forEach(d => allDoctors.add(d));
@@ -7431,13 +7458,17 @@ function wizDetailsDone(){
   const b = $('proceedDownloadBtn');
   return !!b && !b.disabled;
 }
-// Why the user cannot move on yet — shown, never merely implied.
+// Why the user cannot move on yet. Three answers: null for a step that is
+// done, a sentence for one that is blocked by something the user has to go and
+// find, and `true` for one blocked by a control they are already looking at —
+// the Extract data button in step 1, the review tickbox in step 2 — where the
+// sentence only read back what was on screen an inch away. `true` still blocks
+// Continue and still greys the later steps; it just says nothing.
 function wizBlockedReason(step){
-  if (step === 1) return wizExtracted() ? null
-    : 'Add a roster file and choose Extract data before continuing.';
+  if (step === 1) return wizExtracted() ? null : true;
   if (step === 2) {
     if (!wizPreviewed()) return 'Pick a name and a month, then choose Preview schedule.';
-    if (!wizReviewed)    return 'Confirm you have reviewed every day in the month.';
+    if (!wizReviewed)    return true;
     return null;
   }
   if (step === 3) return wizDetailsDone() ? null
@@ -7492,7 +7523,9 @@ function wizJumpOpen(){
   if (note) {
     let why = null;
     for (let s = 1; s <= 4 && !why; s++) if (!wizCanEnter(s)) why = wizBlockedReason(s - 1);
-    note.textContent = why || '';
+    // A wordless reason (`true`) blocks the step without a sentence to print.
+    if (typeof why !== 'string') why = '';
+    note.textContent = why;
     note.hidden = !why;
   }
 }
@@ -7538,7 +7571,7 @@ function wizRenderNav(){
     if (fwd) fwd.disabled = !!reason;
     // Step 3's reason is already printed under the fields it is about, so the
     // button stays disabled there but says nothing a second time.
-    const spoken = s.n === 3 ? null : reason;
+    const spoken = (s.n === 3 || reason === true) ? null : reason;
     if (why) {
       why.hidden = !spoken;
       const t = why.querySelector('.txt');
