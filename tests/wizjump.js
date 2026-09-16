@@ -40,7 +40,20 @@ const states = p => p.evaluate(()=>[...document.querySelectorAll('#wizJumpList .
  await p.click('#wizJumpBtn'); await p.waitForSelector('#wizJumpOverlay.open');
  check('nothing extracted: only step 1 is open', await states(p),
    [{n:'1',off:false,cur:true},{n:'2',off:true,cur:false},{n:'3',off:true,cur:false},{n:'4',off:true,cur:false}]);
- check('and it says why', (await p.textContent('#wizJumpNote')).includes('Extract data'), true);
+ // The step-1 precondition no longer speaks: Extract data is the button the
+ // user is looking at, so the sentence only read it back. The note still
+ // carries the reasons that send the user somewhere else, and is hidden when
+ // there is nothing to say.
+ check('and says nothing about the button already on screen', await p.evaluate(()=>{
+   const n=document.getElementById('wizJumpNote');
+   return [n.hidden, n.textContent.trim()];}), [true, '']);
+ check('the note still speaks for a precondition that is not on screen',
+   await p.evaluate(()=>{
+     state.consultantData={days:[{date:1,month:4}],doctors:new Set(['Cloete'])};
+     wizJumpOpen();
+     const n=document.getElementById('wizJumpNote');
+     return [n.hidden, n.textContent.includes('Preview schedule')];}), [false, true]);
+ await p.evaluate(()=>{ state.consultantData=null; wizJumpOpen(); });
  check('each button names its step', await p.evaluate(()=>
    [...document.querySelectorAll('#wizJumpList .btn .t')].map(t=>t.textContent.trim())),
    ['Upload','Review','Details','Generate']);

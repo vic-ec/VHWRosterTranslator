@@ -140,8 +140,11 @@ acknowledgement is a plain checkbox:
 > I have reviewed all days in this month, including shifts, swaps, leave and
 > additional hours.
 
-Until it is ticked, Continue on step 2 is disabled and says
-"Confirm you have reviewed every day in the month."
+Until it is ticked, Continue on step 2 is disabled. It says nothing: the
+checkbox is directly above the button, so the sentence only read back what was
+already on screen. `wizBlockedReason(2)` returns `true` rather than a string
+for this one — blocked, with nothing to add. Step 1 is the same, where Extract
+data is the control being waited on.
 
 It is never ticked programmatically, and it does not survive an edit: any
 change to the schedule calls `wizInvalidateReview()`, which unticks it and

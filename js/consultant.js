@@ -109,18 +109,27 @@ async function parseAndStoreConsultantRoster() {
       const buf = await readFile(cFile);
       const result = await parseConsultantRosterPDF(buf, activeProfile);
 
-      const fnYearMatch = cFile.name.match(/20\d{2}/);
-      const year = fnYearMatch ? parseInt(fnYearMatch[0]) : new Date().getFullYear();
-      const monthMatch = cFile.name.match(
+      // The sheet's own title line wins, the file name is the fallback, and
+      // today's date is the last resort. It used to be the file name alone —
+      // so "Consultant Duty Roster 2026 Shared.pdf", an April roster with no
+      // month in its name, was filed under whatever month it happened to be
+      // opened in, and every one of its days was then filtered out of the
+      // month the app said it was showing.
+      const fnYearMatch  = cFile.name.match(/20\d{2}/);
+      const fnMonthMatch = cFile.name.match(
         /January|February|March|April|May|June|July|August|September|October|November|December/i
       );
-      const detectedMonth = monthMatch
-        ? MONTHS_IDX[monthMatch[0].toLowerCase()]
-        : new Date().getMonth();
+      const detectedMonth = result.month != null ? result.month
+        : (fnMonthMatch ? MONTHS_IDX[fnMonthMatch[0].toLowerCase()]
+                        : new Date().getMonth());
+      const detectedName = result.month != null ? result.monthName
+        : (fnMonthMatch ? fnMonthMatch[0] : '');
+      const year = result.year != null ? result.year
+        : (fnYearMatch ? parseInt(fnYearMatch[0]) : new Date().getFullYear());
 
       for (const d of result.days) {
         d.month = detectedMonth;
-        d.monthName = monthMatch ? monthMatch[0] : '';
+        d.monthName = detectedName;
       }
       allDays.push(...result.days);
       result.doctors.forEach(d => allDoctors.add(d));

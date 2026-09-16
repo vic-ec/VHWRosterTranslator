@@ -439,7 +439,7 @@ $('parseBtn').addEventListener('click',async()=>{
   if(!state.pendingFiles.length && !state.consultantFile) return;
   // Block if both shift AND consultant files queued — they use different preview tables
   if(state.pendingFiles.length && state.consultantFiles?.length){
-    setStatus('Please extract the EC shift roster and consultant roster separately.','error');
+    setStatus('Please extract the department roster and consultant roster separately.','error');
     return;
   }
   const btn=$('parseBtn');btn.disabled=true;
@@ -1312,13 +1312,17 @@ function wizDetailsDone(){
   const b = $('proceedDownloadBtn');
   return !!b && !b.disabled;
 }
-// Why the user cannot move on yet — shown, never merely implied.
+// Why the user cannot move on yet. Three answers: null for a step that is
+// done, a sentence for one that is blocked by something the user has to go and
+// find, and `true` for one blocked by a control they are already looking at —
+// the Extract data button in step 1, the review tickbox in step 2 — where the
+// sentence only read back what was on screen an inch away. `true` still blocks
+// Continue and still greys the later steps; it just says nothing.
 function wizBlockedReason(step){
-  if (step === 1) return wizExtracted() ? null
-    : 'Add a roster file and choose Extract data before continuing.';
+  if (step === 1) return wizExtracted() ? null : true;
   if (step === 2) {
     if (!wizPreviewed()) return 'Pick a name and a month, then choose Preview schedule.';
-    if (!wizReviewed)    return 'Confirm you have reviewed every day in the month.';
+    if (!wizReviewed)    return true;
     return null;
   }
   if (step === 3) return wizDetailsDone() ? null
@@ -1373,7 +1377,9 @@ function wizJumpOpen(){
   if (note) {
     let why = null;
     for (let s = 1; s <= 4 && !why; s++) if (!wizCanEnter(s)) why = wizBlockedReason(s - 1);
-    note.textContent = why || '';
+    // A wordless reason (`true`) blocks the step without a sentence to print.
+    if (typeof why !== 'string') why = '';
+    note.textContent = why;
     note.hidden = !why;
   }
 }
@@ -1419,7 +1425,7 @@ function wizRenderNav(){
     if (fwd) fwd.disabled = !!reason;
     // Step 3's reason is already printed under the fields it is about, so the
     // button stays disabled there but says nothing a second time.
-    const spoken = s.n === 3 ? null : reason;
+    const spoken = (s.n === 3 || reason === true) ? null : reason;
     if (why) {
       why.hidden = !spoken;
       const t = why.querySelector('.txt');

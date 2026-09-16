@@ -8,8 +8,9 @@
 // The first half needs no file — it drives the gate directly. The second half
 // runs the real upload when CONSULTANT_ROSTER points at one; no consultant
 // roster is committed here, for the same reason no real roster is (see
-// tests/README.md). Note the month and year are read from the FILE NAME, so a
-// renamed file falls back to today's month — keep the month name in it.
+// tests/README.md). The month and year come off the sheet's own title line,
+// with the file name only as a fallback — so a roster renamed without its
+// month still lands in the right month.
 const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 
@@ -47,6 +48,45 @@ const check = (name, got, want) => {
     return [wizExtracted(), wizBlockedReason(1) !== null];
   }), [false, true]);
 
+  // ── the month, on a file whose name does not carry one ───────────────────
+  // The reported bug: "Consultant Duty Roster 2026 Shared.pdf" is an April
+  // roster, and with only the file name to go on it was filed under the month
+  // it happened to be opened in. getConsultantShifts drops every day whose
+  // month is not the selected one, so the preview then showed that roster's
+  // duties against a different month's dates. No PDF is needed to prove it:
+  // the parser reads nothing but numPages and a list of {str, x, y}.
+  const TITLED = [
+    ['Consultant duty Roster April 2026', 56, 84],
+    ['Day', 80, 124], ['Weekday', 133, 124],
+    ['1', 267, 124], ['2', 328, 124], ['3', 389, 124],
+    ['Meetings etc.', 433, 124], ['Leave', 504, 124], ['Call', 568, 124],
+    ['1', 84, 136], ['Wednesday', 117, 136], ['Alpha', 239, 136], ['Bravo', 544, 136],
+    ['2', 84, 148], ['Thursday', 117, 148], ['Bravo', 239, 148],
+  ];
+  check('a roster with no month in its file name still lands in its own month',
+        await page.evaluate(async items => {
+    const H = 842;
+    const real = window.pdfjsLib;
+    window.pdfjsLib = { __proto__: real, getDocument: () => ({ promise: Promise.resolve({
+      numPages: 1,
+      getPage: () => Promise.resolve({
+        getViewport: () => ({ height: H, width: 1190 }),
+        getTextContent: () => Promise.resolve({
+          items: items.map(([t, x, y]) => ({ str: t, transform: [0,0,0,0, x, H - y] })) }),
+      })
+    })})};
+    try {
+      activeProfile = VHW_FALLBACK_PROFILE;
+      state.parsedFiles = []; state.rosterData = null;
+      state.consultantFiles = [new File([new Uint8Array([37])],
+        'Consultant Duty Roster 2026 Shared.pdf', { type: 'application/pdf' })];
+      await parseAndStoreConsultantRoster();
+      return [document.getElementById('monthSelect').value,
+              document.getElementById('yearInput').value,
+              [...new Set(state.rosterData.days.map(d => d.month))]];
+    } finally { window.pdfjsLib = real; }
+  }, TITLED), ['3', '2026', [3]]);
+
   // ── the real thing ───────────────────────────────────────────────────────
   if (!ROSTER || !fs.existsSync(ROSTER)) {
     console.log('skip  set CONSULTANT_ROSTER=/path/to/a/consultant/roster.pdf for the upload checks');
@@ -61,7 +101,7 @@ const check = (name, got, want) => {
           await page.evaluate(() => (state.consultantData?.doctors?.size || 0) > 0), true);
     check('a staff list was built from it',
           await page.evaluate(() => document.querySelectorAll('.doctor-chip').length > 0), true);
-    check('the month and year came off the filename',
+    check('the month and year were detected',
           await page.evaluate(() => [document.getElementById('monthSelect').value !== '',
                                      /^\d{4}$/.test(document.getElementById('yearInput').value)]),
           [true, true]);
