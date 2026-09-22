@@ -42,7 +42,13 @@ const check = (name, got, want) => {
       Array.from({length: 3}, () =>
         '<div class="rv-page" style="height:900px;background:#ddd"></div>').join('');
   });
-  await page.evaluate(() => document.getElementById('hdrViewBtn').removeAttribute('hidden'));
+  await page.evaluate(() => {
+    // A file has to be retained for the view icons to show at all, and the
+    // pop-out button reads its extension.
+    state.consultantFiles = [new File([new Uint8Array([37])], 'roster.pdf',
+                                      { type: 'application/pdf' })];
+    document.getElementById('hdrViewBtn').removeAttribute('hidden');
+  });
   await page.click('#hdrViewBtn');
   await page.waitForTimeout(400);
   await stand();
@@ -153,6 +159,69 @@ const check = (name, got, want) => {
     return r.left < window.innerWidth - 100 && r.top < window.innerHeight - 40
         && r.right > 100 && r.top >= -1;
   }, p2), true);
+
+  // ── sizing it ────────────────────────────────────────────
+  // A fixed 1100px panel is no use beside the schedule on a wide screen and
+  // too big on a small one. The grip in the foot sizes it, and the panel is
+  // absolutely positioned so the grip tracks the pointer one-for-one — while
+  // the overlay centred it, widening moved the left edge by half the change
+  // and the grip crawled away at half speed.
+  const size = () => page.evaluate(() => {
+    const r = document.querySelector('#rosterViewOverlay .modal-panel').getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  const gripAt = () => page.evaluate(() => {
+    const r = document.querySelector('#rosterViewOverlay .rv-grip').getBoundingClientRect();
+    return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+  });
+  // Bring it back to the middle first: the check above left it parked hard
+  // right, where the grip is over the window edge and nothing can grab it.
+  await page.evaluate(() => {
+    const h = document.querySelector('#rosterViewOverlay .modal-head');
+    const r = h.getBoundingClientRect();
+    h.dispatchEvent(new MouseEvent('dblclick', { bubbles: true,
+      clientX: r.left + 60, clientY: r.top + r.height / 2 }));
+  });
+  await page.waitForTimeout(200);
+  const s0 = await size();
+  let g = await gripAt();
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(g.x - 300, g.y - 200, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  const s1 = await size();
+  check('the grip sizes the panel, pixel for pixel',
+        [s0.w - s1.w, s0.h - s1.h], [300, 200]);
+
+  // It cannot be shrunk to nothing: the tools row has to stay usable and the
+  // head has to stay grabbable.
+  g = await gripAt();
+  await page.mouse.move(g.x, g.y);
+  await page.mouse.down();
+  await page.mouse.move(10, 10, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(200);
+  const s2 = await size();
+  check('and not below its minimum', [s2.w >= 360, s2.h >= 240], [true, true]);
+  check('the find row is still usable at that size',
+        await page.isVisible('#rosterViewFind'), true);
+
+  // ── a window of its own ────────────────────────────────────
+  // A page element cannot leave the browser window, so a second screen needs
+  // a second window. Only for a PDF — a new tab has nothing to draw a .docx
+  // with, and the button is hidden rather than disabled, which needs its own
+  // [hidden] rule because .btn sets a display that outranks the UA one.
+  check('a PDF offers a window of its own',
+        await page.isVisible('#rosterViewPop'), true);
+  check('and a grid file does not', await page.evaluate(() => {
+    const keep = state.consultantFiles;
+    state.consultantFiles = [new File([new Uint8Array([1])], 'roster.docx')];
+    rvSyncPopBtn();
+    const hidden = document.getElementById('rosterViewPop').hidden;
+    state.consultantFiles = keep; rvSyncPopBtn();
+    return hidden;
+  }), true);
 
   // Parked hard right, it is the close button that has gone over the edge —
   // so the head recentres the panel on a double-click rather than leaving the

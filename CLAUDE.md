@@ -14,6 +14,12 @@ There is no build step, package manager, or test suite — this is a static site
 - Deployed via GitHub Pages directly from `index.html`.
 - **Every change to the app bumps the version string to that day's date**, as
   `vDD.MM.YYYY` — so an edit made on 14 September 2026 ships as `v14.09.2026`.
+  **A second build on the same day adds a lowercase letter**, `v22.09.2026b`,
+  then `c`, and so on. The bare date is the first build of that day. This is
+  not decoration: three builds shipped as `v22.09.2026` on 2026-09-22, and the
+  user reported a bug that the second of them had already fixed — the page in
+  front of them and the page that had just deployed carried the same number,
+  so there was nothing to tell them apart.
   It appears in exactly two places in `index.html`, the header `.brand-ver` and
   the footer `.copy`, and they must always agree; `grep -c 'v[0-9][0-9]\.' index.html`
   should return 2. Bump it for anything that changes what the app does or looks
@@ -149,21 +155,35 @@ the parts worth knowing before editing:
   is otherwise the only dismissal, which is the point: clicking a cell to edit
   it used to shut the file being checked against.
 
-  It is dragged by its head, and the offset outlives a close for the reason the
-  zoom does. Three things hold it together. **The panel is anchored to the top
-  of the overlay** (`align-self: flex-start`), because `rvApplyPos` sets its
-  height and a *centred* box moves its own top when its height changes — the
-  drag and the re-centring compounded and the panel ran away from the pointer.
-  **The height is that of the room below its own top**, so dragging it down
-  gives up height rather than pushing its foot — and the sideways scrollbar —
-  under the window edge. **`rvClampPos(x, y)` takes a candidate and returns the
-  allowed one**: `getBoundingClientRect` reports the panel as the transform
-  *currently applied* leaves it, so storing the new offset first and then
-  measuring compares an old rect with a new number and the clamp means
-  nothing — the panel could be dragged clean off screen. The clamp keeps 140px
-  of it on screen, which is enough head to drag it back by; parked hard right
-  it is the close button that has gone over the edge, so a double-click on the
-  head recentres it.
+  It is dragged by its head and sized by `.rv-grip` in its foot, and both
+  outlive a close for the reason the zoom does. **The panel is absolutely
+  positioned** and `rvApplyBox()` writes its left, top, width and height;
+  `rvBox` is the only state. It was centred by the overlay and nudged with a
+  transform, which cannot survive resizing: the overlay centres on both axes,
+  so widening the panel moves its left edge by half the change and the grip
+  crawls away from the pointer at half speed — the same feedback the height
+  and the drag had between them before, when a *centred* box moved its own top
+  as `rvApplyPos` changed its height. An explicit box has no layout to feed
+  back into, and because the overlay is `position: fixed; inset: 0` its
+  padding box is the viewport, so every number is a plain viewport coordinate.
+
+  `rvClampBox()` keeps **140px of the panel on screen** (the head is the only
+  way to bring a parked panel back, and the close button rides on it) and the
+  **foot inside the window** (the sideways scrollbar lives on it, which is why
+  the scroller was pinned to the panel at all), so dragging the panel down
+  borrows from its height and dragging it back up gives the height back —
+  `rvBox.h` is what was asked for, and what is applied is that capped by the
+  room available. Minimum 360x240. Parked hard right it is the close button
+  that has gone over the edge, so a double-click on the head puts the panel
+  back where it started, at the size it started.
+
+  **A page element cannot leave the browser window**, which is what a second
+  screen would need. `rvOpenInWindow()` hands the file to a window of its own
+  through a local blob URL — nothing is uploaded, and the browser's own PDF
+  viewer draws it. Offered for a PDF only: a new tab has nothing to render a
+  `.docx` or an `.xlsx` with, so `rvSyncPopBtn()` hides the button otherwise,
+  which needs its own `[hidden]` rule because `.btn` sets a display that
+  outranks the UA one.
 - **Extract data and Clear all follow the files.** `syncActionsSide()` puts the
   row under whichever upload zone holds something — the department roster wins
   when both do, a consultant-only upload moves it under the right-hand zone —
@@ -545,6 +565,16 @@ downstream worked.
   slot1 Els, slot2 Cloete, Call Els, second Cloete: Els and Cloete both get
   07h30–15h30, 15h30–16h30 and 16h30–07h30, while Xafis in slot 3 gets the
   first two only.
+- **A duty cell can qualify a name with the half of the day worked.** 19 June
+  2026 reads `Xafis/ Els (PM)` in slot 1 and `Els (AM)` in slot 2 — Els covers
+  the whole day across two slots. `stripQualifier()` drops the bracket inside
+  `joinTokens()`, which every name in the grid passes through. Without it the
+  name was unmatchable (`nameMatches` demands an exact match for a name under
+  four letters, and "els am" is not "els"), so **Els lost the day entirely,
+  first on call and all**, while the staff list gained `Els (AM)` and
+  `Els (PM)` as two more consultants. The day is credited in full: the app has
+  no half-day slot, and the times are editable, which is where a half day gets
+  corrected.
 - **Two names in one duty cell are two consultants on duty.** `PAIR_SEP`
   (`/\s*[/&]\s*/`) splits them wherever a name is matched or collected. The
   junior is first on call and the next consultant supervises, and HR needs each

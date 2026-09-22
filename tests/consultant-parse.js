@@ -248,10 +248,13 @@ const ITEMS = [
     ['4', 84, 160, 5], ['Thursday', 117, 160, 48],
     ['Charlie', 250, 160, 36],
     ['Bravo PALS, Alpha Leave', 452, 160, 112],    // centre 508
+    // Day 5: a duty cell qualifying its names with the half of the day worked.
+    ['5', 84, 172, 5], ['Friday', 117, 172, 34],
+    ['Alpha (AM) / Bravo (PM)', 218, 172, 100],    // centre 268
     // Day 6 is a Saturday, and the leave block runs straight through it.
-    ['6', 84, 172, 5], ['Saturday', 117, 172, 48],
-    ['Charlie', 250, 172, 36],
-    ['Alpha Leave', 480, 172, 56],
+    ['6', 84, 184, 5], ['Saturday', 117, 184, 48],
+    ['Charlie', 250, 184, 36],
+    ['Alpha Leave', 480, 184, 56],
   ];
 
   const ctr = await page.evaluate(async items => {
@@ -294,6 +297,19 @@ const ITEMS = [
   // one name got it wrong in both directions at once — the person on the
   // course was booked off and the person on leave was not.
   check('only the entry that says Leave is leave', day(4).leave, ['Alpha']);
+
+  // A duty cell can qualify a name to say the consultant worked half the day.
+  // The bracket made the name unmatchable and invented two consultants: on
+  // the June 2026 roster "Xafis/ Els (PM)" and "Els (AM)" cost Els the whole
+  // of the 19th, first on call and all, and put "Els (AM)" and "Els (PM)" in
+  // the staff list beside him.
+  check('a half-day bracket does not make a new person', day(5).s1, ['Alpha / Bravo']);
+  check('and both of them are credited for the day',
+        [ctype('Alpha', 5), ctype('Bravo', 5)],
+        ['Consultant Day - 07H30', 'Consultant Day - 07H30']);
+  check('so the staff list is only the people who exist',
+        [...new Set(ctr.days.flatMap(d => [...d.s1, ...d.s2, ...d.s3]))].sort(),
+        ['Alpha', 'Alpha / Bravo', 'Bravo / Charlie', 'Charlie', 'Delta']);
   check('so the one on a course keeps their duty day',
         [ctype('Alpha', 4), ctype('Bravo', 4)], ['Leave - Annual', null]);
 

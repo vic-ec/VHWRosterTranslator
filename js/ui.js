@@ -1848,7 +1848,8 @@ function rosterViewOpen(){
   renderRosterView();
   // The panel keeps where it was parked, but the window may have changed size
   // since — re-clamp before it is shown rather than after.
-  requestAnimationFrame(()=>{ rvPos=rvClampPos(rvPos.x,rvPos.y); rvApplyPos(); });
+  rvSyncPopBtn();
+  requestAnimationFrame(()=>{ rvApplyBox(); });
 }
 
 // ── Roster viewer: find and highlight ──────────────────────────────────────
@@ -2027,7 +2028,7 @@ document.addEventListener('click', e => {
 });
 
 document.addEventListener('change', e => {
-  if (e.target && e.target.id === 'rosterViewPick') renderRosterView();
+  if (e.target && e.target.id === 'rosterViewPick') { renderRosterView(); rvSyncPopBtn(); }
 });
 
 // The × inside a time box. Delegated, because attachEditHandlers replaces
@@ -2047,91 +2048,140 @@ document.addEventListener('click', e => {
   }
 });
 
-// ── Moving the viewer out of the way ───────────────────────────────────────
+// ── Moving and sizing the viewer ─────────────────────────────────────────────
 // The panel is read *against* the schedule, so it has to be possible to see
-// both: it is dragged by its head, and the offset outlives a close for the
-// same reason the zoom does — a file is checked against the schedule by
-// opening and shutting it repeatedly, and re-parking it every time would be
-// the whole cost of being able to park it at all.
+// both: it is dragged by its head and sized by the grip in its foot, and both
+// outlive a close for the reason the zoom does — a file is checked against the
+// schedule by opening and shutting it repeatedly, and re-parking and re-sizing
+// it every time would be the whole cost of being able to do either.
 //
-// The panel is centred by the overlay's flexbox, so the offset is a transform
-// rather than a left/top: nothing about the centring has to be unpicked, and
-// the layout still recentres by itself when the window changes size.
-let rvPos = { x: 0, y: 0 };
+// The panel is **absolutely positioned**, not centred by the overlay and
+// nudged with a transform. Centring and sizing fight each other: the overlay
+// centres on both axes, so widening the panel moves its left edge by half the
+// change and the grip crawls away from the pointer at half speed — the same
+// feedback the height and the drag had between them before. With an explicit
+// box there is no layout to feed back. Every number here is a viewport
+// coordinate, and the overlay is `position: fixed; inset: 0`, so its padding
+// box *is* the viewport and the panel's left/top read the same way.
+//
+// `w` and `h` are what the user asked for; what is applied is that capped by
+// the room actually available, so dragging the panel down borrows from its
+// height and dragging it back up gives the height back.
+const RV_MIN_W = 360, RV_MIN_H = 240, RV_PAD_X = 16, RV_PAD_Y = 24;
+let rvBox = null;                 // {x, y, w, h} — null until first opened
 const rvPanel = () => document.querySelector('#rosterViewOverlay .modal-panel');
-function rvApplyPos(){
+// Where the panel sits the first time, and what a double-click puts it back to.
+function rvDefaultBox(){
+  const w = Math.min(1100, Math.max(RV_MIN_W, window.innerWidth - RV_PAD_X * 2));
+  return { x: Math.round((window.innerWidth - w) / 2), y: RV_PAD_Y,
+           w, h: Math.max(RV_MIN_H, window.innerHeight - RV_PAD_Y * 2) };
+}
+// Keep the head reachable and the foot on screen. The head is the only way to
+// bring a parked panel back and the close button rides on it, so 140px of the
+// panel always stays in view; the foot stays inside the window because the
+// sideways scrollbar lives on it, which is the whole reason the scroller was
+// pinned to the panel in the first place.
+function rvClampBox(b){
+  const KEEP = 140, HEAD = 52;
+  const w = Math.max(RV_MIN_W, Math.min(b.w, window.innerWidth));
+  const x = Math.max(KEEP - w, Math.min(window.innerWidth - KEEP, b.x));
+  const y = Math.max(0, Math.min(window.innerHeight - HEAD, b.y));
+  const h = Math.max(RV_MIN_H, Math.min(b.h, window.innerHeight - y - RV_PAD_Y));
+  return { x, y, w, h };
+}
+function rvApplyBox(){
   const p = rvPanel();
   if (!p) return;
-  p.style.transform = rvPos.x || rvPos.y
-    ? `translate(${rvPos.x}px, ${rvPos.y}px)` : '';
-  // Dragged downwards, the panel's foot would pass under the window edge and
-  // take the sideways scrollbar with it — the very thing pinning the scroller
-  // to the panel was meant to stop. The panel is given the room left below
-  // its own top instead, so both scrollbars stay on screen wherever it is
-  // parked. This needs the panel to have a definite height rather than a
-  // max-height: the overlay centres it, so a box that shrinks to its content
-  // moves its own top and there is nothing stable to measure from.
-  p.style.height = Math.max(240, window.innerHeight - 48 - rvPos.y) + 'px';
+  if (!rvBox) rvBox = rvDefaultBox();
+  const b = rvClampBox(rvBox);
+  p.style.left = b.x + 'px';
+  p.style.top = b.y + 'px';
+  p.style.width = b.w + 'px';
+  // The is-wide rule caps the panel at 1100px. An explicit width outranks the
+  // `width: 100%` beside it but not that cap, so the cap is lifted here.
+  p.style.maxWidth = 'none';
+  p.style.height = b.h + 'px';
 }
-// Never let the head be dragged off screen — it is the only way to bring the
-// panel back, and the close button rides on it.
-//
-// This takes a *candidate* offset and returns the allowed one rather than
-// clamping rvPos in place: getBoundingClientRect reports the panel as the
-// transform currently applied leaves it, so the natural origin is the rect
-// minus the applied offset. Storing the new offset first and then reading the
-// rect measures the old transform against the new number and the clamp comes
-// out meaningless — the panel could be dragged clean off the screen.
-function rvClampPos(x, y){
-  const p = rvPanel();
-  if (!p) return { x, y };
-  const r = p.getBoundingClientRect();
-  const x0 = r.left - rvPos.x, y0 = r.top - rvPos.y;
-  const KEEP = 140, HEAD = 52;
-  return {
-    x: Math.max(KEEP - r.width - x0, Math.min(window.innerWidth - KEEP - x0, x)),
-    y: Math.max(-y0, Math.min(window.innerHeight - HEAD - y0, y)),
-  };
-}
-let rvDrag = null;
+// Move, and size. One pointer gesture either way, told apart by what was
+// grabbed: `mode` is 'move' or 'size' and `from` is the box as it was.
+let rvGrab = null;
 document.addEventListener('pointerdown', e => {
   if (!e.target || !e.target.closest) return;
-  const head = e.target.closest('#rosterViewOverlay .modal-head');
+  const grip = e.target.closest('#rosterViewOverlay .rv-grip');
   // The close button lives on the head and is not a handle.
-  if (!head || e.target.closest('.modal-close')) return;
-  const p = rvPanel();
-  if (!p) return;
-  rvDrag = { id: e.pointerId, x: e.clientX - rvPos.x, y: e.clientY - rvPos.y };
-  head.setPointerCapture(e.pointerId);
+  const head = !grip && !e.target.closest('.modal-close')
+    ? e.target.closest('#rosterViewOverlay .modal-head') : null;
+  const handle = grip || head;
+  if (!handle || !rvPanel()) return;
+  if (!rvBox) rvBox = rvDefaultBox();
+  rvGrab = { id: e.pointerId, mode: grip ? 'size' : 'move',
+             px: e.clientX, py: e.clientY, from: { ...rvBox } };
+  handle.setPointerCapture(e.pointerId);
   document.getElementById('rosterViewOverlay')?.classList.add('rv-dragging');
   e.preventDefault();
 });
 document.addEventListener('pointermove', e => {
-  if (!rvDrag || e.pointerId !== rvDrag.id) return;
-  rvPos = rvClampPos(e.clientX - rvDrag.x, e.clientY - rvDrag.y);
-  rvApplyPos();
+  if (!rvGrab || e.pointerId !== rvGrab.id) return;
+  const dx = e.clientX - rvGrab.px, dy = e.clientY - rvGrab.py, f = rvGrab.from;
+  rvBox = rvClampBox(rvGrab.mode === 'size'
+    ? { ...f, w: f.w + dx, h: f.h + dy }
+    : { ...f, x: f.x + dx, y: f.y + dy });
+  rvApplyBox();
 });
 for (const ev of ['pointerup', 'pointercancel'])
   document.addEventListener(ev, e => {
-    if (!rvDrag || e.pointerId !== rvDrag.id) return;
-    rvDrag = null;
+    if (!rvGrab || e.pointerId !== rvGrab.id) return;
+    rvGrab = null;
     document.getElementById('rosterViewOverlay')?.classList.remove('rv-dragging');
   });
-// Double-click the head to put it back in the middle. The clamp keeps 140px of
-// the panel on screen, which is enough of the head to drag it back by — but
-// pushed far to the right it is the *close button* that has gone off the edge,
-// and dragging a panel back just to shut it is a poor way to spend a minute.
+// Double-click the head to put it back where it started, at the size it
+// started. The clamp keeps 140px of the panel on screen, which is enough of
+// the head to drag it back by — but pushed far to the right it is the *close
+// button* that has gone off the edge, and dragging a panel back just to shut
+// it is a poor way to spend a minute.
 document.addEventListener('dblclick', e => {
   if (!e.target || !e.target.closest) return;
   if (!e.target.closest('#rosterViewOverlay .modal-head')) return;
   if (e.target.closest('.modal-close')) return;
-  rvPos = { x: 0, y: 0 };
-  rvApplyPos();
+  rvBox = rvDefaultBox();
+  rvApplyBox();
 });
 // A window that has shrunk can leave a parked panel off the edge.
 window.addEventListener('resize', () => {
   if (!document.getElementById('rosterViewOverlay')?.classList.contains('open')) return;
-  rvPos = rvClampPos(rvPos.x, rvPos.y); rvApplyPos();
+  rvApplyBox();
+});
+
+// A page element cannot leave the browser window, so the only way to put the
+// file on a second screen is to hand it to a window of its own. The blob is
+// local and same-origin — nothing is uploaded, which is what the privacy note
+// promises — and the browser's own PDF viewer draws it. Offered for a PDF
+// only: a new tab has nothing to render a .docx or an .xlsx with.
+let rvPopUrl = null;
+function rvCurrentFile(){
+  const files = rosterViewFiles();
+  if (!files.length) return null;
+  const pick = $('rosterViewPick');
+  return files[Math.min(pick ? Math.max(pick.selectedIndex, 0) : 0, files.length - 1)];
+}
+function rvOpenInWindow(){
+  const entry = rvCurrentFile();
+  if (!entry || !/\.pdf$/i.test(entry.name)) return;
+  if (rvPopUrl) URL.revokeObjectURL(rvPopUrl);
+  rvPopUrl = URL.createObjectURL(entry.file);
+  if (!window.open(rvPopUrl, '_blank'))
+    setStatus('The browser blocked the new window — allow pop-ups for this page.', 'error');
+}
+// Hidden rather than disabled for a grid file, the same rule the header's view
+// icons follow.
+function rvSyncPopBtn(){
+  const btn = $('rosterViewPop');
+  if (!btn) return;
+  const entry = rvCurrentFile();
+  btn.hidden = !entry || !/\.pdf$/i.test(entry.name);
+}
+document.addEventListener('click', e => {
+  if (e.target && e.target.closest && e.target.closest('#rosterViewPop')) rvOpenInWindow();
 });
 
 // ── Leave form only: a Z1(a) with no roster behind it ───────────────────────
