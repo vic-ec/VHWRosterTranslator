@@ -123,17 +123,47 @@ the parts worth knowing before editing:
   the same 19px inset and one `--control-h`. `#wizBackBtn`/`#wizNextBtn` need a
   `min-width` for that: the step nav keeps a short label clear of its chevron
   via its 264px, which will not fit two-up inside a modal on a phone.
-- **The viewer's find row is sticky, and the panel's top padding is zeroed for
-  it.** Stepping through matches is exactly when the next-match button is
-  wanted, and it used to scroll out of the panel with the first page. Sticky
-  offsets pin the **margin** box, so a negative top margin does not pull the
-  bar up to the scrollport — it pushes the visible box *down* by that much and
-  leaves a strip of `.modal-body`'s padding above it for pages to show
-  through. `#rosterViewOverlay .modal-body { padding-top: 0 }` and `.rv-tools`
-  supplies its own instead. The negative *side* margins are still wanted, or a
-  page slides through the 22px gap beside it, and the bar needs an opaque
-  background because pages pass behind it. `rvStep` already scrolls a match
-  with `block: 'center'`, so nothing lands underneath the bar.
+- **The viewer has one scroller, and the find row is not in it.** `.rv-body`
+  is it, for both axes; `#rosterViewOverlay .modal-body` is a flex column with
+  `overflow: hidden`, holding the tools row and the note as fixed rows above
+  it. So both scrollbars sit at the panel's own edges at every zoom, and the
+  find row cannot scroll away because it is outside the box that scrolls.
+
+  It was `position: sticky` inside a `.modal-body` that scrolled, and that
+  fixed the find row but not the scrollbars: the horizontal one belonged to a
+  `.rv-body` as tall as every page, so it sat at the bottom of the *content* —
+  off screen, reachable only by scrolling to the end of the file, which is
+  exactly when a zoomed-in reader needs it. (The sticky version also needed
+  `padding-top: 0` on the body, because sticky offsets pin the **margin** box
+  and a negative top margin pushed the bar *down* rather than pulling it up.
+  That zeroed padding is still there; `.rv-tools` still supplies its own, and
+  its negative *side* margins are still wanted or the row stops short of the
+  panel edge.)
+- **The viewer is modeless, and it moves.** It is read *against* the schedule,
+  so the page behind it stays live: `dialog()` takes an `opts.modeless` that
+  skips the scroll lock, the `inert` shell and the click-away dismissal, and
+  `.modal-overlay.is-modeless` drops the scrim and takes `pointer-events: none`
+  so only the panel catches a click. Escape closes it only while the focus is
+  inside it — a modal owns every key, a modeless panel must not swallow the
+  Escape that closes a `<select>` in the schedule behind it. The close button
+  is otherwise the only dismissal, which is the point: clicking a cell to edit
+  it used to shut the file being checked against.
+
+  It is dragged by its head, and the offset outlives a close for the reason the
+  zoom does. Three things hold it together. **The panel is anchored to the top
+  of the overlay** (`align-self: flex-start`), because `rvApplyPos` sets its
+  height and a *centred* box moves its own top when its height changes — the
+  drag and the re-centring compounded and the panel ran away from the pointer.
+  **The height is that of the room below its own top**, so dragging it down
+  gives up height rather than pushing its foot — and the sideways scrollbar —
+  under the window edge. **`rvClampPos(x, y)` takes a candidate and returns the
+  allowed one**: `getBoundingClientRect` reports the panel as the transform
+  *currently applied* leaves it, so storing the new offset first and then
+  measuring compares an old rect with a new number and the clamp means
+  nothing — the panel could be dragged clean off screen. The clamp keeps 140px
+  of it on screen, which is enough head to drag it back by; parked hard right
+  it is the close button that has gone over the edge, so a double-click on the
+  head recentres it.
 - **Extract data and Clear all follow the files.** `syncActionsSide()` puts the
   row under whichever upload zone holds something — the department roster wins
   when both do, a consultant-only upload moves it under the right-hand zone —
@@ -470,6 +500,14 @@ downstream worked.
   on-site 15h30–16h30; first on call adds OT off-site 16h30–07h30 the next
   morning. These live in `profile.time_rules` and `tests/consultant-parse.js`
   asserts the bands, so a profile edit that breaks them is caught.
+- **The status line counts the consultant files that parsed.** It said
+  "across 1 file(s)" however many were queued: it counted `state.consultantFile`
+  — the single-file field, which is one file whether nine were uploaded or one
+  — and the consultant-only branch had the `1` written into the string.
+  `parseAndStoreConsultantRoster()` now records `state.consultantFileCount` and
+  `state.consultantFileErrors`, and the line reports the count and names how
+  many files could not be read, since a consultant file that throws in there is
+  dropped with nothing but a console message.
 - **Known gap:** the staff list is built from the duty and call columns only, so
   a consultant who appears nowhere but the Leave column for a whole month
   cannot be picked. Their leave parses correctly once selected — it is a gap in
@@ -506,11 +544,12 @@ they are — see `profiles/README.md`.
 panel end to end), `tests/names.js` (splitting a roster initial off a surname),
 `tests/initials.js` (the parser reading one in either PDF layout) and
 `tests/wizjump.js` (the phone step jump), `tests/actionsrow.js` (which zone
-Extract data sits under), `tests/rosterview.js` (the viewer's sticky find
-row — needs `ROSTER=/path/to/a/roster.pdf`, and skips without it) and
+Extract data sits under), `tests/rosterview.js` (the viewer — its first half drives the modeless rules,
+the scroller and the drag over stand-in pages, and `ROSTER=/path/to/a/roster.pdf`
+adds the find and zoom checks on a real file) and
 `tests/consultant.js` (a consultant roster standing alone — its first half
-drives the gate with no file at all, the rest runs a real upload when
-`CONSULTANT_ROSTER` points at one) and `tests/consultant-parse.js` (the
+drives the gate, the month and the file count with no file at all, the rest
+runs a real upload when `CONSULTANT_ROSTER` points at one) and `tests/consultant-parse.js` (the
 consultant grid itself, on a synthetic list of `{str, x, y}` whose columns
 deliberately do *not* match `pdf_columns`, so it fails on the pre-header-anchor
 parser in 11 of its 12 checks). It is a

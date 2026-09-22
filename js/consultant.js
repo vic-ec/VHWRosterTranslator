@@ -60,6 +60,8 @@ function addConsultantFiles(files) {
   }
   state.consultantFile = state.consultantFiles[0] || null; // backward compat
   state.consultantData = null;
+  state.consultantFileCount = 0;
+  state.consultantFileErrors = [];
   renderConsultantList();
   if (state.consultantFiles.length) {
     $('parseBtn').disabled = false;
@@ -71,6 +73,8 @@ function removeConsultantFile(name) {
   state.consultantFiles = (state.consultantFiles || []).filter(f => f.name !== name);
   state.consultantFile = state.consultantFiles[0] || null;
   state.consultantData = null;
+  state.consultantFileCount = 0;
+  state.consultantFileErrors = [];
   renderConsultantList();
   if (!state.pendingFiles.length && !state.consultantFiles?.length) {
     $('parseBtn').disabled = true;
@@ -83,6 +87,8 @@ function setConsultantFile(file) {
   state.consultantFiles = [];
   state.consultantFile = null;
   state.consultantData = null;
+  state.consultantFileCount = 0;
+  state.consultantFileErrors = [];
   renderConsultantList();
   if (!state.pendingFiles.length) {
     if ($('parseBtn')) $('parseBtn').disabled = true;
@@ -103,6 +109,14 @@ async function parseAndStoreConsultantRoster() {
   const allDays = [], allDoctors = new Set();
   let lastDetectedMonth = new Date().getMonth();
   let lastDetectedYear  = new Date().getFullYear();
+  // How many files actually contributed, and which did not. The status line
+  // used to say "across 1 file(s)" however many were queued — it counted
+  // state.consultantFile, the single-file field, and the consultant-only
+  // branch had the 1 written into the string. A file that throws in here is
+  // dropped with only a console message, so the count has to be of files that
+  // parsed, and the ones that did not have to be named.
+  let okFiles = 0;
+  const failedFiles = [];
 
   for (const cFile of filesToParse) {
     try {
@@ -135,12 +149,16 @@ async function parseAndStoreConsultantRoster() {
       result.doctors.forEach(d => allDoctors.add(d));
       lastDetectedMonth = detectedMonth;
       lastDetectedYear  = year;
+      okFiles++;
     } catch(err) {
       console.error('[Consultant] Parse error for', cFile.name, err);
+      failedFiles.push(cFile.name);
     }
   }
 
   state.consultantData = { days: allDays, doctors: allDoctors };
+  state.consultantFileCount  = okFiles;
+  state.consultantFileErrors = failedFiles;
 
   // Merge into main rosterData
   if (state.rosterData && state.parsedFiles.length) {
