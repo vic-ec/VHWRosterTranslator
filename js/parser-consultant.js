@@ -282,7 +282,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   // two entries apart inside one cell, which is where the roster itself has
   // drawn the distinction.
   function readLeaveCell(tokens) {
-    const cell = tokens.join(' ').replace(/\s+/g, ' ').trim();
+    const cell = stripQualifier(tokens.join(' '));
     if (!cell) return [];
     const parts = cell.split(/\s*[,;]\s*/).filter(Boolean);
     const names = [];
@@ -296,6 +296,19 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     }
     return names;
   }
+
+  // A duty cell can qualify a name to say the consultant worked only part of
+  // the day: 19 June 2026 reads "Xafis/ Els (PM)" in slot 1 and "Els (AM)" in
+  // slot 2 — Els covers the whole day across two slots. The bracket is
+  // dropped, because it made the name unmatchable: "Els (AM)" is not Els to
+  // nameMatches (a three-letter name demands an exact match), so Els lost the
+  // day entirely, first on call and all, while the staff list gained two
+  // consultants who do not exist. The day is credited in full; the app has no
+  // half-day slot, and the times are editable, which is where a half day gets
+  // corrected.
+  const QUALIFIER_RE = /\s*\([^)]*\)\s*/g;
+  const stripQualifier = n =>
+    String(n).replace(QUALIFIER_RE, ' ').replace(/\s+/g, ' ').trim();
 
   // Join compound surnames: "De" + "Haan" → "De Haan"
   // Also handles slash pairs: "Cloete" + "/" + "Els" → "Cloete/Els"
@@ -320,7 +333,9 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       result.push(t);
       i++;
     }
-    return result;
+    // Every name in the grid comes out of here, so this is the one place the
+    // qualifier has to be dropped.
+    return result.map(stripQualifier).filter(Boolean);
   }
 
   if (header) {
