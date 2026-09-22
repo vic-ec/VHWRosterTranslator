@@ -366,7 +366,7 @@ $('clearBtn').addEventListener('click',()=>{
   state.pendingFiles=[];state.parsedFiles=[];state.rosterData=null;state.selectedDoctor=null;
   state.editedShifts={};state.originalShifts={};state.dirtyDays.clear();state.availableMonths=new Set();
   state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',address:''};
-  state.consultantFile=null;state.consultantFiles=[];state.consultantData=null;if($('consultantZone')) setConsultantFile(null);
+  state.consultantFile=null;state.consultantFiles=[];state.consultantData=null;state.consultantFileCount=0;state.consultantFileErrors=[];if($('consultantZone')) setConsultantFile(null);
   renderFileList();$('parseBtn').disabled=true;$('clearBtn').style.display='none';
   rosterList.style.display='none';setStatus('');
   $('doctorGrid').innerHTML='<div class="empty">No roster parsed yet</div>';
@@ -486,14 +486,24 @@ $('parseBtn').addEventListener('click',async()=>{
       await parseAndStoreConsultantRoster();
       const cDocs=state.consultantData?.doctors?.size||0;
       const total2=state.rosterData?.days.length||0,docs2=state.rosterData?.doctors.size||0;
-      const nFiles2=state.parsedFiles.length+(state.consultantFile?1:0);
+      // Every consultant file that parsed, not one. This counted
+      // state.consultantFile \u2014 the single-file field, which is 1 whether nine
+      // files were queued or one \u2014 and the consultant-only line had the 1
+      // written into it, so nine months of roster reported "across 1 file(s)".
+      const cFiles=state.consultantFileCount||0;
+      const cBad=(state.consultantFileErrors||[]).length;
+      const nFiles2=state.parsedFiles.length+cFiles;
+      const plural=n=>n===1?'file':'files';
+      // A consultant file that throws is dropped with only a console message,
+      // so a short count has to say so rather than quietly reading as a total.
+      const skipped=cBad?` \u00b7 ${cBad} ${plural(cBad)} could not be read`:'';
       const shiftOnly2=state.parsedFiles.length>0;
       setStatus(errors
         ?`\u2713 Extracted with ${errors} error(s) \u2014 ${total2} days, ${docs2} staff`
         :shiftOnly2
-          ?`\u2713 ${total2} days \u00b7 ${docs2} staff \u00b7 ${cDocs} consultant(s) across ${nFiles2} file(s)`
-          :`\u2713 ${total2} days \u00b7 ${cDocs} consultant(s) across 1 file(s)`
-        ,errors?'error':'success');
+          ?`\u2713 ${total2} days \u00b7 ${docs2} staff \u00b7 ${cDocs} consultant(s) across ${nFiles2} ${plural(nFiles2)}${skipped}`
+          :`\u2713 ${total2} days \u00b7 ${cDocs} consultant(s) across ${nFiles2} ${plural(nFiles2)}${skipped}`
+        ,errors||cBad?'error':'success');
     }catch(cerr){
       console.error('Consultant parse error',cerr);
       const total=state.rosterData?.days.length||0,docs=state.rosterData?.doctors.size||0;
@@ -1718,6 +1728,9 @@ function rosterViewOpen(){
   const find=$('rosterViewFind');
   if(find) find.value=state.selectedDoctor||'';
   renderRosterView();
+  // The panel keeps where it was parked, but the window may have changed size
+  // since — re-clamp before it is shown rather than after.
+  requestAnimationFrame(()=>{ rvPos=rvClampPos(rvPos.x,rvPos.y); rvApplyPos(); });
 }
 
 // ── Roster viewer: find and highlight ──────────────────────────────────────
@@ -1897,6 +1910,93 @@ document.addEventListener('click', e => {
 
 document.addEventListener('change', e => {
   if (e.target && e.target.id === 'rosterViewPick') renderRosterView();
+});
+
+// ── Moving the viewer out of the way ───────────────────────────────────────
+// The panel is read *against* the schedule, so it has to be possible to see
+// both: it is dragged by its head, and the offset outlives a close for the
+// same reason the zoom does — a file is checked against the schedule by
+// opening and shutting it repeatedly, and re-parking it every time would be
+// the whole cost of being able to park it at all.
+//
+// The panel is centred by the overlay's flexbox, so the offset is a transform
+// rather than a left/top: nothing about the centring has to be unpicked, and
+// the layout still recentres by itself when the window changes size.
+let rvPos = { x: 0, y: 0 };
+const rvPanel = () => document.querySelector('#rosterViewOverlay .modal-panel');
+function rvApplyPos(){
+  const p = rvPanel();
+  if (!p) return;
+  p.style.transform = rvPos.x || rvPos.y
+    ? `translate(${rvPos.x}px, ${rvPos.y}px)` : '';
+  // Dragged downwards, the panel's foot would pass under the window edge and
+  // take the sideways scrollbar with it — the very thing pinning the scroller
+  // to the panel was meant to stop. The panel is given the room left below
+  // its own top instead, so both scrollbars stay on screen wherever it is
+  // parked. This needs the panel to have a definite height rather than a
+  // max-height: the overlay centres it, so a box that shrinks to its content
+  // moves its own top and there is nothing stable to measure from.
+  p.style.height = Math.max(240, window.innerHeight - 48 - rvPos.y) + 'px';
+}
+// Never let the head be dragged off screen — it is the only way to bring the
+// panel back, and the close button rides on it.
+//
+// This takes a *candidate* offset and returns the allowed one rather than
+// clamping rvPos in place: getBoundingClientRect reports the panel as the
+// transform currently applied leaves it, so the natural origin is the rect
+// minus the applied offset. Storing the new offset first and then reading the
+// rect measures the old transform against the new number and the clamp comes
+// out meaningless — the panel could be dragged clean off the screen.
+function rvClampPos(x, y){
+  const p = rvPanel();
+  if (!p) return { x, y };
+  const r = p.getBoundingClientRect();
+  const x0 = r.left - rvPos.x, y0 = r.top - rvPos.y;
+  const KEEP = 140, HEAD = 52;
+  return {
+    x: Math.max(KEEP - r.width - x0, Math.min(window.innerWidth - KEEP - x0, x)),
+    y: Math.max(-y0, Math.min(window.innerHeight - HEAD - y0, y)),
+  };
+}
+let rvDrag = null;
+document.addEventListener('pointerdown', e => {
+  if (!e.target || !e.target.closest) return;
+  const head = e.target.closest('#rosterViewOverlay .modal-head');
+  // The close button lives on the head and is not a handle.
+  if (!head || e.target.closest('.modal-close')) return;
+  const p = rvPanel();
+  if (!p) return;
+  rvDrag = { id: e.pointerId, x: e.clientX - rvPos.x, y: e.clientY - rvPos.y };
+  head.setPointerCapture(e.pointerId);
+  document.getElementById('rosterViewOverlay')?.classList.add('rv-dragging');
+  e.preventDefault();
+});
+document.addEventListener('pointermove', e => {
+  if (!rvDrag || e.pointerId !== rvDrag.id) return;
+  rvPos = rvClampPos(e.clientX - rvDrag.x, e.clientY - rvDrag.y);
+  rvApplyPos();
+});
+for (const ev of ['pointerup', 'pointercancel'])
+  document.addEventListener(ev, e => {
+    if (!rvDrag || e.pointerId !== rvDrag.id) return;
+    rvDrag = null;
+    document.getElementById('rosterViewOverlay')?.classList.remove('rv-dragging');
+  });
+// Double-click the head to put it back in the middle. The clamp keeps 140px of
+// the panel on screen, which is enough of the head to drag it back by — but
+// pushed far to the right it is the *close button* that has gone off the edge,
+// and dragging a panel back just to shut it is a poor way to spend a minute.
+document.addEventListener('dblclick', e => {
+  if (!e.target || !e.target.closest) return;
+  if (!e.target.closest('#rosterViewOverlay .modal-head')) return;
+  if (e.target.closest('.modal-close')) return;
+  rvPos = { x: 0, y: 0 };
+  rvApplyPos();
+});
+// A window that has shrunk can leave a parked panel off the edge.
+window.addEventListener('resize', () => {
+  if (!document.getElementById('rosterViewOverlay')?.classList.contains('open')) return;
+  rvPos = rvClampPos(rvPos.x, rvPos.y); rvApplyPos();
 });
 
 // ── Leave form only: a Z1(a) with no roster behind it ───────────────────────
@@ -2253,7 +2353,13 @@ document.addEventListener('click', e => {
 (function(){
   // Both overlays are body-level markup that comes after this script, so the
   // wiring waits for the document rather than running at parse time.
-  function dialog(btnId, overlayId, closeId, onOpen){
+  // opts.modeless leaves the page behind live: no scrim, no scroll lock, no
+  // inert shell, and no closing by clicking away. Only the roster viewer asks
+  // for it, and only because it is read *against* the schedule — the point is
+  // to edit a cell with the file still on screen, which a click-away dismissal
+  // makes impossible.
+  function dialog(btnId, overlayId, closeId, onOpen, opts){
+    const modeless=!!(opts&&opts.modeless);
     const btns=[].concat(btnId).map(id=>document.getElementById(id)).filter(Boolean);
     const btn=btns[0];
     const ov=document.getElementById(overlayId);
@@ -2266,28 +2372,31 @@ document.addEventListener('click', e => {
       lastFocus=document.activeElement;
       ov.classList.add('open');
       for(const b of btns) b.setAttribute('aria-expanded','true');
-      lockPageScroll();
-      if(shell) shell.inert=true;
+      if(!modeless){ lockPageScroll(); if(shell) shell.inert=true; }
       closeBtn.focus();
     }
     function close(){
       ov.classList.remove('open');
       for(const b of btns) b.setAttribute('aria-expanded','false');
-      unlockPageScroll();
-      if(shell) shell.inert=false;
+      if(!modeless){ unlockPageScroll(); if(shell) shell.inert=false; }
       if(lastFocus&&lastFocus.focus) lastFocus.focus();
     }
     for(const b of btns) b.addEventListener('click',open);
     closeBtn.addEventListener('click',close);
     // Clicking the backdrop, but not the panel, closes it.
-    ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
+    if(!modeless) ov.addEventListener('click',e=>{ if(e.target===ov) close(); });
     // Choosing an action inside the panel dismisses it; the action itself is
     // handled by the delegated wizard listener, which needs the page live.
     ov.addEventListener('click',e=>{
       if(e.target.closest && e.target.closest('.modal-choice')) close();
     });
     document.addEventListener('keydown',e=>{
-      if(e.key==='Escape'&&ov.classList.contains('open')) close();
+      if(e.key!=='Escape'||!ov.classList.contains('open')) return;
+      // A modal owns every key while it is up. A modeless one does not: the
+      // schedule behind it is live, and an Escape closing a select there must
+      // not also dismiss the file the user is checking against.
+      if(modeless&&!ov.contains(document.activeElement)) return;
+      close();
     });
     // Handed back so a panel that validates its own form can stay open on a
     // failure and close itself on success. Nothing else reads this.
@@ -2311,7 +2420,7 @@ document.addEventListener('click', e => {
     dialog('hdrDeptBtn','wizEditOverlay','wizEditCloseBtn',()=>showEditChoices('dept'));
     dialog(['totalsToggle','totalsToggle2'],'totalsOverlay','totalsCloseBtn',updateTotalsDetail);
     for(const id of ['viewRosterBtn','hdrViewBtn','wizViewBtn'])
-      dialog(id,'rosterViewOverlay','rosterViewCloseBtn',rosterViewOpen);
+      dialog(id,'rosterViewOverlay','rosterViewCloseBtn',rosterViewOpen,{modeless:true});
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wire);
   else wire();

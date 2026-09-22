@@ -87,6 +87,39 @@ const check = (name, got, want) => {
     } finally { window.pdfjsLib = real; }
   }, TITLED), ['3', '2026', [3]]);
 
+  // ── the file count in the status line ────────────────────────────────────
+  // It said "across 1 file(s)" however many were queued: it counted
+  // state.consultantFile, the single-file field, and the consultant-only
+  // branch had the 1 written into the string. Nine months of roster uploaded,
+  // one file reported.
+  check('the status line counts every consultant file that parsed',
+        await page.evaluate(async items => {
+    const H = 842;
+    const real = window.pdfjsLib;
+    window.pdfjsLib = { __proto__: real, getDocument: () => ({ promise: Promise.resolve({
+      numPages: 1,
+      getPage: () => Promise.resolve({
+        getViewport: () => ({ height: H, width: 1190 }),
+        getTextContent: () => Promise.resolve({
+          items: items.map(([t, x, y]) => ({ str: t, transform: [0,0,0,0, x, H - y] })) }),
+      })
+    })})};
+    try {
+      activeProfile = VHW_FALLBACK_PROFILE;
+      state.parsedFiles = []; state.pendingFiles = []; state.rosterData = null;
+      state.consultantFiles = ['April','May','June'].map(m =>
+        new File([new Uint8Array([37])], `EC Consultant Roster - ${m} 2026.pdf`,
+                 { type: 'application/pdf' }));
+      state.consultantFile = state.consultantFiles[0];
+      const btn = document.getElementById('parseBtn');
+      btn.disabled = false;
+      btn.click();
+      await new Promise(r => setTimeout(r, 1500));
+      return [state.consultantFileCount,
+              /across 3 files\b/.test(document.getElementById('parseStatus').textContent)];
+    } finally { window.pdfjsLib = real; }
+  }, TITLED), [3, true]);
+
   // ── the real thing ───────────────────────────────────────────────────────
   if (!ROSTER || !fs.existsSync(ROSTER)) {
     console.log('skip  set CONSULTANT_ROSTER=/path/to/a/consultant/roster.pdf for the upload checks');
