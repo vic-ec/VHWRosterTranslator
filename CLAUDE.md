@@ -283,7 +283,44 @@ the parts worth knowing before editing:
 - **The phone schedule (≤860px) is a card per day**, and its cells are
   selected by the field they hold (`td:has([data-field=nf])`), not by column
   number — so the standard and extended column sets share one set of rules.
-  Adding a column needs no new CSS; adding a *band* does.
+  Adding a column needs no new CSS; adding a *band* does. (The selector is a
+  descendant match, which is why wrapping each input in `.time-cell` for its
+  clear button left every card label intact.)
+- **Every time box is rendered by `timeCell()`**, in both tables and in both
+  `buildPreview` and `makeRowInner`. Four things it settles that were
+  previously spelled out four times over:
+  - **The two "from" boxes are derived, never typed.** An overtime band starts
+    where the band before it ended, so `ot1f` and `ot2f` are `readonly` with
+    `tabindex="-1"` (Tab goes Norm To → OT1 To) and `syncDerivedBands()`
+    recomputes them in full after every edit — not pushed forward from the one
+    field that changed, so a band filled in later still picks up its own start
+    and a band emptied gives its start back. Extended mode only; the EC shift
+    path keeps `syncFollowingBand`, which never clears what it did not fill.
+  - **Each editable box carries a clear button**, shown on hover or focus and
+    never over an empty box. Its listener is delegated: `attachEditHandlers()`
+    replaces every `.time-edit` with a clone, and a listener bound to the
+    button would go with the row it was rendered into. The button overlays the
+    box's right edge rather than taking padding from it, so a read-only box
+    with no button still centres its time on the same axis as the ones beside
+    it. A phone has no hover, so there it shows whenever the box holds
+    something.
+  - **`normaliseTime` accepts an hour on its own**: `7`, `07` and `07H` all
+    read `07H00`. Most of a roster's times are on the hour.
+  - **A call and the morning it ends into are one instant in two boxes.**
+    `syncOvernightHandover()` writes the next day's Normal From when OT2 To
+    moves, and the previous day's OT2 To when Normal From moves, so the two can
+    never overlap — on call until 07H30 and on duty from 07H00 claimed the same
+    half hour twice. It fires only where the previous day's OT2 band actually
+    runs past midnight (`isOvernightCall`), only where the next day is worked,
+    and never off the ends of the month. Either direction leaves the pair in
+    the same state, `applyEightHourDay()` and all.
+- **The row buttons are `vertical-align: middle`, not baseline.** An
+  inline-flex box takes its baseline from its first flex item, and the undo
+  button's only item is a masked `::before` with no text in it — so the box
+  had no baseline of its own, was set on its bottom margin edge, and added its
+  own descender to the line. The one row carrying an undo button stood 1.6px
+  taller than every other row. `tests/schedule.js` measures two ordinary shift
+  rows, one edited and one not.
 
 ## The leave-only route
 
@@ -427,6 +464,26 @@ downstream worked.
   way to correct the month in the app. `tests/consultant.js` replays exactly
   that file name against a synthetic April grid; it fails on the pre-fix
   bundle with September.
+- **A cell's centre is its column, not its left edge.** These grids centre what
+  is in them, so a column's left edge travels with the length of the entry:
+  `Els` starts at x=211 and `Els / De Haan`, in the same column, at 195. Every
+  word therefore carries `cx = x + width/2` (PDF.js reports the width), the
+  data columns are clustered on `cx`, the header's labels are matched by their
+  own centres, and a cell is assigned to a column by `cx` — `cols.__centred`
+  marks the ranges as centre coordinates, since `profile.pdf_columns`, the
+  fallback when no header is found, was calibrated against left edges and must
+  keep being read that way. A PDF that reports no width leaves `cx === x`, so
+  such a file parses exactly as it did before.
+
+  Clustering on the left edge split one column into two whenever a month held
+  both a short and a long entry. Only one half could be matched to the label
+  and everything in the other was **silently dropped**. On the real May 2026
+  roster that was most of duty slot 2 (`De Haan` at 272 against a label that
+  matched the 281 cluster), every two-name cell in slot 3 — which is exactly
+  the day two consultants share — and both leave cells that carried a second
+  note. A doctor could lose three duty days out of a month and the table gave
+  no sign of it. `tests/consultant-parse.js` has a fixture whose columns hold a
+  wide and a narrow entry each way round.
 - **The labels are matched to the data's own columns, in order.** Seven real
   exports, and nothing about the geometry is constant: a label may sit over its
   column (May), a whole column to the *right* of it (January's spreadsheet
@@ -500,6 +557,24 @@ downstream worked.
   on-site 15h30–16h30; first on call adds OT off-site 16h30–07h30 the next
   morning. These live in `profile.time_rules` and `tests/consultant-parse.js`
   asserts the bands, so a profile edit that breaks them is caught.
+- **The Leave column's cell can hold more than one note.** 14 May 2026 reads
+  `De Haan PALS, Xafis Leave` — PALS is a course and only Xafis is on leave.
+  `readLeaveCell()` joins the bucket back into one string (the cell arrives as
+  one text item or as separate tokens, depending on the export), splits it on
+  commas, and takes a name only from an entry that says Leave. Reading the
+  whole cell as one name got it wrong in both directions at once: De Haan was
+  booked off and Xafis was not. **A lone entry that does not say Leave is
+  still taken as a name**, which is what this column has always done — a
+  roster writing bare surnames under a Leave heading must keep working. The
+  word is only needed to tell two entries apart inside one cell, which is
+  where the roster itself has drawn the distinction.
+- **Leave is not captured on a weekend or a public holiday.** Neither comes off
+  the annual quota, and the roster prints a leave block straight through them:
+  1 May 2026 is a Friday public holiday and the 2nd and 3rd the weekend after
+  it, and all three were being written onto the timesheet as annual leave. The
+  day is not skipped outright — a consultant can be in the call column over a
+  weekend inside a leave block, and that is worked time — it falls through to
+  the duty rules, which emit nothing when there is no duty.
 - **The status line counts the consultant files that parsed.** It said
   "across 1 file(s)" however many were queued: it counted `state.consultantFile`
   — the single-file field, which is one file whether nine were uploaded or one
@@ -544,7 +619,8 @@ they are — see `profiles/README.md`.
 panel end to end), `tests/names.js` (splitting a roster initial off a surname),
 `tests/initials.js` (the parser reading one in either PDF layout) and
 `tests/wizjump.js` (the phone step jump), `tests/actionsrow.js` (which zone
-Extract data sits under), `tests/rosterview.js` (the viewer — its first half drives the modeless rules,
+Extract data sits under), `tests/schedule.js` (the schedule table's time boxes — what follows what, what
+a call hands over to the morning after it, and the row heights), `tests/rosterview.js` (the viewer — its first half drives the modeless rules,
 the scroller and the drag over stand-in pages, and `ROSTER=/path/to/a/roster.pdf`
 adds the find and zoom checks on a real file) and
 `tests/consultant.js` (a consultant roster standing alone — its first half
@@ -625,6 +701,15 @@ key. `tests/README.md` has the whole picture, including what these tests do
   *hidden* until a file is retained rather than disabled, which needs explicit
   `.hdr-icon[hidden]` / `.wizctx-edit[hidden]` rules: both classes set
   `display: inline-flex`, which outranks the UA rule for `[hidden]`.
+
+  **It opens on the month that is on screen.** `rosterViewFiles()` carries each
+  entry's month — a department file's days were filtered to one month when it
+  was parsed, and a consultant file's month was read off its title line and
+  kept by name in `state.consultantFileMonths` — and `rosterViewOpen()` selects
+  the entry matching `state.previewMonth`. Rebuilding the picker's options
+  resets the selection to the first file, so nine months of consultant roster
+  always opened on whichever sorted first, however long you had been reading
+  another one.
 
   **Zoom is one CSS variable.** A month of consultant roster at the width of a
   phone is unreadable, so `--rv-zoom` on `#rosterViewBody` widens `.rv-page`

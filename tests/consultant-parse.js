@@ -63,7 +63,8 @@ const ITEMS = [
       getPage: () => Promise.resolve({
         getViewport: () => ({ height: H, width: 1190 }),
         getTextContent: () => Promise.resolve({
-          items: items.map(([s, x, y]) => ({ str: s, transform: [0,0,0,0, x, H - y] })) }),
+          items: items.map(([s, x, y, w]) => ({ str: s, width: w || 0,
+                                                transform: [0,0,0,0, x, H - y] })) }),
       })
     })})};
     try {
@@ -159,7 +160,8 @@ const ITEMS = [
       getPage: () => Promise.resolve({
         getViewport: () => ({ height: H, width: 1190 }),
         getTextContent: () => Promise.resolve({
-          items: items.map(([s, x, y]) => ({ str: s, transform: [0,0,0,0, x, H - y] })) }),
+          items: items.map(([s, x, y, w]) => ({ str: s, width: w || 0,
+                                                transform: [0,0,0,0, x, H - y] })) }),
       })
     })})};
     try {
@@ -209,6 +211,96 @@ const ITEMS = [
         ['', '']);
   check('the staff list is still only the people on duty',
         awk.doctors, ['Alpha', 'Bravo', 'Charlie']);
+
+  // ── A centred cell moves its left edge, not its centre ──────────────────
+  // These grids centre what is in them, so a column's left edge travels with
+  // the length of the entry: "Els" starts at 211 and "Els / De Haan" in the
+  // same column at 195. Clustering those as positions split one column in
+  // two, the label could only match one half, and everything in the other was
+  // dropped — on the real May 2026 roster that was most of duty slot 2, every
+  // two-name cell in slot 3, and both leave cells carrying a second note.
+  //
+  // The fourth number on each item is the width PDF.js reports, which is what
+  // makes a centre knowable. Items below are written [text, x, y, width] with
+  // every entry in a column centred on the same axis.
+  //
+  // March 2027 again: the 1st is a Monday, the 6th and 7th the weekend.
+  const CENTRED = [
+    ['Consultant duty Roster March 2027', 56, 84, 160],
+    ['Day', 80, HEADER_Y, 20], ['Weekday', 133, HEADER_Y, 42],
+    ['1', 265, HEADER_Y, 5], ['2', 326, HEADER_Y, 5], ['3', 387, HEADER_Y, 5],
+    ['Meetings etc.', 420, HEADER_Y, 56], ['Leave', 495, HEADER_Y, 26],
+    ['Call', 561, HEADER_Y, 17],
+    // Day 2: every duty cell a different width, all on their column's centre.
+    ['2', 84, 136, 5], ['Tuesday', 117, 136, 42],
+    ['Alpha', 253, 136, 30],                       // centre 268
+    ['Bravo / Charlie', 289, 136, 80],             // centre 329, left edge 289
+    ['Delta', 375, 136, 30],                       // centre 390
+    ['Alpha', 552, 136, 30],                       // on call
+    // Day 3: the long and short entries swap columns, so neither column can
+    // be read by a rule that happens to suit one row.
+    ['3', 84, 148, 5], ['Wednesday', 117, 148, 58],
+    ['Alpha / Bravo', 233, 148, 70],               // centre 268
+    ['Delta', 314, 148, 30],                       // centre 329
+    ['Charlie', 372, 148, 36],                     // centre 390
+    ['Delta', 552, 148, 30],
+    // Day 4: a leave cell holding two notes, only one of which is leave.
+    ['4', 84, 160, 5], ['Thursday', 117, 160, 48],
+    ['Charlie', 250, 160, 36],
+    ['Bravo PALS, Alpha Leave', 452, 160, 112],    // centre 508
+    // Day 6 is a Saturday, and the leave block runs straight through it.
+    ['6', 84, 172, 5], ['Saturday', 117, 172, 48],
+    ['Charlie', 250, 172, 36],
+    ['Alpha Leave', 480, 172, 56],
+  ];
+
+  const ctr = await page.evaluate(async items => {
+    const H = 842;
+    const real = window.pdfjsLib;
+    window.pdfjsLib = { __proto__: real, getDocument: () => ({ promise: Promise.resolve({
+      numPages: 1,
+      getPage: () => Promise.resolve({
+        getViewport: () => ({ height: H, width: 1190 }),
+        getTextContent: () => Promise.resolve({
+          items: items.map(([s, x, y, w]) => ({ str: s, width: w || 0,
+                                                transform: [0,0,0,0, x, H - y] })) }),
+      })
+    })})};
+    try {
+      const d = await parseConsultantRosterPDF(new ArrayBuffer(0), VHW_FALLBACK_PROFILE);
+      for (const day of d.days) day.month = d.month;
+      const per = {};
+      for (const n of ['Alpha','Bravo','Charlie','Delta'])
+        per[n] = getConsultantShifts(d, n, d.month, VHW_FALLBACK_PROFILE, d.year);
+      return { per, days: d.days.map(x => ({ date: x.date, s1: x.slot1, s2: x.slot2,
+                                             s3: x.slot3, leave: x.leaveNames })) };
+    } finally { window.pdfjsLib = real; }
+  }, CENTRED);
+
+  const day = n => ctr.days.find(x => x.date === n) || {};
+  const ctype = (who, d) => (ctr.per[who][d] || {}).typeLabel || null;
+
+  check('a wide cell and a narrow one in the same column both land in it',
+        [day(2).s1, day(2).s2, day(2).s3],
+        [['Alpha'], ['Bravo / Charlie'], ['Delta']]);
+  check('and again with the widths the other way round',
+        [day(3).s1, day(3).s2, day(3).s3],
+        [['Alpha / Bravo'], ['Delta'], ['Charlie']]);
+  check('so both names of a shared cell are credited',
+        [ctype('Bravo', 2), ctype('Charlie', 2)],
+        ['Consultant Day - 07H30', 'Consultant Day - 07H30']);
+
+  // A leave cell can hold a note that is not leave. Taking the whole cell as
+  // one name got it wrong in both directions at once — the person on the
+  // course was booked off and the person on leave was not.
+  check('only the entry that says Leave is leave', day(4).leave, ['Alpha']);
+  check('so the one on a course keeps their duty day',
+        [ctype('Alpha', 4), ctype('Bravo', 4)], ['Leave - Annual', null]);
+
+  // A weekend does not come off the annual quota, and the roster prints the
+  // leave block straight through it.
+  check('leave on a Saturday is not captured', ctype('Alpha', 6), null);
+  check('while the weekday either side of it still is', ctype('Alpha', 4), 'Leave - Annual');
 
   if (errors.length) { failed++; console.log('\npage errors: ' + errors.join(' | ')); }
   await browser.close();

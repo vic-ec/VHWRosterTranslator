@@ -62,6 +62,7 @@ function addConsultantFiles(files) {
   state.consultantData = null;
   state.consultantFileCount = 0;
   state.consultantFileErrors = [];
+  state.consultantFileMonths = {};
   renderConsultantList();
   if (state.consultantFiles.length) {
     $('parseBtn').disabled = false;
@@ -75,6 +76,7 @@ function removeConsultantFile(name) {
   state.consultantData = null;
   state.consultantFileCount = 0;
   state.consultantFileErrors = [];
+  state.consultantFileMonths = {};
   renderConsultantList();
   if (!state.pendingFiles.length && !state.consultantFiles?.length) {
     $('parseBtn').disabled = true;
@@ -89,6 +91,7 @@ function setConsultantFile(file) {
   state.consultantData = null;
   state.consultantFileCount = 0;
   state.consultantFileErrors = [];
+  state.consultantFileMonths = {};
   renderConsultantList();
   if (!state.pendingFiles.length) {
     if ($('parseBtn')) $('parseBtn').disabled = true;
@@ -117,6 +120,9 @@ async function parseAndStoreConsultantRoster() {
   // parsed, and the ones that did not have to be named.
   let okFiles = 0;
   const failedFiles = [];
+  // Which month each file turned out to hold, so the viewer can open the one
+  // the schedule on screen came from rather than whichever sorted first.
+  const fileMonths = {};
 
   for (const cFile of filesToParse) {
     try {
@@ -150,6 +156,7 @@ async function parseAndStoreConsultantRoster() {
       lastDetectedMonth = detectedMonth;
       lastDetectedYear  = year;
       okFiles++;
+      fileMonths[cFile.name] = detectedMonth;
     } catch(err) {
       console.error('[Consultant] Parse error for', cFile.name, err);
       failedFiles.push(cFile.name);
@@ -159,6 +166,7 @@ async function parseAndStoreConsultantRoster() {
   state.consultantData = { days: allDays, doctors: allDoctors };
   state.consultantFileCount  = okFiles;
   state.consultantFileErrors = failedFiles;
+  state.consultantFileMonths = fileMonths;
 
   // Merge into main rosterData
   if (state.rosterData && state.parsedFiles.length) {
