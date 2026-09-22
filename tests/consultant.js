@@ -63,6 +63,15 @@ const check = (name, got, want) => {
     ['1', 84, 136], ['Wednesday', 117, 136], ['Alpha', 239, 136], ['Bravo', 544, 136],
     ['2', 84, 148], ['Thursday', 117, 148], ['Bravo', 239, 148],
   ];
+  // Three files, three months, named so that nothing about the name says which.
+  const MONTH_GRIDS = ['April', 'May', 'June'].map(m => [
+    [`Consultant duty Roster ${m} 2026`, 56, 84],
+    ['Day', 80, 124], ['Weekday', 133, 124],
+    ['1', 267, 124], ['2', 328, 124], ['3', 389, 124],
+    ['Meetings etc.', 433, 124], ['Leave', 504, 124], ['Call', 568, 124],
+    ['1', 84, 136], ['Wednesday', 117, 136], ['Alpha', 239, 136], ['Bravo', 544, 136],
+  ]);
+
   check('a roster with no month in its file name still lands in its own month',
         await page.evaluate(async items => {
     const H = 842;
@@ -119,6 +128,49 @@ const check = (name, got, want) => {
               /across 3 files\b/.test(document.getElementById('parseStatus').textContent)];
     } finally { window.pdfjsLib = real; }
   }, TITLED), [3, true]);
+
+  // ── the viewer opens on the month that is on screen ──────────────────────
+  // Rebuilding the picker's options resets the selection to the first file, so
+  // nine months of consultant roster always opened on whichever sorted first,
+  // however long you had been reading another one — and a panel there to be
+  // checked against the schedule showing the wrong month is worse than none.
+  check('the viewer opens on the previewed month, not the first file',
+        await page.evaluate(async grid => {
+    const H = 842;
+    const real = window.pdfjsLib;
+    // One grid per file, in the order they are parsed, so the three files
+    // genuinely hold three different months.
+    let call = 0;
+    window.pdfjsLib = { __proto__: real, getDocument: () => {
+      const items = grid[Math.min(call++, grid.length - 1)];
+      return { promise: Promise.resolve({
+        numPages: 1,
+        getPage: () => Promise.resolve({
+          getViewport: () => ({ height: H, width: 1190 }),
+          getTextContent: () => Promise.resolve({
+            items: items.map(([t, x, y]) => ({ str: t, width: 0,
+                                               transform: [0,0,0,0, x, H - y] })) }),
+        })
+      })};
+    }};
+    try {
+      activeProfile = VHW_FALLBACK_PROFILE;
+      state.parsedFiles = []; state.rosterData = null;
+      // Names deliberately in a different order from the months inside them,
+      // so matching on the name alone could not pass this.
+      state.consultantFiles = ['one','two','three'].map(n =>
+        new File([new Uint8Array([37])], `roster-${n}.pdf`, { type: 'application/pdf' }));
+      state.consultantFile = state.consultantFiles[0];
+      await parseAndStoreConsultantRoster();
+      // Read the middle one: May, the second file.
+      state.previewMonth = 4; state.previewYear = 2026;
+      state.editedShifts = { 3: { nf: '07H30' } };
+      rosterViewOpen();
+      const pick = document.getElementById('rosterViewPick');
+      return [pick.selectedIndex, pick.value,
+              (state.consultantFileMonths || {})['roster-two.pdf']];
+    } finally { window.pdfjsLib = real; }
+  }, MONTH_GRIDS), [1, 'roster-two.pdf', 4]);
 
   // ── the real thing ───────────────────────────────────────────────────────
   if (!ROSTER || !fs.existsSync(ROSTER)) {

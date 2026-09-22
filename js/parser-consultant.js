@@ -48,14 +48,27 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     // space the whole cell fails both the date test and the weekday test, so
     // the row has no date, currentDate never advances and every row of the
     // file is skipped — the April export parsed as zero days because of it.
+    // Every word carries its centre as well as its left edge. A cell in these
+    // grids is *centred*, so its left edge moves with the length of what is
+    // in it — "Els" starts at 211, "Els / De Haan" in the same column at 195 —
+    // while the centre does not move at all. Clustering on the left edge
+    // therefore split one column into two whenever the month held both a
+    // short and a long entry, and only one of the two halves could be matched
+    // to the label: on the May 2026 roster that dropped most of duty slot 2,
+    // a third of slot 3 (every two-name cell, which is exactly the day two
+    // consultants share) and both leave cells that carried a second note.
+    // cx falls back to x when a PDF reports no width, so a file that gives
+    // nothing to measure parses precisely as it did before.
+    const w = item.width || 0;
+    const x = item.transform[4], y = H - item.transform[5];
     const fused = item.str.match(/^(\d{1,2})\s*([A-Z][a-z]+)$/);
     if (fused) {
-      const x = item.transform[4];
-      const y = H - item.transform[5];
-      words.push({ text: fused[1], x, y });
-      words.push({ text: fused[2], x: x + 8, y });
+      // Split the measured width between the two halves by character count.
+      const w1 = w * fused[1].length / (fused[1].length + fused[2].length);
+      words.push({ text: fused[1], x, y, cx: x + w1 / 2 });
+      words.push({ text: fused[2], x: x + (w1 || 8), y, cx: x + (w1 || 8) + (w - w1) / 2 });
     } else {
-      words.push({ text: item.str.trim(), x: item.transform[4], y: H - item.transform[5] });
+      words.push({ text: item.str.trim(), x, y, cx: x + w / 2 });
     }
   }
 
@@ -159,7 +172,11 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       const s2 = s3 && rightmost('2', s3.x);
       const s1 = s2 && rightmost('1', s2.x);
       if (!s1) continue;
-      return { at: [s1.x, s2.x, s3.x, m.x, l.x, c.x],
+      // Centres, to match what the columns are clustered on below. A label is
+      // centred over its column the same way its cells are, and "Meetings
+      // etc." is wide enough that its left edge sits a third of a column away
+      // from where it points.
+      return { at: [s1.cx, s2.cx, s3.cx, m.cx, l.cx, c.cx],
                y: Math.max(row.y, s1.y, s2.y, s3.y) };
     }
     return null;
@@ -220,7 +237,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   // columns — its own neighbours, not the labels' — so a column nothing was
   // matched to cannot bleed into the one beside it.
   function columnsFromLabels(head, dataRows) {
-    const columns = clusterColumns(dataRows.flatMap(r => r.ws.map(w => w.x)), 10);
+    const columns = clusterColumns(dataRows.flatMap(r => r.ws.map(w => w.cx)), 10);
     if (columns.length < 3) return null;
     const gaps = columns.slice(1).map((x, k) => x - columns[k]).sort((a, b) => a - b);
     const skipCost = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 70;
@@ -241,7 +258,43 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     out.second = (callAt >= 0 && callAt + 1 < columns.length) ? bound(callAt + 1)
                                                              : { x_min: 0, x_max: 0 };
     out.__first = Math.min(...HEADER_WANT.map(([key]) => out[key].x_max > 0 ? out[key].x_min : Infinity));
+    // These ranges are in centre coordinates; profile.pdf_columns, the
+    // fallback when no header is found, was calibrated against left edges and
+    // must keep being read that way.
+    out.__centred = true;
     return out;
+  }
+
+  // The Leave column's cell, read as the people actually on leave.
+  //
+  // The cell arrives as one text item ("Xafis Leave") or as separate tokens
+  // ("De", "Haan", "Leave") depending on the export, so it is joined back into
+  // one string first. It can also hold more than one note: 14 May 2026 reads
+  // "De Haan PALS, Xafis Leave", where PALS is a course and only Xafis is on
+  // leave — which the old read, taking the whole cell as one name, got wrong
+  // in both directions at once, marking De Haan on annual leave and Xafis on
+  // none.
+  //
+  // So the cell is split on commas and an entry counts only where it says
+  // Leave. A lone entry that does not say it is still taken as a name, which
+  // is what this column has always done — a roster writing bare surnames
+  // under a Leave heading must keep working. The word is only needed to tell
+  // two entries apart inside one cell, which is where the roster itself has
+  // drawn the distinction.
+  function readLeaveCell(tokens) {
+    const cell = tokens.join(' ').replace(/\s+/g, ' ').trim();
+    if (!cell) return [];
+    const parts = cell.split(/\s*[,;]\s*/).filter(Boolean);
+    const names = [];
+    for (const part of parts) {
+      const chunks = part.split(/\s*\bleave\b\s*/i);
+      if (chunks.length > 1) {
+        for (const c of chunks) if (c.trim()) names.push(c.trim());
+      } else if (parts.length === 1) {
+        names.push(part);
+      }
+    }
+    return names;
   }
 
   // Join compound surnames: "De" + "Haan" → "De Haan"
@@ -274,6 +327,9 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     const fromLabels = columnsFromLabels(header, byRow(dataWords));
     if (fromLabels) cols = fromLabels;
   }
+  // Which coordinate the ranges are in. Columns found from the header are in
+  // centres; profile.pdf_columns, the fallback, is in left edges.
+  const keyX = w => (cols.__centred && w.cx != null) ? w.cx : w.x;
   // Everything left of the first real column is the date and weekday.
   const leftBound = (cols.__first != null && isFinite(cols.__first))
     ? cols.__first : cols.slot1.x_min;
@@ -289,8 +345,8 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     let dateNum = null, weekdayName = null;
 
     for (const w of rowWords) {
-      if (w.x < leftBound) continue;               // date/weekday, read below
-      const c = colFor(w.x);
+      if (keyX(w) < leftBound) continue;           // date/weekday, read below
+      const c = colFor(keyX(w));
       if (c && c in buckets) buckets[c].push(w.text);
     }
 
@@ -298,7 +354,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     // January's export prints the spreadsheet's own row numbers in a column
     // further left again, and taking the first number on the row made those
     // the dates — which is how that file reported a 34th of the month.
-    const leftWords = rowWords.filter(w => w.x < leftBound);
+    const leftWords = rowWords.filter(w => keyX(w) < leftBound);
     const wd = leftWords.find(w => WEEKDAYS.has(w.text) || WEEKENDS.has(w.text));
     if (wd) {
       weekdayName = wd.text;
@@ -334,7 +390,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       add(prev.slot3, joinTokens(buckets.slot3));
       add(prev.callNames, joinTokens(buckets.call.filter(t => !/^\d+$/.test(t))));
       add(prev.secondNames, joinTokens(buckets.second.filter(t => !/^\d+$/.test(t))));
-      add(prev.leaveNames, joinTokens(buckets.leave.filter(t => t !== 'Leave')));
+      add(prev.leaveNames, readLeaveCell(buckets.leave));
       for (const n of [...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames, ...prev.secondNames])
         for (const one of n.split(PAIR_SEP)) if (one.trim().length > 1) doctors.add(one.trim());
       prev.allNames = [...new Set([...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames]
@@ -347,10 +403,9 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     const slot2Names = joinTokens(buckets.slot2);
     const slot3Names = joinTokens(buckets.slot3);
 
-    // Parse leave: "De Haan Leave" → name is "De Haan", "Leave" is literal word
-    const leaveRaw = joinTokens(buckets.leave.filter(t => t !== 'Leave'));
-    const isLeave  = buckets.leave.includes('Leave') || leaveRaw.length > 0;
-    const leaveNames = leaveRaw;
+    // Parse leave: "De Haan Leave" → name is "De Haan", "Leave" is the word.
+    const leaveNames = readLeaveCell(buckets.leave);
+    const isLeave    = leaveNames.length > 0;
 
     // Parse call: names + optional trailing number
     const callRaw   = buckets.call.filter(t => !/^\d+$/.test(t));
@@ -462,7 +517,15 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
                  || (day.secondNames || []).some(nameMatches);
     const onLeave = day.leaveNames.some(nameMatches);
 
-    if (onLeave) {
+    // Leave is not claimed on a day the doctor would not have worked anyway.
+    // A weekend or a public holiday does not come off the annual quota, and
+    // the roster prints a leave block straight through them: 1 May 2026 is a
+    // Friday public holiday and the 2nd and 3rd the weekend after it, and all
+    // three were being written onto the timesheet as annual leave. The day is
+    // not skipped outright — a consultant can be on the call column over a
+    // weekend inside a leave block, and that is worked time — it simply falls
+    // through to the duty rules, which emit nothing when there is no duty.
+    if (onLeave && !day.isWeekend && !phDays.has(day.date)) {
       result[day.date] = { nf:'', nt:'', of:'', ot:'', typeLabel:'Leave - Annual' };
       continue;
     }

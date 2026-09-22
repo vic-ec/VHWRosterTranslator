@@ -64,6 +64,7 @@
   --control-h: 38px;
 
   /* Lucide RotateCcw, as a mask so it takes currentColor like a glyph would. */
+  --icon-square-pen: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>');
   --icon-rotate-ccw: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>');
 
   --font-heading: "Inter Tight", system-ui, sans-serif;
@@ -654,15 +655,51 @@ main { padding: 40px 32px 0; }
 }
 .time-edit:focus-visible { border-color: var(--color-accent); background: var(--color-accent-100); outline: none; }
 .time-edit::placeholder { color: var(--color-neutral-500); }
+/* A derived box is shown, not typed: OT1 From is where normal hours ended and
+   OT2 From where OT1 ended, so both follow rather than lead. */
+.time-edit[readonly] { background: var(--color-surface); color: var(--color-neutral-700);
+  cursor: default; }
+.time-edit[readonly]:focus-visible { border-color: var(--color-divider); background: var(--color-surface); }
+/* Every editable time box can be cleared without emptying it by hand. The
+   button overlays the box's right edge rather than taking padding from it, so
+   a read-only box with no button still centres its time on the same axis as
+   the ones beside it. It shows on hover or focus — six columns over thirty-one
+   rows is 186 crosses if they are all drawn at rest — and never over an empty
+   box, where there is nothing to clear. */
+.time-cell { position: relative; display: block; }
+.time-clear { position: absolute; top: 50%; right: 1px; transform: translateY(-50%);
+  width: 13px; height: 15px; display: none; align-items: center; justify-content: center;
+  padding: 0; border: 0; background: var(--color-bg); cursor: pointer; line-height: 1;
+  font-family: var(--font-heading); font-weight: 800; font-size: 13px;
+  color: var(--color-neutral-600); }
+.time-cell:hover .time-clear, .time-cell:focus-within .time-clear { display: flex; }
+.time-cell:focus-within .time-clear { background: var(--color-accent-100); }
+.time-cell:has(.time-edit:placeholder-shown) .time-clear { display: none; }
+.time-clear:hover { color: var(--color-danger-700); }
 .action-cell { text-align: center; white-space: nowrap; }
+/* The action column's head is the pencil, not the word. */
+.act-head { display: inline-block; width: 15px; height: 15px; vertical-align: middle;
+  background: currentColor;
+  -webkit-mask: var(--icon-square-pen) center / contain no-repeat;
+  mask: var(--icon-square-pen) center / contain no-repeat; }
+/* vertical-align: middle, not the initial baseline. An inline-flex box takes
+   its baseline from its first flex item, and the undo button's only item is a
+   masked ::before with no text in it — so the box has no baseline of its own
+   and its bottom margin edge is used instead, dropping it below the line and
+   adding its own descender space to the row. That is why the one row with an
+   undo button in it stood 1.6px taller than every other row. */
 .row-clear, .row-add, .row-undo {
   background: none; border: 0; border-radius: 0; cursor: pointer; padding: 0;
   width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+  vertical-align: middle;
   font-family: var(--font-heading); font-weight: 800; font-size: 14px; line-height: 1;
   color: var(--color-neutral-600);
 }
+/* 14px, the size of the × beside it: a circling arrow is a denser shape than
+   a cross and reads heavier at the same size — the same reason the viewer's
+   magnifiers are drawn smaller than the chevrons they sit with. */
 .row-undo { font-size: 0; }
-.row-undo::before { content: ""; display: block; width: 17px; height: 17px;
+.row-undo::before { content: ""; display: block; width: 14px; height: 14px;
   background: currentColor;
   -webkit-mask: var(--icon-rotate-ccw) center / contain no-repeat;
   mask: var(--icon-rotate-ccw) center / contain no-repeat; }
@@ -1184,6 +1221,8 @@ footer { border-top: 2px solid var(--color-divider); padding: 28px 32px 40px; }
     content: "\2013"; position: absolute; left: -11px; top: 50%;
     transform: translateY(-50%); font-size: 14px; }
   .shift-row .time-edit { width: 100%; }
+  /* No hover on a phone, and the cards are roomy enough to carry it. */
+  .time-clear { display: flex; }
 
   /* Remove sits under the times and says what it does. */
   /* Top right of the card, on the same line as the weekday. Reversed so the
@@ -3369,14 +3408,27 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     // space the whole cell fails both the date test and the weekday test, so
     // the row has no date, currentDate never advances and every row of the
     // file is skipped — the April export parsed as zero days because of it.
+    // Every word carries its centre as well as its left edge. A cell in these
+    // grids is *centred*, so its left edge moves with the length of what is
+    // in it — "Els" starts at 211, "Els / De Haan" in the same column at 195 —
+    // while the centre does not move at all. Clustering on the left edge
+    // therefore split one column into two whenever the month held both a
+    // short and a long entry, and only one of the two halves could be matched
+    // to the label: on the May 2026 roster that dropped most of duty slot 2,
+    // a third of slot 3 (every two-name cell, which is exactly the day two
+    // consultants share) and both leave cells that carried a second note.
+    // cx falls back to x when a PDF reports no width, so a file that gives
+    // nothing to measure parses precisely as it did before.
+    const w = item.width || 0;
+    const x = item.transform[4], y = H - item.transform[5];
     const fused = item.str.match(/^(\d{1,2})\s*([A-Z][a-z]+)$/);
     if (fused) {
-      const x = item.transform[4];
-      const y = H - item.transform[5];
-      words.push({ text: fused[1], x, y });
-      words.push({ text: fused[2], x: x + 8, y });
+      // Split the measured width between the two halves by character count.
+      const w1 = w * fused[1].length / (fused[1].length + fused[2].length);
+      words.push({ text: fused[1], x, y, cx: x + w1 / 2 });
+      words.push({ text: fused[2], x: x + (w1 || 8), y, cx: x + (w1 || 8) + (w - w1) / 2 });
     } else {
-      words.push({ text: item.str.trim(), x: item.transform[4], y: H - item.transform[5] });
+      words.push({ text: item.str.trim(), x, y, cx: x + w / 2 });
     }
   }
 
@@ -3480,7 +3532,11 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       const s2 = s3 && rightmost('2', s3.x);
       const s1 = s2 && rightmost('1', s2.x);
       if (!s1) continue;
-      return { at: [s1.x, s2.x, s3.x, m.x, l.x, c.x],
+      // Centres, to match what the columns are clustered on below. A label is
+      // centred over its column the same way its cells are, and "Meetings
+      // etc." is wide enough that its left edge sits a third of a column away
+      // from where it points.
+      return { at: [s1.cx, s2.cx, s3.cx, m.cx, l.cx, c.cx],
                y: Math.max(row.y, s1.y, s2.y, s3.y) };
     }
     return null;
@@ -3541,7 +3597,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
   // columns — its own neighbours, not the labels' — so a column nothing was
   // matched to cannot bleed into the one beside it.
   function columnsFromLabels(head, dataRows) {
-    const columns = clusterColumns(dataRows.flatMap(r => r.ws.map(w => w.x)), 10);
+    const columns = clusterColumns(dataRows.flatMap(r => r.ws.map(w => w.cx)), 10);
     if (columns.length < 3) return null;
     const gaps = columns.slice(1).map((x, k) => x - columns[k]).sort((a, b) => a - b);
     const skipCost = gaps.length ? gaps[Math.floor(gaps.length / 2)] : 70;
@@ -3562,7 +3618,43 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     out.second = (callAt >= 0 && callAt + 1 < columns.length) ? bound(callAt + 1)
                                                              : { x_min: 0, x_max: 0 };
     out.__first = Math.min(...HEADER_WANT.map(([key]) => out[key].x_max > 0 ? out[key].x_min : Infinity));
+    // These ranges are in centre coordinates; profile.pdf_columns, the
+    // fallback when no header is found, was calibrated against left edges and
+    // must keep being read that way.
+    out.__centred = true;
     return out;
+  }
+
+  // The Leave column's cell, read as the people actually on leave.
+  //
+  // The cell arrives as one text item ("Xafis Leave") or as separate tokens
+  // ("De", "Haan", "Leave") depending on the export, so it is joined back into
+  // one string first. It can also hold more than one note: 14 May 2026 reads
+  // "De Haan PALS, Xafis Leave", where PALS is a course and only Xafis is on
+  // leave — which the old read, taking the whole cell as one name, got wrong
+  // in both directions at once, marking De Haan on annual leave and Xafis on
+  // none.
+  //
+  // So the cell is split on commas and an entry counts only where it says
+  // Leave. A lone entry that does not say it is still taken as a name, which
+  // is what this column has always done — a roster writing bare surnames
+  // under a Leave heading must keep working. The word is only needed to tell
+  // two entries apart inside one cell, which is where the roster itself has
+  // drawn the distinction.
+  function readLeaveCell(tokens) {
+    const cell = tokens.join(' ').replace(/\s+/g, ' ').trim();
+    if (!cell) return [];
+    const parts = cell.split(/\s*[,;]\s*/).filter(Boolean);
+    const names = [];
+    for (const part of parts) {
+      const chunks = part.split(/\s*\bleave\b\s*/i);
+      if (chunks.length > 1) {
+        for (const c of chunks) if (c.trim()) names.push(c.trim());
+      } else if (parts.length === 1) {
+        names.push(part);
+      }
+    }
+    return names;
   }
 
   // Join compound surnames: "De" + "Haan" → "De Haan"
@@ -3595,6 +3687,9 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     const fromLabels = columnsFromLabels(header, byRow(dataWords));
     if (fromLabels) cols = fromLabels;
   }
+  // Which coordinate the ranges are in. Columns found from the header are in
+  // centres; profile.pdf_columns, the fallback, is in left edges.
+  const keyX = w => (cols.__centred && w.cx != null) ? w.cx : w.x;
   // Everything left of the first real column is the date and weekday.
   const leftBound = (cols.__first != null && isFinite(cols.__first))
     ? cols.__first : cols.slot1.x_min;
@@ -3610,8 +3705,8 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     let dateNum = null, weekdayName = null;
 
     for (const w of rowWords) {
-      if (w.x < leftBound) continue;               // date/weekday, read below
-      const c = colFor(w.x);
+      if (keyX(w) < leftBound) continue;           // date/weekday, read below
+      const c = colFor(keyX(w));
       if (c && c in buckets) buckets[c].push(w.text);
     }
 
@@ -3619,7 +3714,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     // January's export prints the spreadsheet's own row numbers in a column
     // further left again, and taking the first number on the row made those
     // the dates — which is how that file reported a 34th of the month.
-    const leftWords = rowWords.filter(w => w.x < leftBound);
+    const leftWords = rowWords.filter(w => keyX(w) < leftBound);
     const wd = leftWords.find(w => WEEKDAYS.has(w.text) || WEEKENDS.has(w.text));
     if (wd) {
       weekdayName = wd.text;
@@ -3655,7 +3750,7 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
       add(prev.slot3, joinTokens(buckets.slot3));
       add(prev.callNames, joinTokens(buckets.call.filter(t => !/^\d+$/.test(t))));
       add(prev.secondNames, joinTokens(buckets.second.filter(t => !/^\d+$/.test(t))));
-      add(prev.leaveNames, joinTokens(buckets.leave.filter(t => t !== 'Leave')));
+      add(prev.leaveNames, readLeaveCell(buckets.leave));
       for (const n of [...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames, ...prev.secondNames])
         for (const one of n.split(PAIR_SEP)) if (one.trim().length > 1) doctors.add(one.trim());
       prev.allNames = [...new Set([...prev.slot1, ...prev.slot2, ...prev.slot3, ...prev.callNames]
@@ -3668,10 +3763,9 @@ async function parseConsultantRosterPDF(arrayBuffer, profile) {
     const slot2Names = joinTokens(buckets.slot2);
     const slot3Names = joinTokens(buckets.slot3);
 
-    // Parse leave: "De Haan Leave" → name is "De Haan", "Leave" is literal word
-    const leaveRaw = joinTokens(buckets.leave.filter(t => t !== 'Leave'));
-    const isLeave  = buckets.leave.includes('Leave') || leaveRaw.length > 0;
-    const leaveNames = leaveRaw;
+    // Parse leave: "De Haan Leave" → name is "De Haan", "Leave" is the word.
+    const leaveNames = readLeaveCell(buckets.leave);
+    const isLeave    = leaveNames.length > 0;
 
     // Parse call: names + optional trailing number
     const callRaw   = buckets.call.filter(t => !/^\d+$/.test(t));
@@ -3783,7 +3877,15 @@ function getConsultantShifts(consultantData, doctorName, targetMonth, profile, t
                  || (day.secondNames || []).some(nameMatches);
     const onLeave = day.leaveNames.some(nameMatches);
 
-    if (onLeave) {
+    // Leave is not claimed on a day the doctor would not have worked anyway.
+    // A weekend or a public holiday does not come off the annual quota, and
+    // the roster prints a leave block straight through them: 1 May 2026 is a
+    // Friday public holiday and the 2nd and 3rd the weekend after it, and all
+    // three were being written onto the timesheet as annual leave. The day is
+    // not skipped outright — a consultant can be on the call column over a
+    // weekend inside a leave block, and that is worked time — it simply falls
+    // through to the duty rules, which emit nothing when there is no duty.
+    if (onLeave && !day.isWeekend && !phDays.has(day.date)) {
       result[day.date] = { nf:'', nt:'', of:'', ot:'', typeLabel:'Leave - Annual' };
       continue;
     }
@@ -5242,11 +5344,24 @@ function checkReady(){
 }
 function normaliseTime(val) {
   if(!val) return null;
-  const m=val.match(/^(\d{1,2})[H:](\d{2})$/i)||val.match(/^(\d{2})(\d{2})$/);
+  // An hour on its own is on the hour: "7", "07" and "07H" all read 07H00.
+  // Most of a roster's times are, and typing the H00 every time to be told
+  // the box is wrong until you do is a poor way to spend a month.
+  const m=val.match(/^(\d{1,2})[H:](\d{2})$/i)||val.match(/^(\d{2})(\d{2})$/)
+        ||val.match(/^(\d{1,2})[H:]?$/i);
   if(!m) return null;
-  const h=parseInt(m[1]),min=parseInt(m[2]);
+  const h=parseInt(m[1]),min=m[2]===undefined?0:parseInt(m[2]);
   if(h>23||min>59) return null;
   return String(h).padStart(2,'0')+'H'+String(min).padStart(2,'0');
+}
+// Minutes since midnight, or null. The one place times become arithmetic.
+function timeMins(t){
+  const m=/^(\d{2})H(\d{2})$/.exec(t||'');
+  return m?parseInt(m[1])*60+parseInt(m[2]):null;
+}
+function minsTime(n){
+  n=((n%1440)+1440)%1440;
+  return String(Math.floor(n/60)).padStart(2,'0')+'H'+String(n%60).padStart(2,'0');
 }
 
 // EC staff work shifts; other departments work ordinary hours and do calls.
@@ -5293,14 +5408,116 @@ function syncFollowingBand(d,field,value){
   es[rule.target]=value;
   return [rule.target];
 }
-// Show a programmatic band change in the row the user is looking at.
-function applyBandSync(d,fields,value){
-  if(!fields.length) return;
-  const row=document.querySelector('[data-day="'+d+'"]');
+// Show a programmatic change in the row the user is looking at. Reads each
+// field's own value out of state rather than writing one value to all of
+// them, since a single edit can move two boxes to two different times.
+function applyRowFields(d,fields){
+  if(!fields||!fields.length) return;
+  const es=state.editedShifts[d];
+  if(!es) return;
+  const row=document.querySelector('tr[data-day="'+d+'"]');
   if(!row) return;
   row.querySelectorAll('.time-edit').forEach(inp=>{
-    if(fields.includes(inp.dataset.field)){ inp.value=value; inp.style.borderColor=''; inp.title=''; }
+    if(fields.includes(inp.dataset.field)){
+      inp.value=es[inp.dataset.field]||''; inp.style.borderColor=''; inp.title='';
+    }
   });
+}
+
+// The start of an overtime band is not typed — it is where the band before it
+// ended, which is why those two boxes are read-only in the table (see
+// DERIVED_TIME_FIELDS). Recomputed in full after every edit rather than
+// pushed forward from the one field that changed, so a band filled in later
+// still picks up its own start, and a band emptied gives its start back.
+//
+// Extended mode only. The EC shift path's single OT band keeps the older
+// rule below, which never clears anything it did not fill.
+function syncDerivedBands(d){
+  if(!isExtendedRosterMode()) return [];
+  const es=state.editedShifts[d];
+  if(!es) return [];
+  const changed=[];
+  for(const [src,from,to] of [['nt','ot1f','ot1t'],['ot1t','ot2f','ot2t']]){
+    const want=es[to]?(es[src]||''):'';
+    if((es[from]||'')!==want){ es[from]=want||null; changed.push(from); }
+  }
+  return changed;
+}
+
+// A normal day is eight hours, so moving its start moves its end — but not on
+// a weekend or a public holiday, where duty is a call rather than a shift.
+function applyEightHourDay(d){
+  const es=state.editedShifts[d];
+  if(!es) return [];
+  const dt=new Date(state.previewYear,state.previewMonth,d);
+  if(dt.getDay()===0||dt.getDay()===6) return [];
+  if(state.phMap&&state.phMap.has(d)) return [];
+  const m=timeMins(es.nf);
+  if(m===null) return [];
+  const nt=minsTime(m+480);
+  if(es.nt===nt) return [];
+  es.nt=nt;
+  const out=['nt'];
+  // The EC shift path's OT band starts where normal hours end, which is what
+  // this rule did before the extended mode had its own.
+  if(!isExtendedRosterMode()){ es.of=es.nt; out.push('of'); }
+  return out;
+}
+
+const daysInPreviewMonth = () =>
+  new Date(state.previewYear,state.previewMonth+1,0).getDate();
+
+// A call that runs past midnight and the next morning's normal hours meet at
+// one instant, so both boxes hold it.
+function isOvernightCall(es){
+  const f=timeMins(es&&es.ot2f), t=timeMins(es&&es.ot2t);
+  return f!==null&&t!==null&&t<f;
+}
+
+// Editing OT2 To on the call day moves the next day's Normal From; coming in
+// early on the post-call day moves the call's OT2 To back. Without it the two
+// overlapped — on call until 07H30 and on duty from 07H00 — and the timesheet
+// claimed the same half hour twice. Either end of the handover therefore
+// leaves the pair in the same state, eight-hour day and all.
+function syncOvernightHandover(d,field){
+  if(!isExtendedRosterMode()) return;
+  const es=state.editedShifts;
+  if(field==='ot2t'){
+    const n=d+1;
+    if(n>daysInPreviewMonth()||!isOvernightCall(es[d])) return;
+    // Only where the next day is actually worked. A call ending into a day
+    // off hands over to nothing.
+    if(!es[n]||!es[n].nf||es[n].nf===es[d].ot2t) return;
+    es[n].nf=es[d].ot2t;
+    applyRowFields(n,['nf',...applyEightHourDay(n),...syncDerivedBands(n)]);
+    markDirty(n);
+  } else if(field==='nf'){
+    const prev=d>1?es[d-1]:null;
+    if(!prev||!isOvernightCall(prev)||prev.ot2t===es[d].nf) return;
+    prev.ot2t=es[d].nf;
+    applyRowFields(d-1,['ot2t',...syncDerivedBands(d-1)]);
+    markDirty(d-1);
+  }
+}
+
+// The two "from" boxes of an overtime band are derived, never typed — see
+// syncDerivedBands — so they are read-only and out of the tab order, which
+// takes Tab from Norm To straight to OT1 To.
+const DERIVED_TIME_FIELDS = ['ot1f','ot2f'];
+// One time box, for every table and every row shape. Each editable one
+// carries a clear button: a box that has to be selected and deleted by hand
+// to be emptied is a poor way to correct a roster, and it is the only way to
+// say "no overtime that day" once a time is in there.
+function timeCell(d,field,value){
+  const ro=DERIVED_TIME_FIELDS.includes(field);
+  return `<td><span class="time-cell"><input class="time-edit" data-day="${d}"`
+    + ` data-field="${field}" value="${value||''}" placeholder="\u2014"`
+    + ` maxlength="5" inputmode="numeric"`
+    + (ro?' readonly tabindex="-1" title="Follows the end of the band before it"':'')
+    + `>`
+    + (ro?'':`<button type="button" class="time-clear" data-day="${d}" data-field="${field}"`
+           + ` tabindex="-1" title="Clear" aria-label="Clear">&times;</button>`)
+    + `</span></td>`;
 }
 
 // Undo is offered only where the day now differs from what was parsed —
@@ -5451,7 +5668,7 @@ $('clearBtn').addEventListener('click',()=>{
   state.pendingFiles=[];state.parsedFiles=[];state.rosterData=null;state.selectedDoctor=null;
   state.editedShifts={};state.originalShifts={};state.dirtyDays.clear();state.availableMonths=new Set();
   state.savedDetails={firstName:'',surname:'',persal:'',supervisor:'',sigDate:'',designation:'',designationOther:'',address:''};
-  state.consultantFile=null;state.consultantFiles=[];state.consultantData=null;state.consultantFileCount=0;state.consultantFileErrors=[];if($('consultantZone')) setConsultantFile(null);
+  state.consultantFile=null;state.consultantFiles=[];state.consultantData=null;state.consultantFileCount=0;state.consultantFileErrors=[];state.consultantFileMonths={};if($('consultantZone')) setConsultantFile(null);
   renderFileList();$('parseBtn').disabled=true;$('clearBtn').style.display='none';
   rosterList.style.display='none';setStatus('');
   $('doctorGrid').innerHTML='<div class="empty">No roster parsed yet</div>';
@@ -5888,8 +6105,8 @@ function buildPreview(doctorName,targetMonth,targetYear){
   </div>
   <div class="preview-wrapper"><table class="preview-table ${isConsultantMode2?'pt-ext':'pt-std'}">
   ${isConsultantMode2
-    ? '<thead><tr><th style="width:36px">Date</th><th style="width:70px">Day</th><th style="width:150px">Type</th><th style="width:60px">Norm From</th><th style="width:60px">Norm To</th><th style="width:60px">OT1 From</th><th style="width:60px">OT1 To</th><th style="width:60px">OT2 From</th><th style="width:60px">OT2 To</th><th style="width:46px;text-align:center">Act</th></tr></thead>'
-    : '<thead><tr><th style="width:36px">Date</th><th style="width:70px">Day</th><th style="width:140px">Type</th><th style="width:70px">Normal From</th><th style="width:70px">Normal To</th><th style="width:70px">OT From</th><th style="width:70px">OT To</th><th style="width:76px;text-align:center">Actions</th></tr></thead>'
+    ? '<thead><tr><th style="width:36px">Date</th><th style="width:70px">Day</th><th style="width:150px">Type</th><th style="width:60px">Norm From</th><th style="width:60px">Norm To</th><th style="width:60px">OT1 From</th><th style="width:60px">OT1 To</th><th style="width:60px">OT2 From</th><th style="width:60px">OT2 To</th><th style="width:46px;text-align:center"><span class="act-head" role="img" aria-label="Actions"></span></th></tr></thead>'
+    : '<thead><tr><th style="width:36px">Date</th><th style="width:70px">Day</th><th style="width:140px">Type</th><th style="width:70px">Normal From</th><th style="width:70px">Normal To</th><th style="width:70px">OT From</th><th style="width:70px">OT To</th><th style="width:76px;text-align:center"><span class="act-head" role="img" aria-label="Actions"></span></th></tr></thead>'
   }<tbody>`;
 
   for(let d=1;d<=daysInMonth;d++){
@@ -5920,22 +6137,17 @@ function buildPreview(doctorName,targetMonth,targetYear){
         html+=`<tr data-day="${d}" class="${rowClass}">
           ${dateCell}${dayCell}
           <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isWE,!!phName,selectedType)}</select></td>
-          <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es.nf||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es.nt||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          ${timeCell(d,'nf',es.nf)}${timeCell(d,'nt',es.nt)}
+          ${timeCell(d,'ot1f',es.ot1f)}${timeCell(d,'ot1t',es.ot1t)}
+          ${timeCell(d,'ot2f',es.ot2f)}${timeCell(d,'ot2t',es.ot2t)}
           <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button></td>
         </tr>`;
       } else {
         html+=`<tr data-day="${d}" class="${rowClass}">
           ${dateCell}${dayCell}
           <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isWE,!!phName,selectedType)}</select></td>
-          <td><input class="time-edit" data-day="${d}" data-field="nf" value="${es.nf||''}" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="nt" value="${es.nt||''}" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="of" value="${es.of||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-          <td><input class="time-edit" data-day="${d}" data-field="ot" value="${es.ot||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+          ${timeCell(d,'nf',es.nf)}${timeCell(d,'nt',es.nt)}
+          ${timeCell(d,'of',es.of)}${timeCell(d,'ot',es.ot)}
           <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button></td>
         </tr>`;
       }
@@ -5984,22 +6196,17 @@ function makeRowInner(d,isWE,phName,dayName,es){
     ${dateCell}
     ${dayCell}
     <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isWE,!!phName,selectedType)}</select></td>
-    <td><input class="time-edit" data-day="${d}" data-field="nf"   value="${es?.nf||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="nt"   value="${es?.nt||''}"   placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot1f" value="${es?.ot1f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot1t" value="${es?.ot1t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot2f" value="${es?.ot2f||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot2t" value="${es?.ot2t||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    ${timeCell(d,'nf',es?.nf)}${timeCell(d,'nt',es?.nt)}
+    ${timeCell(d,'ot1f',es?.ot1f)}${timeCell(d,'ot1t',es?.ot1t)}
+    ${timeCell(d,'ot2f',es?.ot2f)}${timeCell(d,'ot2t',es?.ot2t)}
     <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${isDayEdited(d)?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
   }
   return `
     ${dateCell}
     ${dayCell}
     <td><select class="type-select" data-day="${d}" data-is-special="${isSpecial?1:0}">${typeOptsFor(isWE,!!phName,selectedType)}</select></td>
-    <td><input class="time-edit" data-day="${d}" data-field="nf" value="${es?.nf||''}" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="nt" value="${es?.nt||''}" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="of" value="${es?.of||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
-    <td><input class="time-edit" data-day="${d}" data-field="ot" value="${es?.ot||''}" placeholder="\u2014" maxlength="5" inputmode="numeric"></td>
+    ${timeCell(d,'nf',es?.nf)}${timeCell(d,'nt',es?.nt)}
+    ${timeCell(d,'of',es?.of)}${timeCell(d,'ot',es?.ot)}
     <td class="action-cell"><button class="row-clear" data-day="${d}" title="Remove">&times;</button>${isDayEdited(d)?`<button class="row-undo" data-day="${d}" title="Undo">&#8635;</button>`:''}</td>`;
 }
 
@@ -6075,33 +6282,24 @@ function attachEditHandlers(){
         if(!state.editedShifts[d]) state.editedShifts[d]={nf:'',nt:'',of:null,ot:null,label:'Custom',typeLabel:'WD Shift - 08H00',isWE:false};
         if(state.editedShifts[d][field]!==normalised){
           state.editedShifts[d][field]=normalised;
-          // Auto-adjust norm-to and OT-from when norm-from changes on a non-special weekday
-          if(field==='nf'){
-            const _dateObj=new Date(state.previewYear,state.previewMonth,d);
-            const _isWE=_dateObj.getDay()===0||_dateObj.getDay()===6;
-            const _isPH=state.phMap&&state.phMap.has(d);
-            if(!_isWE&&!_isPH){
-              const hm=normalised.match(/^(\d{2})H(\d{2})$/);
-              if(hm){
-                const totalMins=parseInt(hm[1])*60+parseInt(hm[2])+480;
-                const newNt=String(Math.floor(totalMins/60)%24).padStart(2,'0')+'H'+String(totalMins%60).padStart(2,'0');
-                state.editedShifts[d].nt=newNt;
-                const isConsMode=isExtendedRosterMode();
-                const otFromField=isConsMode?'ot1f':'of';
-                state.editedShifts[d][otFromField]=newNt;
-                const row=document.querySelector('[data-day="'+d+'"]');
-                if(row) row.querySelectorAll('.time-edit').forEach(inp=>{
-                  if(inp.dataset.field==='nt'){inp.value=newNt;inp.style.borderColor='';}
-                  if(inp.dataset.field===otFromField){inp.value=newNt;inp.style.borderColor='';}
-                });
-              }
-            }
-          }
-          applyBandSync(d,syncFollowingBand(d,field,normalised),normalised);
+          const also=field==='nf'?applyEightHourDay(d):[];
+          const derived=isExtendedRosterMode()
+            ? syncDerivedBands(d)
+            : syncFollowingBand(d,field,normalised);
+          applyRowFields(d,[...also,...derived]);
+          // A call and the morning it ends into are one instant in two boxes.
+          syncOvernightHandover(d,field);
           markDirty(d);}
       } else if(val===''){
         fresh.style.borderColor='';
-        if(state.editedShifts[d]&&state.editedShifts[d][field]!==null){state.editedShifts[d][field]=null;markDirty(d);}
+        const es=state.editedShifts[d];
+        if(es&&es[field]!==null&&es[field]!==''){
+          es[field]=null;
+          // Emptying the end of a band gives its start back; clearing is not
+          // an overlap, so it is not handed to the day next door.
+          applyRowFields(d,syncDerivedBands(d));
+          markDirty(d);
+        }
       } else {fresh.style.borderColor='var(--color-danger)';fresh.title='Format: HHH00 (e.g. 08H00)';}
     });
   });
@@ -7279,6 +7477,7 @@ function addConsultantFiles(files) {
   state.consultantData = null;
   state.consultantFileCount = 0;
   state.consultantFileErrors = [];
+  state.consultantFileMonths = {};
   renderConsultantList();
   if (state.consultantFiles.length) {
     $('parseBtn').disabled = false;
@@ -7292,6 +7491,7 @@ function removeConsultantFile(name) {
   state.consultantData = null;
   state.consultantFileCount = 0;
   state.consultantFileErrors = [];
+  state.consultantFileMonths = {};
   renderConsultantList();
   if (!state.pendingFiles.length && !state.consultantFiles?.length) {
     $('parseBtn').disabled = true;
@@ -7306,6 +7506,7 @@ function setConsultantFile(file) {
   state.consultantData = null;
   state.consultantFileCount = 0;
   state.consultantFileErrors = [];
+  state.consultantFileMonths = {};
   renderConsultantList();
   if (!state.pendingFiles.length) {
     if ($('parseBtn')) $('parseBtn').disabled = true;
@@ -7334,6 +7535,9 @@ async function parseAndStoreConsultantRoster() {
   // parsed, and the ones that did not have to be named.
   let okFiles = 0;
   const failedFiles = [];
+  // Which month each file turned out to hold, so the viewer can open the one
+  // the schedule on screen came from rather than whichever sorted first.
+  const fileMonths = {};
 
   for (const cFile of filesToParse) {
     try {
@@ -7367,6 +7571,7 @@ async function parseAndStoreConsultantRoster() {
       lastDetectedMonth = detectedMonth;
       lastDetectedYear  = year;
       okFiles++;
+      fileMonths[cFile.name] = detectedMonth;
     } catch(err) {
       console.error('[Consultant] Parse error for', cFile.name, err);
       failedFiles.push(cFile.name);
@@ -7376,6 +7581,7 @@ async function parseAndStoreConsultantRoster() {
   state.consultantData = { days: allDays, doctors: allDoctors };
   state.consultantFileCount  = okFiles;
   state.consultantFileErrors = failedFiles;
+  state.consultantFileMonths = fileMonths;
 
   // Merge into main rosterData
   if (state.rosterData && state.parsedFiles.length) {
@@ -7804,9 +8010,18 @@ function rosterViewFiles(){
   // app had just parsed and drawn a month from. With more than one, the
   // picker at the top of the panel already lets you choose between them, and
   // a consultant roster is named by its month.
-  const dept = (state.parsedFiles || []).filter(f => f && f.file);
+  //
+  // Each entry carries the month it holds, so the panel can open on the one
+  // the schedule behind it came from. A department file's days were already
+  // filtered to a single month when it was parsed; a consultant file's month
+  // was read off its title line and kept by name.
+  const months = state.consultantFileMonths || {};
+  const dept = (state.parsedFiles || []).filter(f => f && f.file)
+    .map(f => ({ name: f.name, file: f.file, days: f.days,
+                 month: (f.days && f.days.length) ? f.days[0].month : null }));
   const cons = (state.consultantFiles || []).filter(Boolean)
-    .map(f => ({ name: f.name, file: f }));
+    .map(f => ({ name: f.name, file: f,
+                 month: months[f.name] === undefined ? null : months[f.name] }));
   return [...dept, ...cons];
 }
 async function renderRosterView(){
@@ -7909,6 +8124,19 @@ function rosterViewOpen(){
   if(pick){
     const files=rosterViewFiles();
     pick.innerHTML=files.map(f=>`<option>${String(f.name).replace(/</g,'&lt;')}</option>`).join('');
+    // Open on the month that is on screen. Rebuilding the options resets the
+    // selection to the first file, so nine months of consultant roster always
+    // opened on April however long you had been reading May — the panel is
+    // there to be checked against the schedule, and the wrong month is worse
+    // than no panel at all.
+    const want = state.previewMonth != null && state.editedShifts
+                 && Object.keys(state.editedShifts).length
+      ? state.previewMonth
+      : (()=>{ const v=$('monthSelect'); return v&&v.value!==''?parseInt(v.value):null; })();
+    if(want!=null){
+      const i=files.findIndex(f=>f.month===want);
+      if(i>=0) pick.selectedIndex=i;
+    }
   }
   const find=$('rosterViewFind');
   if(find) find.value=state.selectedDoctor||'';
@@ -8095,6 +8323,23 @@ document.addEventListener('click', e => {
 
 document.addEventListener('change', e => {
   if (e.target && e.target.id === 'rosterViewPick') renderRosterView();
+});
+
+// The × inside a time box. Delegated, because attachEditHandlers replaces
+// every .time-edit node with a clone and a listener bound to the button
+// itself would go with the row it was rendered into.
+document.addEventListener('click', e => {
+  const btn = e.target && e.target.closest && e.target.closest('.time-clear');
+  if (!btn) return;
+  const d = parseInt(btn.dataset.day), field = btn.dataset.field;
+  const inp = btn.parentNode.querySelector('.time-edit');
+  if (inp) { inp.value = ''; inp.style.borderColor = ''; inp.title = ''; }
+  const es = state.editedShifts[d];
+  if (es && es[field] !== null && es[field] !== '') {
+    es[field] = null;
+    applyRowFields(d, syncDerivedBands(d));
+    markDirty(d);
+  }
 });
 
 // ── Moving the viewer out of the way ───────────────────────────────────────
